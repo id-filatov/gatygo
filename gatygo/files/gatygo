@@ -1,0 +1,7 @@
+#!/bin/sh
+# gatygo CLI. Usage: gatygo version   (start|stop|restart|update|select|status|cron-sync come in Task 8)
+GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
+case ${1:-} in
+	version) cat "$GATYGO_LIB/version" ;;
+	*) echo "usage: gatygo version" >&2; exit 1 ;;
+esac

@@ -4,3 +4,4 @@ graphify-out/
 .planning/
 private/
 *.apk
+bin/
