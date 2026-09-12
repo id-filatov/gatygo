@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Profile-Title: plain title
+Profile-Update-Interval: 0
+ROUTING: app://routing/add/@@notbase64@@
+Subscription-Userinfo: download=5
+X-HWID-Not-Supported: true
+

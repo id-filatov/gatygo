@@ -1,0 +1,10 @@
+HTTP/2 200 
+content-type: application/json
+profile-title: base64:RXhhbXBsZSBWUE4=
+profile-update-interval: 3
+subscription-userinfo: upload=1024; download=123456789; total=0; expire=1767225600
+announce: base64:UGxhbm5lZCBtYWludGVuYW5jZSDigJQgdXNlIGNvZGUgJ0dPJyDinJM=
+routing: app://routing/add/eyJHZW9zaXRldXJsIjoiaHR0cHM6Ly9nZW8uZXhhbXBsZS5jb20vZ2Vvc2l0ZS5kYXQiLCJHZW9pcHVybCI6Imh0dHBzOi8vZ2VvLmV4YW1wbGUuY29tL2dlb2lwLmRhdCIsIlJlbW90ZUROU1R5cGUiOiJEb0giLCJEb21haW5TdHJhdGVneSI6IklQSWZOb25NYXRjaCJ9
+manual-block-user-agent: true
+per-app-proxy-list: base64:e30=
+
