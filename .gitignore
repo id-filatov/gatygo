@@ -1,0 +1,6 @@
+.DS_Store
+.graphifyignore
+graphify-out/
+.planning/
+private/
+*.apk

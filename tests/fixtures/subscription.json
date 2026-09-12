@@ -1,0 +1,6196 @@
+[
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "expected": 3,
+              "baselines": [
+                "150ms",
+                "300ms"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-1.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-2.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-3.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-4.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-5",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-5.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-6",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-6.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-7",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-7.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-8",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-8.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-9",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-1.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-10",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-2.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-11",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-3.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-12",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-4.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-13",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-5.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-14",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-6.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-15",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-7.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-16",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-8.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-17",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-1.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-18",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-2.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-19",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-3.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-20",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-4.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-21",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-5.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-22",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-6.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-23",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-7.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-24",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-8.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "🌐 Auto",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    },
+    "meta": {
+      "serverDescription": "Best server across all locations"
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "maxRTT": "5s",
+              "expected": 2,
+              "baselines": [
+                "1s"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "grpcSettings": {
+            "serviceName": "grpc",
+            "authority": "",
+            "mode": false
+          },
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-1.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "grpcSettings": {
+            "serviceName": "grpc",
+            "authority": "",
+            "mode": false
+          },
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "grpcSettings": {
+            "serviceName": "grpc",
+            "authority": "",
+            "mode": false
+          },
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-3.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "🌐 Mobile",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    },
+    "meta": {
+      "serverDescription": "For mobile networks"
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastPing"
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-7.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-5",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-6",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "🌐 Streaming",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    },
+    "meta": {
+      "serverDescription": "Streaming-friendly servers"
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "expected": 3,
+              "baselines": [
+                "150ms",
+                "300ms"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Alpha",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "maxRTT": "5s",
+              "expected": 2,
+              "baselines": [
+                "1s"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-7.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-5",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-6",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-7",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-8",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Bravo",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastPing"
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-7.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Charlie",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "expected": 3,
+              "baselines": [
+                "150ms",
+                "300ms"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-5",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-6",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Delta",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "maxRTT": "5s",
+              "expected": 2,
+              "baselines": [
+                "1s"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "grpcSettings": {
+            "serviceName": "grpc",
+            "authority": "",
+            "mode": false
+          },
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "grpc",
+          "grpcSettings": {
+            "serviceName": "grpc",
+            "authority": "",
+            "mode": false
+          },
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-7.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Echo",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastPing"
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-5",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-6",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Foxtrot",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "expected": 3,
+              "baselines": [
+                "150ms",
+                "300ms"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-7.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Golf",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "maxRTT": "5s",
+              "expected": 2,
+              "baselines": [
+                "1s"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Hotel",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastPing"
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-4.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 India",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "balancerTag": "balancer"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "balancerTag": "balancer"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch",
+      "balancers": [
+        {
+          "tag": "balancer",
+          "selector": [
+            "proxy"
+          ],
+          "strategy": {
+            "type": "leastLoad",
+            "settings": {
+              "expected": 3,
+              "baselines": [
+                "150ms",
+                "300ms"
+              ],
+              "tolerance": 0.3
+            }
+          },
+          "fallbackTag": "proxy"
+        }
+      ]
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-6.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-2",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-11.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-7.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "proxy-3",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-12.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-8.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "proxy-4",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-1.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Juliett",
+    "burstObservatory": {
+      "subjectSelector": [
+        "proxy"
+      ],
+      "pingConfig": {
+        "destination": "https://probe.example.com/generate_204",
+        "connectivity": "",
+        "interval": "1m",
+        "sampling": 2,
+        "timeout": "3s"
+      }
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-2.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-2.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "⬇️ Router profiles",
+    "meta": {
+      "serverDescription": "Profiles below are for routers"
+    }
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-3.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-3.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "🌐 Streaming | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-4.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-4.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Alpha | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-5.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-5.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Bravo | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-6.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-6.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Charlie | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-7.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "tcpSettings": {},
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node-7.example.net",
+            "publicKey": "TaZ1t7htFxYjbxXzkFQz_vdueb-SBrgL_-SEcvgMdEw",
+            "shortId": "0123456789abcdef",
+            "fingerprint": "chrome"
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Delta | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-8.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-8.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Echo | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-9.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-1.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Foxtrot | Router"
+  },
+  {
+    "dns": {
+      "hosts": {
+        "portal.example.org": "192.0.2.10"
+      },
+      "servers": [
+        {
+          "address": "https://1.1.1.1/dns-query",
+          "queryStrategy": "UseIPv4"
+        },
+        {
+          "address": "https://9.9.9.9/dns-query",
+          "domains": [
+            "geosite:local"
+          ],
+          "queryStrategy": "UseIPv4"
+        }
+      ],
+      "queryStrategy": "UseIPv4"
+    },
+    "routing": {
+      "rules": [
+        {
+          "type": "field",
+          "domain": [
+            "geosite:ads"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "block"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:streaming",
+            "domain:video.example.com"
+          ],
+          "outboundTag": "proxy"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "geoip:private",
+            "geoip:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "9.9.9.9"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "geosite:private",
+            "geosite:local"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "network": "tcp,udp",
+          "outboundTag": "proxy"
+        }
+      ],
+      "domainMatcher": "hybrid",
+      "domainStrategy": "IPIfNonMatch"
+    },
+    "inbounds": [
+      {
+        "tag": "socks",
+        "port": 10808,
+        "listen": "127.0.0.1",
+        "protocol": "socks",
+        "settings": {
+          "udp": true,
+          "auth": "noauth"
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      },
+      {
+        "tag": "http",
+        "port": 10809,
+        "listen": "127.0.0.1",
+        "protocol": "http",
+        "settings": {
+          "allowTransparent": false
+        },
+        "sniffing": {
+          "enabled": true,
+          "routeOnly": false,
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ]
+        }
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "relay-10.example.com",
+              "port": 443,
+              "users": [
+                {
+                  "id": "00000000-0000-4000-8000-000000000000",
+                  "encryption": "none",
+                  "flow": ""
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "xhttpSettings": {
+            "mode": "packet-up",
+            "host": "",
+            "path": "/xhttp/",
+            "extra": {
+              "xPaddingBytes": "100-1000",
+              "noGRPCHeader": false,
+              "xmux": {
+                "maxConcurrency": "16-32",
+                "maxConnections": 0
+              }
+            }
+          },
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "node-2.example.net",
+            "fingerprint": "chrome",
+            "alpn": [
+              "h2",
+              "http/1.1"
+            ]
+          }
+        }
+      },
+      {
+        "tag": "direct",
+        "protocol": "freedom"
+      },
+      {
+        "tag": "block",
+        "protocol": "blackhole"
+      }
+    ],
+    "remarks": "📍 Golf | Router"
+  }
+]
