@@ -2,21 +2,24 @@
 # Minimal `uci` emulation for unit tests. State file: $UCI_STUB_FILE, one "key=value" per line;
 # list options are repeated keys. Supported: [-q] get KEY | set KEY=VAL | add_list KEY=VAL |
 # delete KEY | commit [pkg] | show PREFIX. Real uci prints a list as space-separated values.
+# Keys are matched literally: they contain '.', '@' and '[0]', which are regex metacharacters.
 f=${UCI_STUB_FILE:?UCI_STUB_FILE not set}
 touch "$f"
 [ "$1" = -q ] && shift
+_lines()  { awk -v k="$1=" 'index($0, k) == 1' "$f"; }   # every "KEY=value" line
+_others() { awk -v k="$1=" 'index($0, k) != 1' "$f"; }   # every other line
 case $1 in
     get)
-        v=$(grep "^$2=" "$f" | cut -d= -f2- | tr '\n' ' ')
+        v=$(_lines "$2" | cut -d= -f2- | tr '\n' ' ')
         v=${v% }
         [ -n "$v" ] || { echo "uci: Entry not found" >&2; exit 1; }
         printf '%s\n' "$v" ;;
     set)
         k=${2%%=*}; v=${2#*=}
-        grep -v "^$k=" "$f" > "$f.tmp"; echo "$k=$v" >> "$f.tmp"; mv "$f.tmp" "$f" ;;
+        { _others "$k"; echo "$k=$v"; } > "$f.tmp"; mv "$f.tmp" "$f" ;;
     add_list) echo "$2" >> "$f" ;;
-    delete) grep -v "^$2=" "$f" > "$f.tmp"; mv "$f.tmp" "$f" ;;
+    delete) _others "$2" > "$f.tmp"; mv "$f.tmp" "$f" ;;
     commit) ;;
-    show) grep "^$2" "$f" ;;
+    show) awk -v p="$2" 'index($0, p) == 1' "$f" ;;
     *) echo "uci stub: unsupported: $*" >&2; exit 1 ;;
 esac

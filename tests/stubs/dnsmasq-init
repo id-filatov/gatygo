@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for /etc/init.d/dnsmasq in unit tests: records the action it was asked for.
+echo "$1" >> "${GATYGO_DNSMASQ_LOG:?}"
+exit 0

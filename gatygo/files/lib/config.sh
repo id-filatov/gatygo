@@ -18,6 +18,12 @@ gatygo_cfg() {
     printf '%s\n' "${_gatygo_v:-$2}"
 }
 
+# _gatygo_env_get FILE VAR — value of VAR from a *.env file we wrote ourselves (one
+# VAR='value' line per variable, quoted by gatygo_shquote). Parsed with sed: no eval, no sourcing.
+_gatygo_env_get() {
+    sed -n "s/^$2='\(.*\)'\$/\1/p" "$1" 2>/dev/null | head -n 1 | sed "s/'\\\\''/'/g"
+}
+
 # gatygo_os_version — DISTRIB_RELEASE of the running OpenWrt (x-ver-os header)
 gatygo_os_version() {
     sed -n "s/^DISTRIB_RELEASE='\(.*\)'/\1/p" "$GATYGO_SYSROOT/etc/openwrt_release" 2>/dev/null

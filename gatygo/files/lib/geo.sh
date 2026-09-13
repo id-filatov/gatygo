@@ -6,12 +6,6 @@
 
 _gatygo_is_url() { case $1 in http://?* | https://?*) return 0 ;; *) return 1 ;; esac; }
 
-# _gatygo_env_get FILE VAR — value of VAR from a *.env file we wrote ourselves (one
-# VAR='value' line per variable, quoted by gatygo_shquote). Parsed with sed: no eval, no sourcing.
-_gatygo_env_get() {
-    sed -n "s/^$2='\(.*\)'\$/\1/p" "$1" 2>/dev/null | head -n 1 | sed "s/'\\\\''/'/g"
-}
-
 # gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL": header → cache → built-in defaults.
 gatygo_geo_urls() {
     _gatygo_gs='' _gatygo_gi=''
