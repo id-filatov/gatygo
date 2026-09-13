@@ -1,10 +1,79 @@
 #!/bin/sh /etc/rc.common
-# gatygo: xray-core with a subscription profile + transparent proxy (procd)
+# gatygo: xray-core with a subscription profile + transparent proxy for the LAN.
+# procd owns the xray process; the side effects around it (nft table, dnsmasq settings,
+# cron line) are applied once xray runs and removed on stop. `reload` re-submits the
+# instance: procd restarts xray only when xray.json or a geo file changed.
 START=95
 STOP=10
 USE_PROCD=1
 
+GATYGO_LIB=/usr/lib/gatygo
+
+_gatygo_env() {
+	. "$GATYGO_LIB/config.sh"
+	. "$GATYGO_LIB/firewall.sh"
+	. "$GATYGO_LIB/dns.sh"
+	. "$GATYGO_LIB/service.sh"
+	gatygo_load_config
+}
+
 start_service() {
-	[ "$(uci -q get gatygo.main.enabled)" = 1 ] || return 0
-	echo "gatygo: not implemented yet" >&2
+	_gatygo_env
+	[ "$GATYGO_ENABLED" = 1 ] || return 0
+	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
+	chmod 700 "$GATYGO_STATE"
+	if [ ! -s "$GATYGO_STATE/xray.json" ]; then
+		gatygo_log info "no cached config yet, downloading the subscription"
+		gatygo_dns_restore
+		/usr/bin/gatygo update || {
+			gatygo_log error "cannot start without a config"
+			return 1
+		}
+	fi
+	procd_open_instance xray
+	procd_set_param command /usr/bin/xray run -c "$GATYGO_STATE/xray.json"
+	procd_set_param env XRAY_LOCATION_ASSET="$GATYGO_ASSETS"
+	procd_set_param file "$GATYGO_STATE/xray.json" "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
+	procd_set_param respawn 3600 5 5
+	procd_set_param limits nofile="65535 65535"
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+service_started() {
+	_gatygo_env
+	[ "$GATYGO_ENABLED" = 1 ] || return 0
+	# procd spawns the instance asynchronously: give it a few seconds to show up as running
+	_gatygo_i=0
+	while ! gatygo_xray_running; do
+		_gatygo_i=$((_gatygo_i + 1))
+		[ "$_gatygo_i" -lt 10 ] || return 0
+		sleep 0.5
+	done
+	gatygo_fw_apply
+	gatygo_dns_apply "$GATYGO_STATE/xray.json"
+	gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	# One background refresh per boot: the tunnel is already up on the cached config.
+	if [ ! -f "$GATYGO_RUN/boot-update-done" ]; then
+		touch "$GATYGO_RUN/boot-update-done"
+		(
+			sleep 30
+			/usr/bin/gatygo update
+		) >/dev/null 2>&1 &
+	fi
+}
+
+stop_service() {
+	_gatygo_env
+	gatygo_dns_restore
+	gatygo_fw_remove
+	gatygo_cron_remove
+}
+
+reload_service() {
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger "gatygo"
 }

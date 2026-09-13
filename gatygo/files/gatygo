@@ -1,7 +1,108 @@
 #!/bin/sh
-# gatygo CLI. Usage: gatygo version   (start|stop|restart|update|select|status|cron-sync come in Task 8)
+# gatygo command line. The service itself is /etc/init.d/gatygo (procd).
+#   gatygo start|stop|restart        service control
+#   gatygo update                    run the subscription update cycle now
+#   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
+#   gatygo status                    JSON for scripts and the LuCI page
+#   gatygo cron-sync                 re-create the periodic update line
+#   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
+. "$GATYGO_LIB/config.sh"
+
+usage() {
+	echo "usage: gatygo start|stop|restart|update|select <profile>|status|cron-sync|version" >&2
+	exit 1
+}
+
+cmd_update() {
+	. "$GATYGO_LIB/update.sh"
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/dns.sh"
+	gatygo_load_config
+	gatygo_log_rotate
+	# without xray the router's own DNS must not point at xray (design decision 2)
+	gatygo_xray_running || gatygo_dns_restore
+	gatygo_update
+	_rc=$?
+	if gatygo_xray_running; then
+		gatygo_load_config
+		gatygo_dns_apply "$GATYGO_STATE/xray.json"
+		gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	fi
+	return $_rc
+}
+
+cmd_select() {
+	[ -n "$1" ] || usage
+	. "$GATYGO_LIB/update.sh"
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/dns.sh"
+	uci set gatygo.main.profile="$1" && uci commit gatygo
+	gatygo_load_config
+	[ -s "$GATYGO_STATE/subscription.json" ] || {
+		gatygo_result error "no cached subscription; run 'gatygo update' first"
+		return 1
+	}
+	_stage=$(mktemp -d)
+	_prof=$(gatygo_apply_profile "$GATYGO_STATE/subscription.json" "$_stage")
+	_rc=$?
+	rm -rf "$_stage"
+	_changed=0
+	[ "$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)" = changed ] && _changed=1
+	case $_rc in
+	1)
+		gatygo_result error "profile '$1' could not be applied; keeping the current config"
+		return 1
+		;;
+	3) gatygo_result warning "profile '$1' is not in the subscription; using '$_prof'" "$_prof" "$_changed" ;;
+	*) gatygo_result ok "profile applied" "$_prof" "$_changed" ;;
+	esac
+	if [ "$_changed" = 1 ] && gatygo_xray_running; then
+		gatygo_dns_apply "$GATYGO_STATE/xray.json"
+		_gatygo_reload
+	fi
+	printf '%s\n' "$_prof"
+}
+
+cmd_status() {
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/subscription.sh"
+	gatygo_load_config
+	_running=false
+	gatygo_xray_running && _running=true
+	_profiles='[]'
+	[ -s "$GATYGO_STATE/subscription.json" ] && _profiles=$(gatygo_sub_profiles "$GATYGO_STATE/subscription.json")
+	(
+		[ -f "$GATYGO_STATE/headers.env" ] && . "$GATYGO_STATE/headers.env"
+		[ -f "$GATYGO_RUN/last-update.env" ] && . "$GATYGO_RUN/last-update.env"
+		jq -n --argjson running "$_running" --arg pid "$(gatygo_xray_pid)" --arg version "$GATYGO_VERSION" \
+			--arg profile "$GATYGO_PROFILE" --arg used "${PROFILE:-}" --argjson profiles "$_profiles" \
+			--arg title "${GATYGO_PROFILE_TITLE:-}" --arg announce "${GATYGO_ANNOUNCE:-}" \
+			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
+			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
+			--arg result "${RESULT:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
+			--arg maxdev "${GATYGO_HWID_MAX_DEVICES:-0}" --arg notsup "${GATYGO_HWID_NOT_SUPPORTED:-0}" \
+			--arg geosite "$(stat -c %Y "$GATYGO_ASSETS/geosite.dat" 2>/dev/null)" \
+			--arg geoip "$(stat -c %Y "$GATYGO_ASSETS/geoip.dat" 2>/dev/null)" \
+			'{running: $running, pid: $pid, version: $version, profile: $profile, profile_used: $used,
+			  profiles: $profiles, title: $title, announce: $announce,
+			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},
+			  last_update: {result: $result, time: $time, message: $message},
+			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
+			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup}}'
+	)
+}
+
 case ${1:-} in
-	version) cat "$GATYGO_LIB/version" ;;
-	*) echo "usage: gatygo version" >&2; exit 1 ;;
+start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
+update) cmd_update ;;
+select) cmd_select "$2" ;;
+status) cmd_status ;;
+cron-sync)
+	. "$GATYGO_LIB/service.sh"
+	gatygo_load_config
+	gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	;;
+version) cat "$GATYGO_LIB/version" ;;
+*) usage ;;
 esac

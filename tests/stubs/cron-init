@@ -1,0 +1,4 @@
+#!/bin/sh
+# Stand-in for /etc/init.d/cron in unit tests: records the action it was asked for.
+echo "$1" >> "${GATYGO_CRON_LOG:?}"
+exit 0
