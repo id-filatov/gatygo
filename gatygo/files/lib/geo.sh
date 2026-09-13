@@ -31,7 +31,7 @@ gatygo_geo_urls() {
 gatygo_geo_due() {
     for _gatygo_n in geosite.dat geoip.dat; do
         [ -f "$GATYGO_ASSETS/$_gatygo_n" ] || return 0
-        [ $(( $(date +%s) - $(stat -c %Y "$GATYGO_ASSETS/$_gatygo_n") )) -lt 86400 ] || return 0
+        [ $(( $(date +%s) - $(date -r "$GATYGO_ASSETS/$_gatygo_n" +%s) )) -lt 86400 ] || return 0
     done
     return 1
 }

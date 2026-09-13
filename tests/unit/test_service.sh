@@ -39,7 +39,7 @@ assert_eq "" "$(cat "$GATYGO_CRON_LOG")" "remove without our line is a no-op"
 # --- log rotation: >512 KB -> last 256 KB kept, in place
 head -c 600000 /dev/zero | tr '\0' 'x' > "$GATYGO_LOG"; printf '\nLAST LINE\n' >> "$GATYGO_LOG"
 gatygo_log_rotate
-_size=$(stat -c %s "$GATYGO_LOG")
+_size=$(wc -c < "$GATYGO_LOG")
 assert_exit 0 "log truncated to at most 256 KB" test "$_size" -le 262144
 assert_eq "LAST LINE" "$(tail -n 1 "$GATYGO_LOG")" "tail of the log kept"
 printf 'small\n' > "$GATYGO_LOG"; gatygo_log_rotate

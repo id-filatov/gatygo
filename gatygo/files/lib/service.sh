@@ -57,7 +57,7 @@ gatygo_cron_remove() {
 # xray's open file descriptor (O_APPEND) keeps working
 gatygo_log_rotate() {
     [ -f "$GATYGO_LOG" ] || return 0
-    [ "$(stat -c %s "$GATYGO_LOG")" -gt 524288 ] || return 0
+    [ "$(wc -c < "$GATYGO_LOG")" -gt 524288 ] || return 0
     tail -c 262144 "$GATYGO_LOG" > "$GATYGO_LOG.tmp" && cat "$GATYGO_LOG.tmp" > "$GATYGO_LOG"
     rm -f "$GATYGO_LOG.tmp"
 }

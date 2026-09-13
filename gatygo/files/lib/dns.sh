@@ -5,10 +5,13 @@
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
-# gatygo_relay_hosts XRAY_JSON — unique outbound server host names (IP literals skipped), one per line
+# gatygo_relay_hosts XRAY_JSON — unique outbound server host names (IP literals skipped), one per line.
+# No jq regex functions: OpenWrt's `jq` package is built without oniguruma (only `jq-full` has it).
+# An IPv4 literal is a string of digits and dots (codepoints 48-57 and 46); IPv6 contains ':'.
 gatygo_relay_hosts() {
     jq -r '[.outbounds[].settings.vnext[]?.address // empty
-            | select(test("^[0-9.]+$") | not) | select(contains(":") | not)] | unique | .[]' "$1"
+            | select((explode | all(. == 46 or (. >= 48 and . <= 57))) | not)
+            | select(contains(":") | not)] | unique | .[]' "$1"
 }
 
 # gatygo_direct_dns — resolver for relay names: UCI direct_dns, else the WAN's first IPv4 DNS, else 1.1.1.1

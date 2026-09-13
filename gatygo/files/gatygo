@@ -82,8 +82,8 @@ cmd_status() {
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
 			--arg maxdev "${GATYGO_HWID_MAX_DEVICES:-0}" --arg notsup "${GATYGO_HWID_NOT_SUPPORTED:-0}" \
-			--arg geosite "$(stat -c %Y "$GATYGO_ASSETS/geosite.dat" 2>/dev/null)" \
-			--arg geoip "$(stat -c %Y "$GATYGO_ASSETS/geoip.dat" 2>/dev/null)" \
+			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
+			--arg geoip "$(date -r "$GATYGO_ASSETS/geoip.dat" +%s 2>/dev/null)" \
 			'{running: $running, pid: $pid, version: $version, profile: $profile, profile_used: $used,
 			  profiles: $profiles, title: $title, announce: $announce,
 			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},

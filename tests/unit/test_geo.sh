@@ -32,7 +32,7 @@ gatygo_geo_fetch http://127.0.0.1:8788/geo/geosite.dat http://127.0.0.1:8788/geo
 assert_eq "0" "$_rc" "first fetch stages files"
 assert_eq "$(sha256sum < "$FIXTURES/geo/geosite.dat")" "$(sha256sum < "$tmp/stage/geosite.dat")" "geosite staged intact"
 assert_eq "$(sha256sum < "$FIXTURES/geo/geoip.dat")" "$(sha256sum < "$tmp/stage/geoip.dat")" "geoip staged intact"
-assert_eq "$(stat -c %Y "$tmp/geo-src/geosite.dat")" "$(stat -c %Y "$tmp/stage/geosite.dat")" "Last-Modified becomes the file mtime"
+assert_eq "$(date -r "$tmp/geo-src/geosite.dat" +%s)" "$(date -r "$tmp/stage/geosite.dat" +%s)" "Last-Modified becomes the file mtime"
 
 # --- installed and fresh: not due, conditional GET gets 304, nothing staged
 cp -p "$tmp/stage/"*.dat "$GATYGO_ASSETS/"; rm -f "$tmp/stage/"*.dat
