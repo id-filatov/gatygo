@@ -1,0 +1,71 @@
+#!/bin/sh
+# Geo files for xray: where the URLs come from, conditional download,
+# staging so that new files are installed only after `xray run -test` accepted them.
+
+. "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
+
+_gatygo_is_url() { case $1 in http://?* | https://?*) return 0 ;; *) return 1 ;; esac; }
+
+# _gatygo_env_get FILE VAR — value of VAR from a *.env file we wrote ourselves (one
+# VAR='value' line per variable, quoted by gatygo_shquote). Parsed with sed: no eval, no sourcing.
+_gatygo_env_get() {
+    sed -n "s/^$2='\(.*\)'\$/\1/p" "$1" 2>/dev/null | head -n 1 | sed "s/'\\\\''/'/g"
+}
+
+# gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL": header → cache → built-in defaults.
+gatygo_geo_urls() {
+    _gatygo_gs='' _gatygo_gi=''
+    if [ -f "$1" ]; then
+        _gatygo_gs=$(_gatygo_env_get "$1" GATYGO_GEOSITE_URL)
+        _gatygo_gi=$(_gatygo_env_get "$1" GATYGO_GEOIP_URL)
+    fi
+    if _gatygo_is_url "$_gatygo_gs" && _gatygo_is_url "$_gatygo_gi"; then
+        {
+            echo "GATYGO_GEOSITE_URL=$(gatygo_shquote "$_gatygo_gs")"
+            echo "GATYGO_GEOIP_URL=$(gatygo_shquote "$_gatygo_gi")"
+        } > "$GATYGO_STATE/geo-urls.env.tmp" && mv "$GATYGO_STATE/geo-urls.env.tmp" "$GATYGO_STATE/geo-urls.env"
+    elif [ -f "$GATYGO_STATE/geo-urls.env" ]; then
+        _gatygo_gs=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOSITE_URL)
+        _gatygo_gi=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOIP_URL)
+    else
+        _gatygo_gs=$GATYGO_GEOSITE_DEFAULT _gatygo_gi=$GATYGO_GEOIP_DEFAULT
+    fi
+    printf '%s %s\n' "$_gatygo_gs" "$_gatygo_gi"
+}
+
+# gatygo_geo_due — exit 0 when geosite.dat/geoip.dat are missing or older than 24 hours
+gatygo_geo_due() {
+    for _gatygo_n in geosite.dat geoip.dat; do
+        [ -f "$GATYGO_ASSETS/$_gatygo_n" ] || return 0
+        [ $(( $(date +%s) - $(stat -c %Y "$GATYGO_ASSETS/$_gatygo_n") )) -lt 86400 ] || return 0
+    done
+    return 1
+}
+
+# gatygo_geo_fetch GEOSITE_URL GEOIP_URL STAGE_DIR — download changed files into STAGE_DIR.
+# Uses If-Modified-Since against the installed file and keeps the server's Last-Modified as mtime.
+# exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
+gatygo_geo_fetch() {
+    _gatygo_stage=$3 _gatygo_staged=0
+    for _gatygo_pair in "geosite.dat $1" "geoip.dat $2"; do
+        _gatygo_n=${_gatygo_pair%% *} _gatygo_u=${_gatygo_pair#* }
+        _gatygo_cur=$GATYGO_ASSETS/$_gatygo_n
+        if [ -f "$_gatygo_cur" ]; then
+            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' -R \
+                -z "$_gatygo_cur" -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
+        else
+            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' -R \
+                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
+        fi
+        case $_gatygo_code in
+            200)
+                [ -s "$_gatygo_stage/$_gatygo_n" ] || { gatygo_log error "geo: empty $_gatygo_n"; rm -f "$_gatygo_stage"/*.dat; return 1; }
+                _gatygo_staged=1 ;;
+            304) rm -f "$_gatygo_stage/$_gatygo_n" ;;
+            *)
+                gatygo_log error "geo: download of $_gatygo_n failed (HTTP ${_gatygo_code:-none})"
+                rm -f "$_gatygo_stage"/*.dat; return 1 ;;
+        esac
+    done
+    [ "$_gatygo_staged" = 1 ] && return 0 || return 3
+}
