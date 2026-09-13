@@ -1,0 +1,22 @@
+#!/bin/sh
+# Minimal `uci` emulation for unit tests. State file: $UCI_STUB_FILE, one "key=value" per line;
+# list options are repeated keys. Supported: [-q] get KEY | set KEY=VAL | add_list KEY=VAL |
+# delete KEY | commit [pkg] | show PREFIX. Real uci prints a list as space-separated values.
+f=${UCI_STUB_FILE:?UCI_STUB_FILE not set}
+touch "$f"
+[ "$1" = -q ] && shift
+case $1 in
+    get)
+        v=$(grep "^$2=" "$f" | cut -d= -f2- | tr '\n' ' ')
+        v=${v% }
+        [ -n "$v" ] || { echo "uci: Entry not found" >&2; exit 1; }
+        printf '%s\n' "$v" ;;
+    set)
+        k=${2%%=*}; v=${2#*=}
+        grep -v "^$k=" "$f" > "$f.tmp"; echo "$k=$v" >> "$f.tmp"; mv "$f.tmp" "$f" ;;
+    add_list) echo "$2" >> "$f" ;;
+    delete) grep -v "^$2=" "$f" > "$f.tmp"; mv "$f.tmp" "$f" ;;
+    commit) ;;
+    show) grep "^$2" "$f" ;;
+    *) echo "uci stub: unsupported: $*" >&2; exit 1 ;;
+esac
