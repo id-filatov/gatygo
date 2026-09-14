@@ -1,9 +1,12 @@
 #!/bin/bash
 # End-to-end check of the gatygo package on the lab VM. Run from the repo root:
 #   tests/vm/run.sh [gatygo.apk]
-# Needs: ssh alias `lab` with ~/lab/openwrt.sh, python3 on the lab host
-# for the mock panel, and FIXTURE (default tests/fixtures/subscription.json).
+# Needs: LAB_HOST, the ssh target of the machine running the OpenWrt VM, and LAB_DIR, a directory there
+# (relative to the remote home or absolute) with openwrt.sh providing `wait` and `ssh [args] CMD`; the
+# VM's ssh is forwarded to 127.0.0.1:2222 on that machine and reaches it as 10.0.2.2. The mock panel
+# runs there with python3. FIXTURE defaults to tests/fixtures/subscription.json.
 set -u
+: "${LAB_HOST:?set LAB_HOST to the ssh target of the lab host}" "${LAB_DIR:?set LAB_DIR to the lab directory there}"
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 APK=${1:-$(ls "$ROOT"/bin/packages/x86_64/gatygo/gatygo-*.apk 2>/dev/null | tail -n 1)}
 FIXTURE=${FIXTURE:-$ROOT/tests/fixtures/subscription.json}
@@ -14,22 +17,22 @@ pass=0; fail=0
 ok()  { pass=$((pass + 1)); echo "ok   - $1"; }
 bad() { fail=$((fail + 1)); echo "FAIL - $1"; }
 # vm CMD — run CMD inside the OpenWrt VM (quoted once for the lab host shell)
-vm()  { ssh lab "cd ~/lab && ./openwrt.sh ssh -o BatchMode=yes $(printf '%q' "$1")"; }
+vm()  { ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh ssh -o BatchMode=yes $(printf '%q' "$1")"; }
 # check MSG CMD — pass when CMD succeeds inside the VM
 check() { if vm "$2" >/dev/null 2>&1; then ok "$1"; else bad "$1"; fi; }
 # expect MSG EXPECTED CMD — pass when CMD's stdout inside the VM equals EXPECTED
 expect() { local got; got=$(vm "$3" 2>/dev/null); if [ "$got" = "$2" ]; then ok "$1"; else bad "$1 (got: $got)"; fi; }
 
 echo "== 0. lab: mock panel + files"
-scp -q "$APK" lab:lab/gatygo.apk
-scp -q "$FIXTURE" lab:lab/fixture.json
-scp -q "$ROOT/tests/mock/sub_server.py" lab:lab/sub_server.py
-ssh lab 'mkdir -p lab/geo' && scp -q "$ROOT"/tests/fixtures/geo/*.dat lab:lab/geo/
-ssh lab 'cd lab && pkill -f sub_server.py; nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
-             i=0; until curl -fs -o /dev/null localhost:8787/log; do i=$((i + 1)); [ $i -lt 20 ] || exit 1; sleep 0.5; done' \
+scp -q "$APK" "$LAB_HOST:$LAB_DIR/gatygo.apk"
+scp -q "$FIXTURE" "$LAB_HOST:$LAB_DIR/fixture.json"
+scp -q "$ROOT/tests/mock/sub_server.py" "$LAB_HOST:$LAB_DIR/sub_server.py"
+ssh "$LAB_HOST" "mkdir -p $LAB_DIR/geo" && scp -q "$ROOT"/tests/fixtures/geo/*.dat "$LAB_HOST:$LAB_DIR/geo/"
+ssh "$LAB_HOST" "cd $LAB_DIR && pkill -f sub_server.py; nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
+             i=0; until curl -fs -o /dev/null localhost:8787/log; do i=\$((i + 1)); [ \$i -lt 20 ] || exit 1; sleep 0.5; done" \
     && ok "mock panel up on the lab host" || bad "mock panel"
 # dropbear has no sftp server: force the legacy scp protocol
-ssh lab 'cd lab && ./openwrt.sh wait >/dev/null && scp -q -O -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR gatygo.apk root@127.0.0.1:/tmp/gatygo.apk'
+ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null && scp -q -O -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR gatygo.apk root@127.0.0.1:/tmp/gatygo.apk"
 # the VM's busybox has no `timeout`: /tmp/tmo SECS CMD... runs CMD and kills it after SECS
 vm 'printf "%s\n" "#!/bin/sh" "t=\$1; shift" "\"\$@\" & p=\$!" "( sleep \"\$t\"; kill \"\$p\" 2>/dev/null ) & w=\$!" "wait \"\$p\"; rc=\$?" "kill \"\$w\" 2>/dev/null" "exit \$rc" > /tmp/tmo && chmod +x /tmp/tmo'
 check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
@@ -103,7 +106,7 @@ echo "== 10. start again, reboot"
 vm '/etc/init.d/gatygo start; sleep 5'
 expect "running after start" "true" 'gatygo status | jq -r .running'
 vm 'reboot' >/dev/null 2>&1; sleep 5
-ssh lab 'cd lab && ./openwrt.sh wait >/dev/null' && sleep 15
+ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null" && sleep 15
 expect "running after reboot" "true" 'gatygo status | jq -r .running'
 check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 
@@ -112,6 +115,6 @@ vm '/etc/init.d/gatygo stop; apk del gatygo >/dev/null 2>&1; true'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
 
-ssh lab 'pkill -f sub_server.py; true'
+ssh "$LAB_HOST" 'pkill -f sub_server.py; true'
 echo "== $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

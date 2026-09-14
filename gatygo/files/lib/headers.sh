@@ -35,11 +35,11 @@ _gatygo_userinfo() {
     printf '%s' "$2" | tr ';' '\n' | sed -n "s/^[[:space:]]*$1=\([0-9]*\).*/\1/p" | head -n 1
 }
 
-# _gatygo_geo_url FIELD ROUTING — FIELD of the base64 JSON in "app://routing/add/<b64>" or nothing
+# _gatygo_geo_url FIELD ROUTING — FIELD of the base64 JSON in "<scheme>://routing/add/<b64>" or nothing
 _gatygo_geo_url() {
     case $2 in
-        app://routing/add/*)
-            printf '%s' "${2#app://routing/add/}" \
+        *://routing/add/*)
+            printf '%s' "${2#*://routing/add/}" \
                 | jq -Rr --arg f "$1" '@base64d | fromjson | .[$f] // empty' 2>/dev/null ;;
     esac
 }
