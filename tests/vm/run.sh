@@ -26,7 +26,8 @@ scp -q "$FIXTURE" lab:lab/fixture.json
 scp -q "$ROOT/tests/mock/sub_server.py" lab:lab/sub_server.py
 ssh lab 'mkdir -p lab/geo' && scp -q "$ROOT"/tests/fixtures/geo/*.dat lab:lab/geo/
 ssh lab 'cd lab && pkill -f sub_server.py; nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
-             sleep 1; curl -fs -o /dev/null localhost:8787/log' && ok "mock panel up on the lab host" || bad "mock panel"
+             i=0; until curl -fs -o /dev/null localhost:8787/log; do i=$((i + 1)); [ $i -lt 20 ] || exit 1; sleep 0.5; done' \
+    && ok "mock panel up on the lab host" || bad "mock panel"
 # dropbear has no sftp server: force the legacy scp protocol
 ssh lab 'cd lab && ./openwrt.sh wait >/dev/null && scp -q -O -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR gatygo.apk root@127.0.0.1:/tmp/gatygo.apk'
 # the VM's busybox has no `timeout`: /tmp/tmo SECS CMD... runs CMD and kills it after SECS
@@ -34,7 +35,7 @@ vm 'printf "%s\n" "#!/bin/sh" "t=\$1; shift" "\"\$@\" & p=\$!" "( sleep \"\$t\";
 check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
 
 echo "== 1. install"
-vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo; true'
+vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
 expect "gatygo version" "0.1.0" 'gatygo version'
 check "init script enabled" 'test -e /etc/rc.d/S95gatygo'
