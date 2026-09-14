@@ -9,8 +9,6 @@ GATYGO_RUN=${GATYGO_RUN:-/var/run/gatygo}
 GATYGO_ASSETS=${GATYGO_ASSETS:-/usr/share/xray}
 GATYGO_LOG=${GATYGO_LOG:-/var/log/gatygo.log}
 GATYGO_SYSROOT=${GATYGO_SYSROOT:-}
-GATYGO_GEOSITE_DEFAULT=https://geo.example.com/geosite.dat
-GATYGO_GEOIP_DEFAULT=https://geo.example.com/geoip.dat
 
 # gatygo_cfg KEY DEFAULT — option gatygo.main.KEY, or DEFAULT when unset or empty
 gatygo_cfg() {

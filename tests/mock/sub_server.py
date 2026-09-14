@@ -7,6 +7,7 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
                     and x-hwid is present; otherwise a text/plain base64 link list (what the
                     real panel returns to unknown clients)
   GET /sub-maxdev   same, plus "x-hwid-max-devices-reached: true"
+  GET /sub-norouting  same, without the routing header (no geo file URLs)
   GET /sub-broken   HTTP 500
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
@@ -43,7 +44,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         LOG.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}})
         ua = self.headers.get("User-Agent", "")
-        if self.path in ("/sub", "/sub-maxdev"):
+        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting"):
             if not (ua.startswith("gatygo/") and self.headers.get("x-hwid")):
                 self._send(200, base64.b64encode(b"vless://00000000-0000-4000-8000-000000000000@relay-1.example.com:443#tile\n"),
                            [("Content-Type", "text/plain; charset=utf-8")])
@@ -53,8 +54,9 @@ class H(BaseHTTPRequestHandler):
                     ("profile-update-interval", "3"),
                     ("subscription-userinfo", "upload=1024; download=123456789; total=0; expire=1767225600"),
                     ("announce", b64("Planned maintenance — use code 'GO' ✓")),
-                    ("routing", ROUTING),
                     ("manual-block-user-agent", "true")]
+            if self.path != "/sub-norouting":
+                hdrs.append(("routing", ROUTING))
             if self.path == "/sub-maxdev":
                 hdrs.append(("x-hwid-max-devices-reached", "true"))
             self._send(200, BODY, hdrs)

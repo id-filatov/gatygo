@@ -91,5 +91,14 @@ GATYGO_INIT_RUNNING_RC=1 gatygo_update 2>>"$GATYGO_LOG"
 assert_eq "running" "$(cat "$GATYGO_INIT_LOG")" "reload skipped when the service is not running"
 assert_eq "1" "$(_last RESTARTED)" "but the change is recorded"
 
+# --- no geo URLs in the subscription, no geo files yet: nothing downloaded, the error says why
+GATYGO_STATE="$tmp/state-norouting" GATYGO_ASSETS="$tmp/assets-norouting"
+mkdir -p "$GATYGO_ASSETS"; uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-norouting; uci set gatygo.main.profile=""
+_before=$(_geo_requests)
+gatygo_update 2>>"$GATYGO_LOG"; assert_eq "1" "$?" "templates with geo rules and no geo files -> error"
+assert_eq "$_before" "$(_geo_requests)" "no geo download without URLs"
+case $(_last MESSAGE) in *"no geo file URLs"*) _t_ok ;; *) _t_bad "error names the missing geo URLs: $(_last MESSAGE)" ;; esac
+assert_exit 1 "no config installed" test -e "$GATYGO_STATE/xray.json"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

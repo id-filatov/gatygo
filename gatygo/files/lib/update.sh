@@ -126,9 +126,9 @@ gatygo_update() {
     _gatygo_sub_changed=1
     [ -f "$GATYGO_STATE/subscription.json" ] \
         && [ "$(sha256sum < "$_gatygo_w/body")" = "$(sha256sum < "$GATYGO_STATE/subscription.json")" ] && _gatygo_sub_changed=0
-    # 3. geo (at most daily while the subscription is unchanged)
-    _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env")
-    if [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due; then
+    # 3. geo (at most daily while the subscription is unchanged), only when the subscription names the files
+    if _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env") \
+        && { [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due; }; then
         gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
         [ $? -ne 1 ] || gatygo_log warn "geo download failed; keeping the current geo files"
     fi
@@ -136,7 +136,8 @@ gatygo_update() {
     _gatygo_prof=$(gatygo_apply_profile "$_gatygo_w/body" "$_gatygo_w/geo")
     _gatygo_apply=$?
     if [ "$_gatygo_apply" -eq 1 ]; then
-        gatygo_result error "new config failed the xray test; keeping the current config"
+        _gatygo_why=''; [ -n "$_gatygo_urls" ] || _gatygo_why=' (no geo file URLs in the subscription)'
+        gatygo_result error "new config failed the xray test$_gatygo_why; keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
     GATYGO_SWAP_RESULT=$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)

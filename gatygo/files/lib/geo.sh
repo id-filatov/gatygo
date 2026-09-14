@@ -6,7 +6,9 @@
 
 _gatygo_is_url() { case $1 in http://?* | https://?*) return 0 ;; *) return 1 ;; esac; }
 
-# gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL": header → cache → built-in defaults.
+# gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL" from the routing header, else from the
+# cache of the last header that carried them. exit 1 (nothing printed) when neither has them: geo
+# files come only from the subscription.
 gatygo_geo_urls() {
     _gatygo_gs='' _gatygo_gi=''
     if [ -f "$1" ]; then
@@ -22,7 +24,7 @@ gatygo_geo_urls() {
         _gatygo_gs=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOSITE_URL)
         _gatygo_gi=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOIP_URL)
     else
-        _gatygo_gs=$GATYGO_GEOSITE_DEFAULT _gatygo_gi=$GATYGO_GEOIP_DEFAULT
+        return 1
     fi
     printf '%s %s\n' "$_gatygo_gs" "$_gatygo_gi"
 }
@@ -38,6 +40,7 @@ gatygo_geo_due() {
 
 # gatygo_geo_fetch GEOSITE_URL GEOIP_URL STAGE_DIR — download changed files into STAGE_DIR.
 # Uses If-Modified-Since against the installed file and keeps the server's Last-Modified as mtime.
+# Redirects are followed to https only (GitHub release URLs redirect; no credentials are sent here).
 # exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
 gatygo_geo_fetch() {
     _gatygo_stage=$3 _gatygo_staged=0
@@ -45,10 +48,12 @@ gatygo_geo_fetch() {
         _gatygo_n=${_gatygo_pair%% *} _gatygo_u=${_gatygo_pair#* }
         _gatygo_cur=$GATYGO_ASSETS/$_gatygo_n
         if [ -f "$_gatygo_cur" ]; then
-            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' -R \
-                -z "$_gatygo_cur" -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
+            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' \
+                -L --max-redirs 3 --proto-redir '=https' -R -z "$_gatygo_cur" \
+                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
         else
-            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' -R \
+            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' \
+                -L --max-redirs 3 --proto-redir '=https' -R \
                 -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
         fi
         case $_gatygo_code in

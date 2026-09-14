@@ -19,10 +19,11 @@ assert_exit 0 "header URLs are cached" test -s "$GATYGO_STATE/geo-urls.env"
 printf "GATYGO_GEOSITE_URL=''\nGATYGO_GEOIP_URL=''\n" > "$tmp/empty.env"
 assert_eq "http://127.0.0.1:8788/geo/geosite.dat http://127.0.0.1:8788/geo/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env")" "no header -> cached URLs"
 rm "$GATYGO_STATE/geo-urls.env"
-assert_eq "https://geo.example.com/geosite.dat https://geo.example.com/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env")" "no header, no cache -> built-in defaults"
-assert_eq "https://geo.example.com/geosite.dat https://geo.example.com/geoip.dat" "$(gatygo_geo_urls "$tmp/missing.env")" "missing headers file -> defaults"
+assert_exit 1 "no header, no cache -> no geo URLs" gatygo_geo_urls "$tmp/empty.env"
+assert_eq "" "$(gatygo_geo_urls "$tmp/empty.env")" "nothing printed without geo URLs"
+assert_exit 1 "missing headers file, no cache -> no geo URLs" gatygo_geo_urls "$tmp/missing.env"
 printf "GATYGO_GEOSITE_URL='ftp://x/geosite.dat'\nGATYGO_GEOIP_URL='http://127.0.0.1:8788/geo/geoip.dat'\n" > "$tmp/bad.env"
-assert_eq "https://geo.example.com/geosite.dat https://geo.example.com/geoip.dat" "$(gatygo_geo_urls "$tmp/bad.env")" "a non-http URL invalidates the pair"
+assert_exit 1 "a non-http URL invalidates the pair" gatygo_geo_urls "$tmp/bad.env"
 
 # --- due?
 assert_exit 0 "due when files are missing" gatygo_geo_due
@@ -57,6 +58,8 @@ rm -f "$tmp/stage/"*.dat
 gatygo_geo_fetch http://127.0.0.1:8788/geo/nope.dat http://127.0.0.1:8788/geo/geoip.dat "$tmp/stage" 2>/dev/null; _rc=$?
 assert_eq "1" "$_rc" "404 -> exit 1"
 assert_eq "0" "$(ls "$tmp/stage" | wc -l | tr -d ' ')" "stage emptied on error"
+gatygo_geo_fetch http://127.0.0.1:8788/redirect http://127.0.0.1:8788/geo/geoip.dat "$tmp/stage" 2>/dev/null; _rc=$?
+assert_eq "1" "$_rc" "redirect to plain http is refused"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report
