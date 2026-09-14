@@ -1,0 +1,22 @@
+name: build packages
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The SDK container builds as uid 1000 into the bind-mounted bin/, the runner is uid 1001.
+      - name: Make bin/ writable for the SDK container
+        run: mkdir -p bin && chmod 777 bin
+      - name: Build with the OpenWrt 25.12.5 SDK
+        run: tools/build-apk.sh
+      - name: Store the .apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatygo-apk
+          path: bin/packages/x86_64/gatygo/*.apk
+          if-no-files-found: error
