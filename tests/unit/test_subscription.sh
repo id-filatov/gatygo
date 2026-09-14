@@ -25,7 +25,7 @@ assert_eq "13" "$(printf '%s' "$_p" | jq length)" "13 balancer profiles"
 assert_eq "🌐 Auto" "$(printf '%s' "$_p" | jq -r '.[0].remarks')" "first profile is the auto tile"
 assert_eq "📍 Juliett" "$(printf '%s' "$_p" | jq -r '.[-1].remarks')" "last profile is Juliett"
 assert_eq "Best server across all locations" "$(printf '%s' "$_p" | jq -r '.[0].description')" "description from meta.serverDescription"
-assert_eq "0" "$(printf '%s' "$_p" | jq '[.[] | select(.remarks | test("Router"))] | length')" "router-only tiles are not listed"
+assert_eq "0" "$(printf '%s' "$_p" | jq '[.[] | select(.remarks | contains("Router"))] | length')" "router-only tiles are not listed"
 assert_eq '["description","remarks"]' "$(printf '%s' "$_p" | jq -c '.[0] | keys')" "profile entries carry only remarks and description"
 assert_eq "[]" "$(gatygo_sub_profiles "$tmp/routers-only.json")" "no balancer configs -> empty list"
 
