@@ -2,7 +2,8 @@ name: build packages
 
 on:
   push:
-  pull_request:
+    branches: [main]
+    tags: ['v*']
 
 jobs:
   apk:
