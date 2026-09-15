@@ -1,0 +1,18 @@
+{
+	"luci-app-gatygo": {
+		"description": "Grant access to the gatygo page",
+		"read": {
+			"ubus": {
+				"gatygo": [ "status", "nodes", "log" ]
+			},
+			"uci": [ "gatygo" ]
+		},
+		"write": {
+			"ubus": {
+				"gatygo": [ "update", "select" ],
+				"luci": [ "setInitAction" ]
+			},
+			"uci": [ "gatygo" ]
+		}
+	}
+}

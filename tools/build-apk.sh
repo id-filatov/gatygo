@@ -6,7 +6,7 @@
 # their dependencies are selected, otherwise the kmod-nft-tproxy dependency makes the SDK
 # re-package every kernel module it ships on each run (30+ minutes under x86_64 emulation).
 #
-# Usage: tools/build-apk.sh [package ...]     default: gatygo
+# Usage: tools/build-apk.sh [package ...]     default: gatygo luci-app-gatygo
 #        tools/build-apk.sh --reset            drop the container (next run starts from scratch)
 # Output: bin/packages/x86_64/gatygo/<package>-<version>-r<rel>.apk
 set -e
@@ -27,7 +27,7 @@ if ! docker inspect "$NAME" >/dev/null 2>&1; then
 		"$SDK_IMAGE" sleep infinity >/dev/null
 fi
 docker start "$NAME" >/dev/null
-docker exec -i -e PACKAGES="${*:-gatygo}" "$NAME" bash -s <<'EOF'
+docker exec -i -e PACKAGES="${*:-gatygo luci-app-gatygo}" "$NAME" bash -s <<'EOF'
 	set -eo pipefail
 	cd /builder
 	echo "src-link gatygo /feed" > feeds.conf

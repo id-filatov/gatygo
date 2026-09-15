@@ -1,0 +1,14 @@
+{
+	"admin/services/gatygo": {
+		"title": "gatygo",
+		"order": 60,
+		"action": {
+			"type": "view",
+			"path": "gatygo/main"
+		},
+		"depends": {
+			"acl": [ "luci-app-gatygo" ],
+			"uci": { "gatygo": true }
+		}
+	}
+}
