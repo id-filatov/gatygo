@@ -103,7 +103,8 @@ gatygo_update() {
     gatygo_load_config
     if [ -z "$GATYGO_SUB_URL" ]; then gatygo_result error "subscription URL is not configured"; return 1; fi
     mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
-    _gatygo_hwid=$(gatygo_hwid_ensure)
+    _gatygo_hwid=''
+    [ "$GATYGO_SEND_HWID" = 1 ] && _gatygo_hwid=$(gatygo_hwid_ensure)
     _gatygo_w=$(mktemp -d)
     mkdir -p "$_gatygo_w/geo"
 

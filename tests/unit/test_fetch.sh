@@ -49,5 +49,11 @@ assert_eq "" "$_code" "nothing printed when curl fails"
 assert_eq "0" "$(grep -c '127.0.0.1' "$tmp/err")" "the URL/host never appears in the log line"
 assert_eq "1" "$(grep -c 'curl failed' "$tmp/err")" "a generic error line is logged"
 
+# no hwid -> no x-hwid header at all
+gatygo_fetch http://127.0.0.1:8787/sub-nohwid gatygo/0.1.0 "" "$tmp/b6" "$tmp/h6" >/dev/null
+_req=$(curl -fs http://127.0.0.1:8787/log | jq -c '[.[] | select(.path == "/sub-nohwid")][0].headers')
+assert_eq "false" "$(printf '%s' "$_req" | jq 'has("x-hwid")')" "empty hwid -> header omitted"
+assert_exit 0 "body still validates without hwid" gatygo_sub_validate "$tmp/b6"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

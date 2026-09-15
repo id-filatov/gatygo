@@ -8,6 +8,7 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
                     real panel returns to unknown clients)
   GET /sub-maxdev   same, plus "x-hwid-max-devices-reached: true"
   GET /sub-norouting  same, without the routing header (no geo file URLs)
+  GET /sub-nohwid   same as /sub but the x-hwid header is not required
   GET /sub-broken   HTTP 500
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
@@ -44,8 +45,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         LOG.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}})
         ua = self.headers.get("User-Agent", "")
-        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting"):
-            if not (ua.startswith("gatygo/") and self.headers.get("x-hwid")):
+        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid"):
+            if not ua.startswith("gatygo/") or (self.path != "/sub-nohwid" and not self.headers.get("x-hwid")):
                 self._send(200, base64.b64encode(b"vless://00000000-0000-4000-8000-000000000000@relay-1.example.com:443#tile\n"),
                            [("Content-Type", "text/plain; charset=utf-8")])
                 return

@@ -100,5 +100,13 @@ assert_eq "$_before" "$(_geo_requests)" "no geo download without URLs"
 case $(_last MESSAGE) in *"no geo file URLs"*) _t_ok ;; *) _t_bad "error names the missing geo URLs: $(_last MESSAGE)" ;; esac
 assert_exit 1 "no config installed" test -e "$GATYGO_STATE/xray.json"
 
+# --- send_hwid=0: no hwid generated, no x-hwid header, update still succeeds
+GATYGO_STATE="$tmp/state-nohwid" GATYGO_ASSETS="$tmp/assets-nohwid"; mkdir -p "$GATYGO_ASSETS"
+uci delete gatygo.main.hwid; uci set gatygo.main.send_hwid=0; uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-nohwid; uci set gatygo.main.profile=""
+gatygo_update 2>>"$GATYGO_LOG"; assert_eq "0" "$?" "update succeeds without a hwid"
+assert_eq "" "$(uci -q get gatygo.main.hwid)" "no hwid generated when send_hwid=0"
+assert_eq "false" "$(curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path == "/sub-nohwid")][-1].headers | has("x-hwid")')" "request carried no x-hwid"
+uci set gatygo.main.send_hwid=1
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

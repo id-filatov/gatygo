@@ -34,4 +34,10 @@ assert_eq "br-guest" "$GATYGO_LAN_IFACES" "lan device from network.lan.device"
 assert_eq "25.12.5" "$(gatygo_os_version)" "DISTRIB_RELEASE from openwrt_release"
 assert_eq "qemu-qemu-virtual-machine" "$(gatygo_device_model)" "board_name"
 
+# --- send_hwid: default on
+uci delete gatygo.main.send_hwid; gatygo_load_config
+assert_eq "1" "$GATYGO_SEND_HWID" "send_hwid defaults to 1"
+uci set gatygo.main.send_hwid=0; gatygo_load_config
+assert_eq "0" "$GATYGO_SEND_HWID" "send_hwid from UCI"
+
 report

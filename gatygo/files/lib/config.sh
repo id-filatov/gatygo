@@ -38,6 +38,7 @@ gatygo_load_config() {
     GATYGO_SUB_URL=$(gatygo_cfg sub_url "")
     GATYGO_USER_AGENT=$(gatygo_cfg user_agent "gatygo/$GATYGO_VERSION")
     GATYGO_HWID=$(gatygo_cfg hwid "")
+    GATYGO_SEND_HWID=$(gatygo_cfg send_hwid 1)
     GATYGO_PROFILE=$(gatygo_cfg profile "")
     GATYGO_UPDATE_INTERVAL=$(gatygo_cfg update_interval "")
     GATYGO_TPROXY_PORT=$(gatygo_cfg tproxy_port 12345)
@@ -50,7 +51,7 @@ gatygo_load_config() {
     [ -n "$GATYGO_LAN_IFACES" ] || GATYGO_LAN_IFACES=br-lan
     GATYGO_DIRECT_DNS=$(gatygo_cfg direct_dns "")
     GATYGO_LOGLEVEL=$(gatygo_cfg loglevel warning)
-    export GATYGO_VERSION GATYGO_ENABLED GATYGO_SUB_URL GATYGO_USER_AGENT GATYGO_HWID GATYGO_PROFILE \
+    export GATYGO_VERSION GATYGO_ENABLED GATYGO_SUB_URL GATYGO_USER_AGENT GATYGO_HWID GATYGO_SEND_HWID GATYGO_PROFILE \
         GATYGO_UPDATE_INTERVAL GATYGO_TPROXY_PORT GATYGO_DNS_PORT GATYGO_MARK GATYGO_MARK_DEC \
         GATYGO_IPV6_BLOCK GATYGO_LAN_IFACES GATYGO_DIRECT_DNS GATYGO_LOGLEVEL \
         GATYGO_STATE GATYGO_RUN GATYGO_ASSETS GATYGO_LOG GATYGO_SYSROOT
