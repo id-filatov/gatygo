@@ -22,7 +22,10 @@ cmd_update() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/dns.sh"
 	gatygo_load_config
-	gatygo_update_lock || { gatygo_log info "update skipped: another update is running"; return 0; }
+	gatygo_update_lock || {
+		gatygo_log info "update skipped: another update is running"
+		return 0
+	}
 	trap gatygo_update_unlock EXIT
 	gatygo_log_rotate
 	# without xray the router's own DNS must not point at xray (design decision 2)

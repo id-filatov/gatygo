@@ -1,4 +1,4 @@
 #!/bin/sh
 # Stand-in for /etc/init.d/gatygo in unit tests: pretends the service is running and records calls.
 echo "$1" >> "${GATYGO_INIT_LOG:?}"
-case $1 in running) exit "${GATYGO_INIT_RUNNING_RC:-0}" ;; reload) exit 0 ;; *) exit 1 ;; esac
+case $1 in running) exit "${GATYGO_INIT_RUNNING_RC:-0}" ;; start | reload) exit 0 ;; *) exit 1 ;; esac

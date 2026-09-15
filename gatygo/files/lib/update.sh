@@ -91,11 +91,13 @@ gatygo_apply_profile() {
     return "$_gatygo_sel"
 }
 
-# _gatygo_reload — ask procd to reload when the service runs; xray restarts only if its files changed
+# _gatygo_reload — re-submit the procd instance when the service runs: procd restarts xray only
+# if xray.json or a geo file changed. `start` is used on purpose: `reload` is the settings-changed
+# hook of the init script and would kick another update.
 _gatygo_reload() {
     [ -x "$GATYGO_INIT" ] || return 0
     "$GATYGO_INIT" running >/dev/null 2>&1 || return 0
-    "$GATYGO_INIT" reload >/dev/null 2>&1
+    "$GATYGO_INIT" start >/dev/null 2>&1
 }
 
 # gatygo_update — exit 0 on ok/warning, 1 on error (the current config is never touched then)
