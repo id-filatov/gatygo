@@ -4,13 +4,16 @@
 #   gatygo update                    run the subscription update cycle now
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
 #   gatygo status                    JSON for scripts and the LuCI page
+#   gatygo nodes                     JSON: outbounds with balancer selection and traffic
+#   gatygo log [N]                   last N lines of the log (default 200)
+#   gatygo updating                  exit 0 while an update runs
 #   gatygo cron-sync                 re-create the periodic update line
 #   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|update|select <profile>|status|cron-sync|version" >&2
+	echo "usage: gatygo start|stop|restart|update|select <profile>|status|nodes|log [N]|updating|cron-sync|version" >&2
 	exit 1
 }
 
@@ -19,6 +22,8 @@ cmd_update() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/dns.sh"
 	gatygo_load_config
+	gatygo_update_lock || { gatygo_log info "update skipped: another update is running"; return 0; }
+	trap gatygo_update_unlock EXIT
 	gatygo_log_rotate
 	# without xray the router's own DNS must not point at xray (design decision 2)
 	gatygo_xray_running || gatygo_dns_restore
@@ -68,26 +73,42 @@ cmd_status() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/subscription.sh"
 	gatygo_load_config
-	_running=false
+	_running=false _updating=false _configured=false _enabled=false _send_hwid=false _uptime='' _next=''
 	gatygo_xray_running && _running=true
+	gatygo_updating && _updating=true
+	[ -n "$GATYGO_SUB_URL" ] && _configured=true
+	[ "$GATYGO_ENABLED" = 1 ] && _enabled=true
+	[ "$GATYGO_SEND_HWID" = 1 ] && _send_hwid=true
+	_pid=$(gatygo_xray_pid)
+	[ -n "$_pid" ] && _uptime=$(gatygo_proc_uptime "$_pid")
+	_interval=$(gatygo_update_interval_hours)
+	[ "$_running" = true ] && _next=$(gatygo_next_update "$_interval")
 	_profiles='[]'
 	[ -s "$GATYGO_STATE/subscription.json" ] && _profiles=$(gatygo_sub_profiles "$GATYGO_STATE/subscription.json")
 	(
 		[ -f "$GATYGO_STATE/headers.env" ] && . "$GATYGO_STATE/headers.env"
 		[ -f "$GATYGO_RUN/last-update.env" ] && . "$GATYGO_RUN/last-update.env"
-		jq -n --argjson running "$_running" --arg pid "$(gatygo_xray_pid)" --arg version "$GATYGO_VERSION" \
+		jq -n --argjson running "$_running" --arg pid "$_pid" --arg version "$GATYGO_VERSION" \
+			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
+			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \
 			--arg profile "$GATYGO_PROFILE" --arg used "${PROFILE:-}" --argjson profiles "$_profiles" \
 			--arg title "${GATYGO_PROFILE_TITLE:-}" --arg announce "${GATYGO_ANNOUNCE:-}" \
 			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
+			--arg interval "$_interval" --arg next "$_next" \
 			--arg maxdev "${GATYGO_HWID_MAX_DEVICES:-0}" --arg notsup "${GATYGO_HWID_NOT_SUPPORTED:-0}" \
 			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
 			--arg geoip "$(date -r "$GATYGO_ASSETS/geoip.dat" +%s 2>/dev/null)" \
-			'{running: $running, pid: $pid, version: $version, profile: $profile, profile_used: $used,
+			'{running: $running, pid: $pid, version: $version,
+			  configured: $configured, enabled: $enabled, send_hwid: $send_hwid, updating: $updating,
+			  uptime: (if $uptime == "" then null else ($uptime | tonumber) end), xray_version: $xray_version,
+			  profile: $profile, profile_used: $used,
 			  profiles: $profiles, title: $title, announce: $announce,
 			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},
 			  last_update: {result: $result, time: $time, message: $message},
+			  update_interval: ($interval | tonumber),
+			  next_update: (if $next == "" then null else ($next | tonumber) end),
 			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
 			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup}}'
 	)
@@ -98,6 +119,11 @@ start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
 update) cmd_update ;;
 select) cmd_select "$2" ;;
 status) cmd_status ;;
+updating)
+	. "$GATYGO_LIB/service.sh"
+	gatygo_updating
+	;;
+log) tail -n "${2:-200}" "$GATYGO_LOG" 2>/dev/null ;;
 cron-sync)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_load_config
