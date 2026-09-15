@@ -1,0 +1,41 @@
+#!/bin/sh
+# rpcd exec plugin: ubus object "gatygo" for the LuCI page, a thin wrapper around the CLI.
+#   list             -> method signatures
+#   call <method>    -> JSON arguments on stdin, JSON object on stdout
+GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
+
+case $1 in
+	list)
+		echo '{"status":{},"nodes":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"}}'
+		;;
+	call)
+		case $2 in
+			status) "$GATYGO" status ;;
+			nodes) "$GATYGO" nodes ;;
+			log)
+				_n=$(jq -r '.lines // empty' 2>/dev/null)
+				case $_n in '' | *[!0-9]*) _n=200 ;; esac
+				"$GATYGO" log "$_n" | jq -Rs '{log: .}'
+				;;
+			update)
+				if "$GATYGO" updating; then
+					echo '{"started":false}'
+				else
+					# detach fully, or rpcd waits for the update to finish
+					("$GATYGO" update </dev/null >/dev/null 2>&1 &)
+					echo '{"started":true}'
+				fi
+				;;
+			select)
+				_p=$(jq -r '.profile // empty' 2>/dev/null)
+				[ -n "$_p" ] || {
+					echo '{"error":"profile required"}'
+					exit 0
+				}
+				"$GATYGO" select "$_p" >/dev/null 2>&1
+				"$GATYGO" status | jq -c '{result: .last_update.result, profile: .profile_used, message: .last_update.message}'
+				;;
+			*) echo '{"error":"unknown method"}' ;;
+		esac
+		;;
+esac
