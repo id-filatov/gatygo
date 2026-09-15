@@ -11,6 +11,8 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 APK=${1:-$(ls "$ROOT"/bin/packages/x86_64/gatygo/gatygo-*.apk 2>/dev/null | tail -n 1)}
 FIXTURE=${FIXTURE:-$ROOT/tests/fixtures/subscription.json}
 [ -f "$APK" ] || { echo "no .apk: build it with tools/build-apk.sh" >&2; exit 1; }
+LUCI_APK=${LUCI_APK:-$(ls "$(dirname "$APK")"/luci-app-gatygo-*.apk 2>/dev/null | tail -n 1)}
+[ -f "$LUCI_APK" ] || { echo "no luci-app-gatygo .apk next to $APK" >&2; exit 1; }
 [ -f "$FIXTURE" ] || { echo "no fixture at $FIXTURE" >&2; exit 1; }
 
 pass=0; fail=0
@@ -25,6 +27,7 @@ expect() { local got; got=$(vm "$3" 2>/dev/null); if [ "$got" = "$2" ]; then ok 
 
 echo "== 0. lab: mock panel + files"
 scp -q "$APK" "$LAB_HOST:$LAB_DIR/gatygo.apk"
+scp -q "$LUCI_APK" "$LAB_HOST:$LAB_DIR/luci-app-gatygo.apk"
 scp -q "$FIXTURE" "$LAB_HOST:$LAB_DIR/fixture.json"
 scp -q "$ROOT/tests/mock/sub_server.py" "$LAB_HOST:$LAB_DIR/sub_server.py"
 ssh "$LAB_HOST" "mkdir -p $LAB_DIR/geo" && scp -q "$ROOT"/tests/fixtures/geo/*.dat "$LAB_HOST:$LAB_DIR/geo/"
@@ -32,14 +35,15 @@ ssh "$LAB_HOST" "cd $LAB_DIR && pkill -f sub_server.py; nohup python3 sub_server
              i=0; until curl -fs -o /dev/null localhost:8787/log; do i=\$((i + 1)); [ \$i -lt 20 ] || exit 1; sleep 0.5; done" \
     && ok "mock panel up on the lab host" || bad "mock panel"
 # dropbear has no sftp server: force the legacy scp protocol
-ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null && scp -q -O -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR gatygo.apk root@127.0.0.1:/tmp/gatygo.apk"
+ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null && scp -q -O -P 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR gatygo.apk luci-app-gatygo.apk root@127.0.0.1:/tmp/"
 # the VM's busybox has no `timeout`: /tmp/tmo SECS CMD... runs CMD and kills it after SECS
 vm 'printf "%s\n" "#!/bin/sh" "t=\$1; shift" "\"\$@\" & p=\$!" "( sleep \"\$t\"; kill \"\$p\" 2>/dev/null ) & w=\$!" "wait \"\$p\"; rc=\$?" "kill \"\$w\" 2>/dev/null" "exit \$rc" > /tmp/tmo && chmod +x /tmp/tmo'
 check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
 
 echo "== 1. install"
-vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
+vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del luci-app-gatygo gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
+check "luci-app-gatygo installs" 'apk add --allow-untrusted /tmp/luci-app-gatygo.apk >/dev/null 2>&1'
 expect "gatygo version" "0.1.0" 'gatygo version'
 check "init script enabled" 'test -e /etc/rc.d/S95gatygo'
 
@@ -51,6 +55,26 @@ expect "first balancer tile applied" "🌐 Auto" 'gatygo status | jq -r .profile
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
 check "xray.json installed 0600" 'test "$(ls -l /etc/gatygo/xray.json | cut -c1-10)" = -rw-------'
 check "geo files installed" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
+
+echo "== 2b. LuCI and ubus"
+check "ubus object registered" 'ubus list gatygo >/dev/null'
+expect "ubus status: running" "true" 'ubus -S call gatygo status | jq -r .running'
+expect "ubus status: configured, not updating" "true false" 'ubus -S call gatygo status | jq -r "\"\\(.configured) \\(.updating)\""'
+check "ubus status: uptime and next update known" 'ubus -S call gatygo status | jq -e ".uptime >= 0 and .next_update > 0" >/dev/null'
+expect "ubus status: 22 profiles, 13 balanced" "22 13" 'ubus -S call gatygo status | jq -r "\"\\(.profiles | length) \\([.profiles[] | select(.balanced)] | length)\""'
+check "ubus nodes: api up, outbounds listed" 'ubus -S call gatygo nodes | jq -e ".api == true and (.nodes | length) >= 3 and .balancer == \"balancer\"" >/dev/null'
+check "ubus log: text" 'ubus -S call gatygo log "{\"lines\":5}" | jq -e ".log | length > 0" >/dev/null'
+expect "ubus update: started" "true" 'ubus -S call gatygo update | jq -r .started'
+check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]; do i=$((i+1)); sleep 1; done; ! gatygo updating'
+expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
+check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
+check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password=" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
+
+echo "== 2c. settings reload"
+vm 'uci set gatygo.main.user_agent="gatygo/e2e"; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+if ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq -e '[.[] | select(.headers["user-agent"] == "gatygo/e2e")] | length > 0' >/dev/null; then ok "reload re-downloads with the new user agent"; else bad "reload re-downloads with the new user agent"; fi
+expect "still running after reload" "true" 'gatygo status | jq -r .running'
+vm 'uci delete gatygo.main.user_agent; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
 
 echo "== 3. firewall"
 check "nft table inet gatygo present" 'nft list table inet gatygo >/dev/null'
@@ -111,7 +135,7 @@ expect "running after reboot" "true" 'gatygo status | jq -r .running'
 check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 
 echo "== 11. removal"
-vm '/etc/init.d/gatygo stop; apk del gatygo >/dev/null 2>&1; true'
+vm '/etc/init.d/gatygo stop; apk del luci-app-gatygo gatygo >/dev/null 2>&1; true'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
 
