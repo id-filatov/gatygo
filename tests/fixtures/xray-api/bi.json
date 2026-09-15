@@ -1,0 +1,1 @@
+{"balancer":{"override":{},"principleTarget":{"tag":["proxy-2","proxy","proxy-3"]}}}

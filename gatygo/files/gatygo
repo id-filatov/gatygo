@@ -119,6 +119,15 @@ start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
 update) cmd_update ;;
 select) cmd_select "$2" ;;
 status) cmd_status ;;
+nodes)
+	. "$GATYGO_LIB/nodes.sh"
+	gatygo_load_config
+	if [ -s "$GATYGO_STATE/xray.json" ]; then
+		gatygo_nodes "$GATYGO_STATE/xray.json"
+	else
+		echo '{"api":false,"balancer":null,"nodes":[]}'
+	fi
+	;;
 updating)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_updating

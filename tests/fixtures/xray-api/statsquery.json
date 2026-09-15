@@ -1,0 +1,8 @@
+{"stat":[
+  {"name":"outbound>>>proxy>>>traffic>>>uplink","value":"380000"},
+  {"name":"outbound>>>proxy>>>traffic>>>downlink","value":"3100000"},
+  {"name":"outbound>>>proxy-2>>>traffic>>>uplink","value":"412000"},
+  {"name":"outbound>>>proxy-2>>>traffic>>>downlink"},
+  {"name":"outbound>>>direct>>>traffic>>>downlink","value":"9800000"},
+  {"name":"inbound>>>tproxy>>>traffic>>>uplink","value":"1"}
+]}

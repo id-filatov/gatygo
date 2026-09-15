@@ -1,0 +1,12 @@
+#!/bin/sh
+# xray stand-in for unit tests: canned `xray api` answers from XRAY_STUB_DIR; everything else
+# (run -test, version) goes to the real binary.
+if [ "$1" = api ] && [ -n "${XRAY_STUB_DIR:-}" ]; then
+    case $2 in
+        statsquery) cat "$XRAY_STUB_DIR/statsquery.json" ;;
+        bi) cat "$XRAY_STUB_DIR/bi.json" ;;
+        *) exit 1 ;;
+    esac
+    exit 0
+fi
+exec /usr/local/bin/xray "$@"
