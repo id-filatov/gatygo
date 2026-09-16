@@ -25,4 +25,7 @@ eval "_back=$(gatygo_shquote "$_nl")"
 assert_eq "$_nl" "$_back" "newline survives"
 assert_eq "''" "$(gatygo_shquote "")" "empty string quotes to ''"
 
+# --- portability: OpenWrt's busybox sleep takes whole seconds only ("sleep: invalid number '0.5'")
+assert_eq "" "$(grep -rn 'sleep [0-9]*\.[0-9]' /src/gatygo/files)" "no fractional sleep in the package"
+
 report
