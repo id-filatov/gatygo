@@ -1,7 +1,7 @@
 #!/bin/sh
 . "$(dirname "$0")/../lib.sh"
 tmp=$(mktemp -d)
-export GATYGO_STATE="$tmp/state" GATYGO_LOG="$tmp/gatygo.log" GATYGO_CRONTAB="$tmp/crontabs/root" \
+export GATYGO_STATE="$tmp/state" GATYGO_CRONTAB="$tmp/crontabs/root" \
        GATYGO_CRON_INIT=/src/tests/stubs/cron-init GATYGO_CRON_LOG="$tmp/cron.log"
 mkdir -p "$GATYGO_STATE"; : > "$UCI_STUB_FILE"; : > "$GATYGO_CRON_LOG"
 . "$GATYGO_LIB/config.sh"
@@ -36,14 +36,18 @@ assert_eq "5 4 * * * /bin/echo keep" "$(cat "$GATYGO_CRONTAB")" "only our line r
 gatygo_cron_remove
 assert_eq "" "$(cat "$GATYGO_CRON_LOG")" "remove without our line is a no-op"
 
-# --- log rotation: >512 KB -> last 256 KB kept, in place
-head -c 600000 /dev/zero | tr '\0' 'x' > "$GATYGO_LOG"; printf '\nLAST LINE\n' >> "$GATYGO_LOG"
-gatygo_log_rotate
-_size=$(wc -c < "$GATYGO_LOG")
-assert_exit 0 "log truncated to at most 256 KB" test "$_size" -le 262144
-assert_eq "LAST LINE" "$(tail -n 1 "$GATYGO_LOG")" "tail of the log kept"
-printf 'small\n' > "$GATYGO_LOG"; gatygo_log_rotate
-assert_eq "small" "$(cat "$GATYGO_LOG")" "small log untouched"
+# --- gatygo_log_tail N: xray (relayed by procd) and gatygo lines from the system log, prefix cut to the tag
+cat > "$SYSLOG_STUB_FILE" <<'SYSLOG'
+Wed Sep 16 14:00:00 2026 cron.err crond[3146]: USER root pid 6746 cmd /usr/bin/gatygo update
+Wed Sep 16 14:00:01 2026 daemon.info xray[2845]: 2026/09/16 14:00:01.1 [Warning] core: Xray 26.3.27 started
+Wed Sep 16 14:00:02 2026 daemon.info gatygo[6746]: 2026-09-16T14:00:02 [info] subscription updated
+Wed Sep 16 14:00:03 2026 daemon.warn odhcpd[2148]: A default route is present but gatygo[1]: is not a tag
+Wed Sep 16 14:00:04 2026 daemon.err xray: 2026/09/16 14:00:04.2 [Error] app/dns: failed
+SYSLOG
+assert_eq "xray: 2026/09/16 14:00:01.1 [Warning] core: Xray 26.3.27 started
+gatygo: 2026-09-16T14:00:02 [info] subscription updated
+xray: 2026/09/16 14:00:04.2 [Error] app/dns: failed" "$(gatygo_log_tail 200)" "only the xray and gatygo tags, with or without pid, syslog prefix cut"
+assert_eq "xray: 2026/09/16 14:00:04.2 [Error] app/dns: failed" "$(gatygo_log_tail 1)" "last N lines"
 
 # --- update lock: a directory with the holder's pid
 export GATYGO_RUN="$tmp/run"
@@ -73,9 +77,9 @@ assert_eq "26.3.27" "$(gatygo_xray_version)" "xray version parsed"
 
 # --- CLI: updating / log
 CLI=/src/gatygo/files/gatygo
-printf 'one\ntwo\nthree\n' > "$GATYGO_LOG"
-assert_eq "two
-three" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log 2)" "log N prints the last N lines"
+printf 'Wed Sep  9 14:00:0%s 2026 %s\n' 1 'daemon.info xray[1]: one' 2 'daemon.info gatygo[2]: two' 3 'daemon.err xray[1]: three' > "$SYSLOG_STUB_FILE"
+assert_eq "gatygo: two
+xray: three" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log 2)" "log N prints the last N lines"
 assert_eq "3" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log | wc -l | tr -d ' ')" "log defaults to the last 200 lines"
 assert_exit 1 "cli: not updating" sh "$CLI" updating
 gatygo_update_lock

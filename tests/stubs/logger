@@ -1,0 +1,13 @@
+#!/bin/sh
+# `logger` stand-in for unit tests: appends one syslog-looking line to $SYSLOG_STUB_FILE, the
+# way `logread` would print it. Supported: -t TAG -p FACILITY.PRIORITY MESSAGE...
+f=${SYSLOG_STUB_FILE:?SYSLOG_STUB_FILE not set}
+tag=root prio=user.notice
+while [ $# -gt 0 ]; do
+    case $1 in
+        -t) tag=$2; shift 2 ;;
+        -p) prio=$2; shift 2 ;;
+        *) break ;;
+    esac
+done
+printf '%s %s %s[%s]: %s\n' "$(date '+%a %b %e %H:%M:%S %Y')" "$prio" "$tag" "$PPID" "$*" >> "$f"

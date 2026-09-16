@@ -322,7 +322,7 @@ return view.extend({
 			E('div', { 'class': 'cbi-section' }, [
 				this.logPre,
 				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'renderLog') }, _('Refresh')),
-				' ', E('span', { 'class': 'gg-muted' }, _('Last 200 lines of /var/log/gatygo.log'))
+				' ', E('span', { 'class': 'gg-muted' }, _('Last 200 xray and gatygo lines of the system log'))
 			])
 		]);
 		var settingsPane = E('div', { 'data-tab': 'settings', 'data-tab-title': _('Settings') },

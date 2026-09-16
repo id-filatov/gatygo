@@ -6,7 +6,7 @@
 #
 # Arguments:
 #   --argjson tproxy_port N   --argjson dns_port N   --argjson mark N
-#   --arg loglevel S          --arg error_log S
+#   --arg loglevel S
 
 def sniffing_from_socks:
   ([.inbounds[]? | select(.protocol == "socks") | .sniffing] | first)
@@ -36,7 +36,8 @@ def with_mark:
     { type: "field", inboundTag: ["dns-in"], outboundTag: "dns-out" },
     { type: "field", inboundTag: ["api"], outboundTag: "api" }
   ] + (.routing.rules // [])
-| .log = (.log // {}) + { loglevel: $loglevel, access: "none", error: $error_log }
+# error "" = console; procd relays it to the system log (bounded ring buffer, `logread -e xray`)
+| .log = (.log // {}) + { loglevel: $loglevel, access: "none", error: "" }
 | .stats = (.stats // {})
 | .api = (.api // {}) + { tag: "api", services: ["HandlerService", "StatsService", "RoutingService"] }
 | .policy = (.policy // {})

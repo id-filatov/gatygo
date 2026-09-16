@@ -53,13 +53,14 @@ gatygo_cron_remove() {
     _gatygo_cron_restart
 }
 
-# gatygo_log_rotate — keep the last 256 KB once the log exceeds 512 KB; truncates in place so
-# xray's open file descriptor (O_APPEND) keeps working
-gatygo_log_rotate() {
-    [ -f "$GATYGO_LOG" ] || return 0
-    [ "$(wc -c < "$GATYGO_LOG")" -gt 524288 ] || return 0
-    tail -c 262144 "$GATYGO_LOG" > "$GATYGO_LOG.tmp" && cat "$GATYGO_LOG.tmp" > "$GATYGO_LOG"
-    rm -f "$GATYGO_LOG.tmp"
+# gatygo_log_tail N — last N lines of the system log that belong to us: xray's console (procd
+# relays it, tag xray) and gatygo_log (tag gatygo). A logread line is "Day Mon D HH:MM:SS YYYY
+# facility.prio tag[pid]: message"; the tag is matched in that position only, and the six
+# fields before it are cut. Nothing of ours is written anywhere else: logd's ring buffer bounds
+# the memory.
+gatygo_log_tail() {
+    logread | grep -E '^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: ' | tail -n "$1" \
+        | sed -E 's/^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: /\2: /'
 }
 
 # gatygo_update_lock — take $GATYGO_RUN/update.lock (a directory: mkdir is atomic). Exit 1 when a

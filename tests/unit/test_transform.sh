@@ -13,7 +13,7 @@ while [ "$i" -lt 13 ]; do
     jq ".[$i]" "$FIX" > "$in"
     name=$(jq -r .remarks "$in")
 
-    gatygo_transform "$in" "$out" 12345 5353 255 warning /var/log/gatygo.log
+    gatygo_transform "$in" "$out" 12345 5353 255 warning
     assert_eq "0" "$?" "transform succeeds: $name"
     assert_exit 0 "xray run -test accepts the result: $name" xray run -test -c "$out"
 
@@ -55,7 +55,7 @@ while [ "$i" -lt 13 ]; do
     # service blocks
     assert_exit 0 "remarks and meta removed: $name" jq -e '(has("remarks") or has("meta")) | not' "$out"
     assert_exit 0 "log/stats/api/policy added: $name" jq -e \
-        '.log == {"loglevel": "warning", "access": "none", "error": "/var/log/gatygo.log"}
+        '.log == {"loglevel": "warning", "access": "none", "error": ""}
          and .stats == {}
          and .api == {"tag": "api", "services": ["HandlerService", "StatsService", "RoutingService"]}
          and .policy == {"system": {"statsOutboundUplink": true, "statsOutboundDownlink": true}}' "$out"
@@ -64,26 +64,26 @@ while [ "$i" -lt 13 ]; do
 done
 
 # --- deterministic: the same input always yields the same bytes
-gatygo_transform "$tmp/in-0.json" "$tmp/again.json" 12345 5353 255 warning /var/log/gatygo.log
+gatygo_transform "$tmp/in-0.json" "$tmp/again.json" 12345 5353 255 warning
 assert_eq "$(sha256sum < "$tmp/out-0.json")" "$(sha256sum < "$tmp/again.json")" "transform is deterministic"
 
 # --- existing service blocks are merged, not clobbered
 jq '.api = {"tag": "api", "services": ["HandlerService"], "listen": "127.0.0.1:1"}
-    | .log = {"access": "/tmp/access.log", "dnsLog": true}
+    | .log = {"access": "/tmp/access.log", "error": "/tmp/panel.log", "dnsLog": true}
     | .policy = {"levels": {"0": {"handshake": 4}}}
     | .stats = {"x": 1}' "$tmp/in-12.json" > "$tmp/merge-in.json"
-gatygo_transform "$tmp/merge-in.json" "$tmp/merge-out.json" 12345 5353 255 debug /tmp/err.log
+gatygo_transform "$tmp/merge-in.json" "$tmp/merge-out.json" 12345 5353 255 debug
 assert_exit 0 "api merged (ours wins, extra keys kept)" jq -e \
     '.api.listen == "127.0.0.1:1" and .api.services == ["HandlerService", "StatsService", "RoutingService"]' "$tmp/merge-out.json"
-assert_exit 0 "log merged (access forced to none, dnsLog kept)" jq -e \
-    '.log == {"access": "none", "dnsLog": true, "loglevel": "debug", "error": "/tmp/err.log"}' "$tmp/merge-out.json"
+assert_exit 0 "log merged (access forced to none, error to console, dnsLog kept)" jq -e \
+    '.log == {"access": "none", "dnsLog": true, "loglevel": "debug", "error": ""}' "$tmp/merge-out.json"
 assert_exit 0 "policy merged (levels kept, system added)" jq -e \
     '.policy.levels["0"].handshake == 4 and .policy.system.statsOutboundDownlink == true' "$tmp/merge-out.json"
 assert_exit 0 "stats kept" jq -e '.stats == {"x": 1}' "$tmp/merge-out.json"
 
 # --- no socks inbound in the subscription -> default sniffing
 jq '.inbounds = []' "$tmp/in-12.json" > "$tmp/nosocks-in.json"
-gatygo_transform "$tmp/nosocks-in.json" "$tmp/nosocks-out.json" 12345 5353 255 warning /tmp/err.log
+gatygo_transform "$tmp/nosocks-in.json" "$tmp/nosocks-out.json" 12345 5353 255 warning
 assert_eq '{"enabled":true,"routeOnly":false,"destOverride":["http","tls","quic"]}' \
     "$(jq -c '.inbounds[0].sniffing' "$tmp/nosocks-out.json")" "default sniffing when no socks inbound"
 
@@ -91,7 +91,7 @@ assert_eq '{"enabled":true,"routeOnly":false,"destOverride":["http","tls","quic"
 jq '.outbounds = [{"tag": "proxy", "protocol": "freedom", "streamSettings": {"sockopt": {"tcpFastOpen": true}}},
                   {"tag": "direct", "protocol": "freedom"}, {"tag": "block", "protocol": "blackhole"}]' \
     "$tmp/in-12.json" > "$tmp/sockopt-in.json"
-gatygo_transform "$tmp/sockopt-in.json" "$tmp/sockopt-out.json" 12345 5353 255 warning /tmp/err.log
+gatygo_transform "$tmp/sockopt-in.json" "$tmp/sockopt-out.json" 12345 5353 255 warning
 assert_eq '{"tcpFastOpen":true,"mark":255}' "$(jq -c '.outbounds[0].streamSettings.sockopt' "$tmp/sockopt-out.json")" "existing sockopt keys kept"
 assert_eq '{"sockopt":{"mark":255}}' "$(jq -c '.outbounds[1].streamSettings' "$tmp/sockopt-out.json")" "streamSettings created for direct"
 

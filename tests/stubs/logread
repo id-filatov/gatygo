@@ -1,0 +1,4 @@
+#!/bin/sh
+# `logread` stand-in for unit tests: prints $SYSLOG_STUB_FILE (what the logger stub wrote plus
+# whatever the test put there).
+cat "${SYSLOG_STUB_FILE:?SYSLOG_STUB_FILE not set}"

@@ -78,7 +78,7 @@ gatygo_apply_profile() {
     _gatygo_sel=$?
     if [ "$_gatygo_sel" -eq 1 ]; then rm -rf "$_gatygo_t"; return 1; fi
     if ! gatygo_transform "$_gatygo_t/selected.json" "$_gatygo_t/xray.json" "$GATYGO_TPROXY_PORT" "$GATYGO_DNS_PORT" \
-            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL" "$GATYGO_LOG"; then
+            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL"; then
         rm -rf "$_gatygo_t"; return 1
     fi
     mkdir -p "$_gatygo_t/assets"

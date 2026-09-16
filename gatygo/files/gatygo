@@ -5,7 +5,7 @@
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
 #   gatygo status                    JSON for scripts and the LuCI page
 #   gatygo nodes                     JSON: outbounds with balancer selection and traffic
-#   gatygo log [N]                   last N lines of the log (default 200)
+#   gatygo log [N]                   last N xray/gatygo lines of the system log (default 200)
 #   gatygo updating                  exit 0 while an update runs
 #   gatygo cron-sync                 re-create the periodic update line
 #   gatygo version
@@ -27,7 +27,6 @@ cmd_update() {
 		return 0
 	}
 	trap gatygo_update_unlock EXIT
-	gatygo_log_rotate
 	# without xray the router's own DNS must not point at xray (design decision 2)
 	gatygo_xray_running || gatygo_dns_restore
 	gatygo_update
@@ -135,7 +134,10 @@ updating)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_updating
 	;;
-log) tail -n "${2:-200}" "$GATYGO_LOG" 2>/dev/null ;;
+log)
+	. "$GATYGO_LIB/service.sh"
+	gatygo_log_tail "${2:-200}"
+	;;
 cron-sync)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_load_config
