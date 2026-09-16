@@ -51,7 +51,7 @@ vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/ga
 vm 'mkdir -p /usr/share/xray; echo junk > /usr/share/xray/geosite.dat; echo junk > /usr/share/xray/geoip.dat'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
 check "luci-app-gatygo installs" 'apk add --allow-untrusted /tmp/luci-app-gatygo.apk >/dev/null 2>&1'
-expect "gatygo version" "0.1.0" 'gatygo version'
+expect "gatygo version" "$(sed -n 's/^PKG_VERSION:=//p' "$ROOT/gatygo/Makefile")" 'gatygo version'
 check "init script enabled" 'test -e /etc/rc.d/S95gatygo'
 
 echo "== 2. configure + start"

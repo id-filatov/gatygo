@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ['v*']
 
+# a tag push (tools/release.sh) also creates the GitHub release with the .apk files attached
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -21,3 +25,8 @@ jobs:
           name: gatygo-apk
           path: bin/packages/x86_64/gatygo/*.apk
           if-no-files-found: error
+      - name: Attach the .apk files to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" bin/packages/x86_64/gatygo/*.apk --title "gatygo ${GITHUB_REF_NAME#v}" --generate-notes
