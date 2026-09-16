@@ -95,9 +95,10 @@ return view.extend({
 		}, this));
 	},
 
+	// A warning or error stays on the panel as an alert (repaint); only success needs a toast.
 	notify: function(result, message) {
-		var cls = (result == 'ok') ? 'info' : (result == 'warning') ? 'warning' : 'error';
-		ui.addNotification(null, E('p', message), cls);
+		if (result == 'ok')
+			ui.addNotification(null, E('p', message), 'info');
 	},
 
 	run: function(kind, promise) {
