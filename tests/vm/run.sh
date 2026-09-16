@@ -4,12 +4,16 @@
 # Needs: LAB_HOST, the ssh target of the machine running the OpenWrt VM, and LAB_DIR, a directory there
 # (relative to the remote home or absolute) with openwrt.sh providing `wait` and `ssh [args] CMD`; the
 # VM's ssh is forwarded to 127.0.0.1:2222 on that machine and reaches it as 10.0.2.2. The mock panel
-# runs there with python3. FIXTURE defaults to tests/fixtures/subscription.json.
+# runs there with python3. FIXTURE defaults to tests/fixtures/subscription.json. LUCI_PASSWORD is the
+# VM's root password for the LuCI login check (default: empty).
+# The VM's /etc/config/gatygo from before the run (the lab may hold a real subscription) is put back
+# at the end; everything the run created is removed.
 set -u
 : "${LAB_HOST:?set LAB_HOST to the ssh target of the lab host}" "${LAB_DIR:?set LAB_DIR to the lab directory there}"
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 APK=${1:-$(ls "$ROOT"/bin/packages/x86_64/gatygo/gatygo-*.apk 2>/dev/null | tail -n 1)}
 FIXTURE=${FIXTURE:-$ROOT/tests/fixtures/subscription.json}
+LUCI_PASSWORD=${LUCI_PASSWORD:-}
 [ -f "$APK" ] || { echo "no .apk: build it with tools/build-apk.sh" >&2; exit 1; }
 LUCI_APK=${LUCI_APK:-$(ls "$(dirname "$APK")"/luci-app-gatygo-*.apk 2>/dev/null | tail -n 1)}
 [ -f "$LUCI_APK" ] || { echo "no luci-app-gatygo .apk next to $APK" >&2; exit 1; }
@@ -41,6 +45,7 @@ vm 'printf "%s\n" "#!/bin/sh" "t=\$1; shift" "\"\$@\" & p=\$!" "( sleep \"\$t\";
 check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
 
 echo "== 1. install"
+vm 'cp /etc/config/gatygo /root/gatygo.config.pre-e2e 2>/dev/null; true'
 vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del luci-app-gatygo gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
 check "luci-app-gatygo installs" 'apk add --allow-untrusted /tmp/luci-app-gatygo.apk >/dev/null 2>&1'
@@ -68,7 +73,7 @@ expect "ubus update: started" "true" 'ubus -S call gatygo update | jq -r .starte
 check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]; do i=$((i+1)); sleep 1; done; ! gatygo updating'
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
-check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password=" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
+check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
 
 echo "== 2c. settings reload"
 vm 'uci set gatygo.main.user_agent="gatygo/e2e"; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
@@ -138,6 +143,9 @@ echo "== 11. removal"
 vm '/etc/init.d/gatygo stop; apk del luci-app-gatygo gatygo >/dev/null 2>&1; true'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
+# the fixture geo files must not survive either: a real subscription would keep them (304 on the newer mtime)
+vm 'rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo /usr/share/xray/geosite.dat /usr/share/xray/geoip.dat; [ -f /root/gatygo.config.pre-e2e ] && mv /root/gatygo.config.pre-e2e /etc/config/gatygo; true'
+check "no e2e state left behind" '! test -e /etc/gatygo && ! test -e /usr/share/xray/geosite.dat && test "$(uci -q get gatygo.main.profile)" != "📍 Bravo"'
 
 ssh "$LAB_HOST" 'pkill -f sub_server.py; true'
 echo "== $pass passed, $fail failed"
