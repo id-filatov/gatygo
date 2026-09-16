@@ -140,6 +140,7 @@ expect "running after start" "true" 'gatygo status | jq -r .running'
 vm 'reboot' >/dev/null 2>&1; sleep 5
 ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null" && sleep 15
 expect "running after reboot" "true" 'gatygo status | jq -r .running'
+expect "last update result survives the reboot" "ok" 'gatygo status | jq -r .last_update.result'
 check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 
 echo "== 11. removal"

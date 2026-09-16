@@ -12,16 +12,18 @@
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
-# gatygo_result RESULT MESSAGE [PROFILE] [RESTARTED] — record the outcome for the UI and log it
+# gatygo_result RESULT MESSAGE [PROFILE] [RESTARTED] — record the outcome for the UI and log it.
+# One small file in the state dir, overwritten each time: the panel shows the last real result
+# right after a reboot instead of nothing until the boot-time update has run.
 gatygo_result() {
-    mkdir -p "$GATYGO_RUN"
+    mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
     {
         echo "RESULT=$(gatygo_shquote "$1")"
         echo "TIME=$(date +%s)"
         echo "MESSAGE=$(gatygo_shquote "$2")"
         echo "PROFILE=$(gatygo_shquote "${3:-}")"
         echo "RESTARTED=$(gatygo_shquote "${4:-0}")"
-    } > "$GATYGO_RUN/last-update.env.tmp" && mv "$GATYGO_RUN/last-update.env.tmp" "$GATYGO_RUN/last-update.env"
+    } > "$GATYGO_STATE/last-update.env.tmp" && mv "$GATYGO_STATE/last-update.env.tmp" "$GATYGO_STATE/last-update.env"
     case $1 in
         error) gatygo_log error "$2" ;;
         warning) gatygo_log warn "$2" ;;

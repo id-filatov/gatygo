@@ -89,7 +89,7 @@ cmd_status() {
 	[ -s "$GATYGO_STATE/subscription.json" ] && _profiles=$(gatygo_sub_profiles "$GATYGO_STATE/subscription.json")
 	(
 		[ -f "$GATYGO_STATE/headers.env" ] && . "$GATYGO_STATE/headers.env"
-		[ -f "$GATYGO_RUN/last-update.env" ] && . "$GATYGO_RUN/last-update.env"
+		[ -f "$GATYGO_STATE/last-update.env" ] && . "$GATYGO_STATE/last-update.env"
 		jq -n --argjson running "$_running" --arg pid "$_pid" --arg version "$GATYGO_VERSION" \
 			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
 			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \

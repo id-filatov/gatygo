@@ -14,12 +14,14 @@ python3 /src/tests/mock/sub_server.py 8789 "$FIXTURES/subscription.json" "$tmp/g
 _mock=$!
 for _ in $(seq 1 50); do curl -fs -o /dev/null http://127.0.0.1:8789/log && break; sleep 0.1; done
 _geo_requests() { curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path | startswith("/geo/"))] | length'; }
-_last() { ( . "$GATYGO_RUN/last-update.env"; eval "printf '%s' \"\$$1\"" ); }
+_last() { ( . "$GATYGO_STATE/last-update.env"; eval "printf '%s' \"\$$1\"" ); }
 # stderr goes to its own file so the leak check below covers both it and the system log
 
 # --- no URL configured
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "no sub_url -> error"
 assert_eq "error" "$(_last RESULT)" "result recorded"
+assert_exit 0 "result lives in the state dir, not in tmpfs (the UI shows it after a reboot)" test -f "$GATYGO_STATE/last-update.env"
+assert_exit 1 "nothing in the run dir" test -f "$GATYGO_RUN/last-update.env"
 
 # --- first update from an empty state
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub
