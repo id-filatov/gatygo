@@ -27,6 +27,9 @@ _tmp=$(mktemp -d); cp -r "$FIXTURES/sysroot/." "$_tmp/"; rm "$_tmp/proc/device-t
 uci delete gatygo.main.hwid
 _expected2=$(printf 'qemu-qemu-virtual-machine52:54:00:12:34:56' | sha256sum | cut -c1-32)
 assert_eq "$_expected2" "$(GATYGO_SYSROOT=$_tmp gatygo_hwid_ensure 2>/dev/null)" "board_name used when no serial-number"
+# x86 routers have no device tree at all: only our own log line on stderr, no shell "can't open"
+uci delete gatygo.main.hwid
+assert_eq "generated a new hwid" "$(GATYGO_SYSROOT=$_tmp gatygo_hwid_ensure 2>&1 >/dev/null | sed -E 's/^[^[]*\[info\] //; s/ \(.*//')" "missing serial-number file is silent"
 rm -rf "$_tmp"
 
 report

@@ -19,7 +19,8 @@ gatygo_hwid_valid() {
 gatygo_hwid_ensure() {
     _gatygo_h=$(uci -q get gatygo.main.hwid 2>/dev/null)
     if ! gatygo_hwid_valid "$_gatygo_h"; then
-        _gatygo_serial=$(tr -d '\000' < "$GATYGO_SYSROOT/proc/device-tree/serial-number" 2>/dev/null)
+        # brace group: a failed `<` prints its error before a trailing 2>/dev/null takes effect (x86 has no device tree)
+        _gatygo_serial=$({ tr -d '\000' < "$GATYGO_SYSROOT/proc/device-tree/serial-number"; } 2>/dev/null)
         [ -n "$_gatygo_serial" ] || _gatygo_serial=$(cat "$GATYGO_SYSROOT/tmp/sysinfo/board_name" 2>/dev/null)
         _gatygo_dev=${GATYGO_LAN_IFACES%% *}
         _gatygo_mac=$(cat "$GATYGO_SYSROOT/sys/class/net/${_gatygo_dev:-br-lan}/address" 2>/dev/null)
