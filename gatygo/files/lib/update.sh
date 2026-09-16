@@ -130,10 +130,14 @@ gatygo_update() {
     [ -f "$GATYGO_STATE/subscription.json" ] \
         && [ "$(sha256sum < "$_gatygo_w/body")" = "$(sha256sum < "$GATYGO_STATE/subscription.json")" ] && _gatygo_sub_changed=0
     # 3. geo (at most daily while the subscription is unchanged), only when the subscription names the files
+    _gatygo_geo_ok=0
     if _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env") \
         && { [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due; }; then
         gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
-        [ $? -ne 1 ] || gatygo_log warn "geo download failed; keeping the current geo files"
+        case $? in
+            1) gatygo_log warn "geo download failed; keeping the current geo files" ;;
+            *) _gatygo_geo_ok=1 ;;
+        esac
     fi
     # 4–7. select, transform, test, swap
     _gatygo_prof=$(gatygo_apply_profile "$_gatygo_w/body" "$_gatygo_w/geo")
@@ -144,6 +148,8 @@ gatygo_update() {
         rm -rf "$_gatygo_w"; return 1
     fi
     GATYGO_SWAP_RESULT=$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)
+    # the dats now installed (fetched or confirmed by 304) came from these URLs: next time conditional
+    [ "$_gatygo_geo_ok" = 1 ] && gatygo_geo_record "${_gatygo_urls% *}" "${_gatygo_urls#* }"
     _gatygo_install "$_gatygo_w/body" "$GATYGO_STATE/subscription.json" 600
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"

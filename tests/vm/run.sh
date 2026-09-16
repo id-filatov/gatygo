@@ -47,6 +47,8 @@ check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
 echo "== 1. install"
 vm 'cp /etc/config/gatygo /root/gatygo.config.pre-e2e 2>/dev/null; true'
 vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del luci-app-gatygo gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
+# geo files of unknown origin with a fresh mtime must not block the first update (they got 304 and stayed)
+vm 'mkdir -p /usr/share/xray; echo junk > /usr/share/xray/geosite.dat; echo junk > /usr/share/xray/geoip.dat'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
 check "luci-app-gatygo installs" 'apk add --allow-untrusted /tmp/luci-app-gatygo.apk >/dev/null 2>&1'
 expect "gatygo version" "0.1.0" 'gatygo version'
@@ -60,6 +62,7 @@ expect "first balancer tile applied" "🌐 Auto" 'gatygo status | jq -r .profile
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
 check "xray.json installed 0600" 'test "$(ls -l /etc/gatygo/xray.json | cut -c1-10)" = -rw-------'
 check "geo files installed" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
+check "foreign geo files replaced" 'test "$(wc -c < /usr/share/xray/geosite.dat)" -gt 100 && test -s /etc/gatygo/geo-source.env'
 
 echo "== 2b. LuCI and ubus"
 check "ubus object registered" 'ubus list gatygo >/dev/null'

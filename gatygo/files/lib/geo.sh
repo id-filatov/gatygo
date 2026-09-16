@@ -38,16 +38,37 @@ gatygo_geo_due() {
     return 1
 }
 
+# gatygo_geo_record GEOSITE_URL GEOIP_URL — remember where the installed dats came from. Written
+# by the update cycle once the files passed `xray run -test` and were installed.
+gatygo_geo_record() {
+    {
+        echo "GATYGO_GEOSITE_URL=$(gatygo_shquote "$1")"
+        echo "GATYGO_GEOIP_URL=$(gatygo_shquote "$2")"
+    } > "$GATYGO_STATE/geo-source.env.tmp" && mv "$GATYGO_STATE/geo-source.env.tmp" "$GATYGO_STATE/geo-source.env"
+}
+
+# gatygo_geo_source_matches GEOSITE_URL GEOIP_URL — exit 0 when the installed dats are recorded as
+# fetched from exactly these URLs. Only then is their mtime a valid If-Modified-Since: a file from
+# anywhere else (feed package, another panel, a wiped state dir) with a newer mtime would get 304
+# from the server and stay forever, failing `xray run -test` on every update.
+gatygo_geo_source_matches() {
+    [ -f "$GATYGO_STATE/geo-source.env" ] || return 1
+    [ "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)" = "$1" ] \
+        && [ "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOIP_URL)" = "$2" ]
+}
+
 # gatygo_geo_fetch GEOSITE_URL GEOIP_URL STAGE_DIR — download changed files into STAGE_DIR.
-# Uses If-Modified-Since against the installed file and keeps the server's Last-Modified as mtime.
-# Redirects are followed to https only (GitHub release URLs redirect; no credentials are sent here).
-# exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
+# Conditional (If-Modified-Since = the installed file's mtime) only when the installed files are
+# recorded as coming from these URLs; unconditional otherwise. Keeps the server's Last-Modified as
+# mtime. Redirects are followed to https only (GitHub release URLs redirect; no credentials are
+# sent here). exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
 gatygo_geo_fetch() {
-    _gatygo_stage=$3 _gatygo_staged=0
+    _gatygo_stage=$3 _gatygo_staged=0 _gatygo_cond=0
+    gatygo_geo_source_matches "$1" "$2" && _gatygo_cond=1
     for _gatygo_pair in "geosite.dat $1" "geoip.dat $2"; do
         _gatygo_n=${_gatygo_pair%% *} _gatygo_u=${_gatygo_pair#* }
         _gatygo_cur=$GATYGO_ASSETS/$_gatygo_n
-        if [ -f "$_gatygo_cur" ]; then
+        if [ "$_gatygo_cond" = 1 ] && [ -f "$_gatygo_cur" ]; then
             _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' \
                 -L --max-redirs 3 --proto-redir '=https' -R -z "$_gatygo_cur" \
                 -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)

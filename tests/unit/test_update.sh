@@ -101,6 +101,21 @@ assert_eq "$_before" "$(_geo_requests)" "no geo download without URLs"
 case $(_last MESSAGE) in *"no geo file URLs"*) _t_ok ;; *) _t_bad "error names the missing geo URLs: $(_last MESSAGE)" ;; esac
 assert_exit 1 "no config installed" test -e "$GATYGO_STATE/xray.json"
 
+# --- geo files of unknown origin with a fresh mtime (feed package, another panel, a wiped state dir):
+#     replaced on the first update, their source recorded, later fetches conditional
+GATYGO_STATE="$tmp/state-foreign" GATYGO_ASSETS="$tmp/assets-foreign"; mkdir -p "$GATYGO_ASSETS"
+printf 'not a geosite\n' > "$GATYGO_ASSETS/geosite.dat"; printf 'not a geoip\n' > "$GATYGO_ASSETS/geoip.dat"
+uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub; uci set gatygo.main.profile=""
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "foreign geo files do not block the first update"
+assert_eq "$(sha256sum < "$FIXTURES/geo/geosite.dat")" "$(sha256sum < "$GATYGO_ASSETS/geosite.dat")" "geosite replaced by the subscription's file"
+assert_eq "http://127.0.0.1:8789/geo/geoip.dat" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOIP_URL)" "source of the installed files recorded"
+touch -d '2026-01-01 00:00:00' "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
+_before=$(_geo_requests)
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$((_before + 2))" "$(_geo_requests)" "due again -> re-checked"
+assert_eq "true" "$(curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path == "/geo/geosite.dat")][-1].headers | has("if-modified-since")')" "recorded source -> conditional GET"
+assert_eq "0" "$(_last RESTARTED)" "304 -> nothing changed"
+
 # --- send_hwid=0: no hwid generated, no x-hwid header, update still succeeds
 GATYGO_STATE="$tmp/state-nohwid" GATYGO_ASSETS="$tmp/assets-nohwid"; mkdir -p "$GATYGO_ASSETS"
 uci delete gatygo.main.hwid; uci set gatygo.main.send_hwid=0; uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-nohwid; uci set gatygo.main.profile=""
