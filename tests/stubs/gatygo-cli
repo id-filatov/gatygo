@@ -3,7 +3,6 @@
 echo "$*" >> "${GATYGO_CLI_LOG:?}"
 case $1 in
     status) echo '{"running":true,"profile_used":"🌐 Auto","last_update":{"result":"ok","code":"applied","message":"profile applied","time":"1"}}' ;;
-    nodes) echo '{"api":true,"balancer":"balancer","nodes":[{"tag":"proxy","address":"relay-1.example.com","in_use":true,"up":1,"down":2}]}' ;;
     log) _i=0; while [ "$_i" -lt "${2:-200}" ]; do _i=$((_i + 1)); echo "line $_i"; done ;;
     updating) exit "${GATYGO_CLI_UPDATING_RC:-1}" ;;
     update) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}" ;;

@@ -20,8 +20,8 @@ define Package/luci-app-gatygo
 endef
 
 define Package/luci-app-gatygo/description
- LuCI page for gatygo: tunnel state, profile switch, subscription settings,
- node list and log. Talks to the daemon through the rpcd plugin it ships.
+ LuCI pages for gatygo: connection state and country switch, subscription
+ settings and log. Talks to the daemon through the rpcd plugin it ships.
 endef
 
 define Build/Compile

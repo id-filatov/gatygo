@@ -70,7 +70,7 @@ expect "ubus status: running" "true" 'ubus -S call gatygo status | jq -r .runnin
 expect "ubus status: configured, not updating" "true false" 'ubus -S call gatygo status | jq -r "\"\\(.configured) \\(.updating)\""'
 check "ubus status: uptime and next update known" 'ubus -S call gatygo status | jq -e ".uptime >= 0 and .next_update > 0" >/dev/null'
 expect "ubus status: 22 profiles, 13 balanced" "22 13" 'ubus -S call gatygo status | jq -r "\"\\(.profiles | length) \\([.profiles[] | select(.balanced)] | length)\""'
-check "ubus nodes: api up, outbounds listed" 'ubus -S call gatygo nodes | jq -e ".api == true and (.nodes | length) >= 3 and .balancer == \"balancer\"" >/dev/null'
+check "gatygo nodes: api up, outbounds listed" 'gatygo nodes | jq -e ".api == true and (.nodes | length) >= 3 and .balancer == \"balancer\"" >/dev/null'
 check "ubus log: text" 'ubus -S call gatygo log "{\"lines\":5}" | jq -e ".log | length > 0" >/dev/null'
 expect "ubus update: started" "true" 'ubus -S call gatygo update | jq -r .started'
 check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]; do i=$((i+1)); sleep 1; done; ! gatygo updating'

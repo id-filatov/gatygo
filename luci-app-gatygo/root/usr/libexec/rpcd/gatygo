@@ -6,12 +6,11 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"nodes":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"}}'
 		;;
 	call)
 		case $2 in
 			status) "$GATYGO" status ;;
-			nodes) "$GATYGO" nodes ;;
 			log)
 				_n=$(jq -r '.lines // empty' 2>/dev/null)
 				case $_n in '' | *[!0-9]*) _n=200 ;; esac

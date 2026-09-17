@@ -6,10 +6,10 @@ export GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_CLI_LOG="$tmp/calls" GATYGO
 : > "$GATYGO_CLI_LOG"
 call() { _m=$1; shift; printf '%s' "${1:-{\}}" | sh "$RPCD" call "$_m"; }
 
-assert_eq '["connect","log","nodes","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the six methods"
+assert_eq '["connect","log","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the five methods"
 assert_eq "32" "$(sh "$RPCD" list | jq '.log.lines')" "log declares a numeric argument"
 assert_eq "true" "$(call status | jq .running)" "status passes the CLI JSON through"
-assert_eq "proxy" "$(call nodes | jq -r '.nodes[0].tag')" "nodes passes the CLI JSON through"
+assert_eq "unknown method" "$(call nodes | jq -r .error)" "the page has no node list: no nodes method"
 assert_eq "3" "$(call log '{"lines":3}' | jq -r .log | grep -c .)" "log honours lines"
 assert_eq "200" "$(call log '{}' | jq -r .log | grep -c .)" "log defaults to 200"
 assert_eq "200" "$(call log '{"lines":"abc"}' | jq -r .log | grep -c .)" "non-numeric lines -> default"
