@@ -10,5 +10,15 @@
 			"acl": [ "luci-app-gatygo" ],
 			"uci": { "gatygo": true }
 		}
+	},
+	"admin/services/gatygo/advanced": {
+		"action": {
+			"type": "view",
+			"path": "gatygo/advanced"
+		},
+		"depends": {
+			"acl": [ "luci-app-gatygo" ],
+			"uci": { "gatygo": true }
+		}
 	}
 }
