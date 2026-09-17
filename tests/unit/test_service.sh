@@ -86,5 +86,15 @@ gatygo_update_lock
 assert_exit 0 "cli: updating while locked" sh "$CLI" updating
 gatygo_update_unlock
 
+# --- CLI: connect (the first run from the page) stores the link, enables the service, starts it
+export GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log"
+: > "$GATYGO_INIT_LOG"
+assert_exit 0 "cli: connect" sh "$CLI" connect "https://panel.example.com/sub/abc"
+assert_eq "https://panel.example.com/sub/abc" "$(uci -q get gatygo.main.sub_url)" "connect stores the link"
+assert_eq "1" "$(uci -q get gatygo.main.enabled)" "connect enables the service"
+assert_eq "enable start" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "connect enables and starts the init script"
+assert_exit 1 "cli: connect refuses what is not a link" sh "$CLI" connect "hello"
+assert_eq "https://panel.example.com/sub/abc" "$(uci -q get gatygo.main.sub_url)" "and leaves the stored link alone"
+
 rm -rf "$tmp"
 report

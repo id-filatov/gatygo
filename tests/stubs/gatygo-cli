@@ -8,5 +8,6 @@ case $1 in
     updating) exit "${GATYGO_CLI_UPDATING_RC:-1}" ;;
     update) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}" ;;
     select) exit 0 ;;
+    connect) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.connect" ;;
     *) exit 1 ;;
 esac

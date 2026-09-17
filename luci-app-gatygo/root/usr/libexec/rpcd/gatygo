@@ -6,7 +6,7 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"nodes":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"}}'
+		echo '{"status":{},"nodes":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"}}'
 		;;
 	call)
 		case $2 in
@@ -34,6 +34,17 @@ case $1 in
 				}
 				"$GATYGO" select "$_p" >/dev/null 2>&1
 				"$GATYGO" status | jq -c '{result: .last_update.result, code: .last_update.code, profile: .profile_used, message: .last_update.message}'
+				;;
+			connect)
+				_u=$(jq -r '.url // empty' 2>/dev/null)
+				case $_u in
+					http://?* | https://?*)
+						# detach fully: the first start downloads the subscription
+						("$GATYGO" connect "$_u" </dev/null >/dev/null 2>&1 &)
+						echo '{"started":true}'
+						;;
+					*) echo '{"error":"link required"}' ;;
+				esac
 				;;
 			*) echo '{"error":"unknown method"}' ;;
 		esac

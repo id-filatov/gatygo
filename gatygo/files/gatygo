@@ -13,8 +13,19 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|update|select <profile>|status|nodes|log [N]|updating|cron-sync|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|status|nodes|log [N]|updating|cron-sync|version" >&2
 	exit 1
+}
+
+# The first run from the page: store the link, enable the service, start it. `start` downloads
+# the subscription when there is no config yet. Done here and not through a UCI apply: the
+# init script's reload trigger only exists while procd knows the service (not after a stop).
+cmd_connect() {
+	case $1 in http://?* | https://?*) ;; *) usage ;; esac
+	_init=${GATYGO_INIT:-/etc/init.d/gatygo}
+	uci set gatygo.main.sub_url="$1" && uci set gatygo.main.enabled=1 && uci commit gatygo || return 1
+	"$_init" enable
+	"$_init" start
 }
 
 cmd_update() {
@@ -122,6 +133,7 @@ cmd_status() {
 
 case ${1:-} in
 start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
+connect) cmd_connect "$2" ;;
 update) cmd_update ;;
 select) cmd_select "$2" ;;
 status) cmd_status ;;

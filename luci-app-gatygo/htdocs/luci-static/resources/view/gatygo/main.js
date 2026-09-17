@@ -3,7 +3,6 @@
 'require dom';
 'require poll';
 'require rpc';
-'require uci';
 'require ui';
 
 // The main page: one block with the connection state and the country in it, the subscription
@@ -13,6 +12,7 @@
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callUpdate = rpc.declare({ object: 'gatygo', method: 'update', expect: { started: false } });
 var callSelect = rpc.declare({ object: 'gatygo', method: 'select', params: [ 'profile' ], expect: { } });
+var callConnect = rpc.declare({ object: 'gatygo', method: 'connect', params: [ 'url' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 
 var CSS = [
@@ -159,7 +159,6 @@ function country(remarks, idle) {
 
 return view.extend({
 	status: null,
-	haveUci: false,
 	busy: null,            // 'select' | 'update' | 'init' | 'connect' while an action runs
 	busyProfile: null,     // the profile being switched to
 	urlError: null,        // the first-run link did not look like a link
@@ -172,10 +171,7 @@ return view.extend({
 	handleReset: null,
 
 	load: function() {
-		return Promise.all([
-			callStatus(),
-			L.resolveDefault(uci.load('gatygo'), null)
-		]);
+		return callStatus();
 	},
 
 	// Repaint only when something visible changed (times are shown to the minute), and keep what
@@ -232,8 +228,9 @@ return view.extend({
 		}));
 	},
 
-	// First run: store the link, enable the service and apply. The UCI reload trigger downloads
-	// the subscription and starts the tunnel; LuCI reloads the page when the apply is confirmed.
+	// First run: the daemon stores the link, enables the service and starts it; the first start
+	// downloads the subscription. The page then follows the status: Setting up, then Connected
+	// or the form again with what went wrong.
 	handleConnect: function(ev) {
 		ev.preventDefault();
 		var url = this.panel.querySelector('.gg-url').value.trim();
@@ -243,9 +240,11 @@ return view.extend({
 			return;
 		}
 		this.urlError = null;
-		uci.set('gatygo', 'main', 'sub_url', url);
-		uci.set('gatygo', 'main', 'enabled', '1');
-		return this.run('connect', uci.save().then(function() { return ui.changes.apply(true); }));
+		return this.run('connect', callConnect(url).then(function(r) {
+			if (r.error) throw new Error(r.error);
+			// the download shows up in the status a moment after the start
+			return new Promise(function(resolve) { window.setTimeout(resolve, 3000); });
+		}));
 	},
 
 	// What went wrong, in the user's words. The daemon's own message goes below as the detail.
@@ -342,12 +341,10 @@ return view.extend({
 		return [
 			E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' }), _('Not set up yet') ]),
 			E('p', { 'class': 'gg-meta' }, _('Paste the subscription link from your VPN provider. gatygo downloads the list of countries and connects your whole home network.')),
-			this.haveUci
-				? E('form', { 'class': 'gg-field' + (error ? ' is-bad' : ''), 'submit': ui.createHandlerFn(this, 'handleConnect') }, [
-					E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url' }),
-					E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, _('Connect'))
-				])
-				: E('p', { 'class': 'gg-field-error' }, _('Your account cannot change the gatygo settings.')),
+			E('form', { 'class': 'gg-field' + (error ? ' is-bad' : ''), 'novalidate': '', 'submit': ui.createHandlerFn(this, 'handleConnect') }, [
+				E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url' }),
+				E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, _('Connect'))
+			]),
 			error ? E('p', { 'class': 'gg-field-error' }, error) : '',
 			detail ? E('p', { 'class': 'gg-detail' }, detail) : ''
 		];
@@ -358,16 +355,15 @@ return view.extend({
 		var profiles = Array.isArray(st.profiles) ? st.profiles : [], lu = st.last_update || {};
 		// E() writes every non-null attribute, so a boolean false would still disable the control
 		var dis = (!!this.busy || updating) ? '' : null;
-		var setup = !hasConfig && !updating && this.busy != 'connect';
 		var problem = (hasConfig && this.busy != 'select') ? this.problem(st, running) : null;
 		var main = [], facts = [], actions = [];
 
-		if (!st.configured || setup) {
-			main = this.renderSetup(st, dis);
-		}
-		else if (!hasConfig) {
+		if (!hasConfig && (updating || this.busy == 'connect')) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Setting up') ]));
 			main.push(E('p', { 'class': 'gg-meta' }, E('span', { 'class': 'spinning' }, _('Downloading the list of countries…'))));
+		}
+		else if (!hasConfig) {
+			main = this.renderSetup(st, dis);
 		}
 		else if (this.busy == 'select' && running) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Switching'),
@@ -445,9 +441,8 @@ return view.extend({
 		]);
 	},
 
-	render: function(data) {
-		this.status = data[0];
-		this.haveUci = (data[1] !== null);
+	render: function(st) {
+		this.status = st;
 		this.panel = E('div', {});
 		this.repaint();
 		poll.add(L.bind(this.refresh, this), 5);
