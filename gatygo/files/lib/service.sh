@@ -57,10 +57,11 @@ gatygo_cron_remove() {
 # relays it, tag xray) and gatygo_log (tag gatygo). A logread line is "Day Mon D HH:MM:SS YYYY
 # facility.prio tag[pid]: message"; the tag is matched in that position only, and the six
 # fields before it are cut. Nothing of ours is written anywhere else: logd's ring buffer bounds
-# the memory.
+# the memory. The balancer's failed health probes are left out: on a large subscription they are
+# most of xray's output and say nothing about the tunnel (logread still has them).
 gatygo_log_tail() {
-    logread | grep -E '^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: ' | tail -n "$1" \
-        | sed -E 's/^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: /\2: /'
+    logread | grep -E '^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: ' | grep -v ' app/observatory/[a-z]*: error ping ' \
+        | tail -n "$1" | sed -E 's/^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: /\2: /'
 }
 
 # gatygo_update_lock — take $GATYGO_RUN/update.lock (a directory: mkdir is atomic). Exit 1 when a

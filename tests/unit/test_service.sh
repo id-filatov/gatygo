@@ -81,6 +81,11 @@ printf 'Wed Sep  9 14:00:0%s 2026 %s\n' 1 'daemon.info xray[1]: one' 2 'daemon.i
 assert_eq "gatygo: two
 xray: three" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log 2)" "log N prints the last N lines"
 assert_eq "3" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log | wc -l | tr -d ' ')" "log defaults to the last 200 lines"
+# the balancer's health probes fail by the dozen per hour on a large subscription: not shown
+printf 'Wed Sep  9 14:00:0%s 2026 %s\n' 4 'daemon.info xray[1]: 2026/09/09 14:00:04.1 [Warning] app/observatory/burst: error ping https://probe.example.com/generate_204 with proxy-7: context deadline exceeded' \
+    5 'daemon.info xray[1]: 2026/09/09 14:00:05.1 [Warning] core: Xray started' >> "$SYSLOG_STUB_FILE"
+assert_eq "xray: three
+xray: 2026/09/09 14:00:05.1 [Warning] core: Xray started" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log 2)" "log skips the balancer's failed probes, and N counts what is shown"
 assert_exit 1 "cli: not updating" sh "$CLI" updating
 gatygo_update_lock
 assert_exit 0 "cli: updating while locked" sh "$CLI" updating
