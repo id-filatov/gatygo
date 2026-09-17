@@ -109,8 +109,11 @@ return view.extend({
 			return E('div', {}, [ shown, editing ]);
 		};
 
-		o = s.option(form.Value, 'user_agent', _('User agent'), _("The panel's subscription rules must return Xray JSON for this user agent."));
-		o.placeholder = 'gatygo/' + (st.version || '');
+		// The provider's server picks the answer format by this name. The list: apps that take
+		// Xray JSON subscriptions, which servers commonly know; anything else goes in as custom.
+		o = s.option(form.Value, 'user_agent', _('User agent'), _("Your provider's server picks the format of the list by this name, and gatygo needs Xray JSON. If the default is not recognised, choose the app your provider supports."));
+		o.placeholder = 'gatygo/' + (st.version || '') + ' (' + _('default') + ')';
+		[ 'Happ/3.0.0', 'v2rayNG/1.10.5', 'v2rayN/7.13.2', 'Streisand/1.6.40' ].forEach(function(ua) { o.value(ua); });
 
 		o = s.option(form.Flag, 'send_hwid', _('Send device ID'), _('Sent as the x-hwid header. Panels with a device limit count this router as one device.'));
 		o.default = '1';
