@@ -5,28 +5,118 @@
 'require rpc';
 'require uci';
 'require ui';
-'require form';
+
+// The main page: one block with the connection state and the country in it, the subscription
+// facts, every profile of the subscription as a button, and the service buttons. Settings, nodes
+// and the log live on the Advanced page behind the gear.
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
-var callNodes = rpc.declare({ object: 'gatygo', method: 'nodes', expect: { } });
-var callLog = rpc.declare({ object: 'gatygo', method: 'log', params: [ 'lines' ], expect: { log: '' } });
 var callUpdate = rpc.declare({ object: 'gatygo', method: 'update', expect: { started: false } });
 var callSelect = rpc.declare({ object: 'gatygo', method: 'select', params: [ 'profile' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 
 var CSS = [
-	'.gg-status { display:flex; flex-wrap:wrap; gap:1.5em 3em; align-items:flex-start; padding:1em 1.2em; margin-bottom:1em; border:1px solid var(--border-color-medium); border-radius:4px; background:var(--background-color-low); }',
-	'.gg-status .gg-main { flex:1 1 22em; min-width:0; }',
-	'.gg-state { font-size:1.35em; line-height:1.3; margin:0 0 .25em; color:var(--text-color-high); }',
-	'.gg-sub { color:var(--text-color-medium); margin:0; }',
-	'.gg-actions { display:flex; flex-wrap:wrap; gap:.5em; align-items:center; }',
-	'.gg-facts { display:grid; grid-template-columns:max-content 1fr; gap:.35em 1.2em; margin:0; flex:1 1 20em; }',
-	'.gg-facts dt { color:var(--text-color-medium); font-weight:400; } .gg-facts dd { margin:0; }',
-	'.gg-muted { color:var(--text-color-medium); } .gg-ok { color:var(--success-color-high); } .gg-bad { color:var(--error-color-high); } .gg-warn { color:var(--warn-color-high); }',
-	'.gg-secret { font-family:monospace; padding:.2em .5em; border:1px solid var(--border-color-medium); border-radius:3px; background:var(--background-color-low); }',
-	'.gg-nodes .th:nth-child(n+3), .gg-nodes .td:nth-child(n+3) { text-align:right; }',
-	'pre.gg-log { max-height:24em; overflow:auto; font-size:12px; line-height:1.45; }'
+	'.gg { --gg-ink:var(--text-color-highest); --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-line:hsl(0 0% 86%); --gg-line-2:hsl(0 0% 92%);',
+	'  --gg-accent:var(--primary-color-high); --gg-accent-tint:hsl(210 80% 96%); --gg-on:var(--success-color-medium); --gg-off:hsl(0 0% 62%); --gg-bad:hsl(0 72% 50%);',
+	'  --gg-warn-ink:hsl(32 90% 26%); --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%);',
+	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%);',
+	'  --gg-ease:cubic-bezier(.23,1,.32,1); font-variant-numeric:tabular-nums; min-width:0; overflow-wrap:anywhere; }',
+	'[data-darkmode="true"] .gg { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-line:hsl(0 0% 27%); --gg-line-2:hsl(0 0% 21%);',
+	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%);',
+	'  --gg-warn-ink:hsl(40 85% 68%); --gg-warn-tint:hsl(38 45% 15%); --gg-warn-line:hsl(38 40% 28%);',
+	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); }',
+	'.gg-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }',
+	'.gg-card { margin-top:14px; padding:20px 24px 24px; border:1px solid var(--border-color-medium); border-radius:8px; background:var(--background-color-low); }',
+	'.gg-card-head { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto; grid-template-areas:"main facts gear"; gap:16px 40px; align-items:start; }',
+	'.gg-card-main { grid-area:main; min-width:0; }',
+	'.gg-state { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:0 0 8px; font-size:22px; line-height:1.25; font-weight:600; letter-spacing:-.01em; color:var(--gg-ink); }',
+	'.gg-state small { font-size:15px; font-weight:400; letter-spacing:0; color:var(--gg-ink-2); }',
+	'.gg-dot { flex:none; align-self:center; width:10px; height:10px; border-radius:50%; background:var(--gg-off); }',
+	'.gg-dot.on { background:var(--gg-on); box-shadow:0 0 0 4px color-mix(in srgb, var(--gg-on) 24%, transparent); }',
+	'.gg-dot.bad { background:var(--gg-bad); box-shadow:0 0 0 4px color-mix(in srgb, var(--gg-bad) 22%, transparent); }',
+	'.gg-dot.warn { background:var(--warn-color-high); animation:gg-pulse 1s ease-in-out infinite; }',
+	'@keyframes gg-pulse { 50% { opacity:.35; } }',
+	'.gg-state-sep { color:var(--gg-ink-3); font-weight:400; }',
+	'.gg-state-country { display:inline-flex; align-items:center; gap:8px; min-width:0; }',
+	'.gg-state-country.is-idle { color:var(--gg-ink-2); font-weight:500; }',
+	'.gg-meta { margin:0; max-width:72ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-facts { grid-area:facts; display:flex; flex-direction:column; gap:8px; margin:4px 0 0; min-width:0; }',
+	'.gg-facts div { display:flex; gap:12px; align-items:baseline; }',
+	'.gg-facts dt { flex:none; width:96px; font-size:13px; font-weight:400; color:var(--gg-ink-3); }',
+	'.gg-facts dd { margin:0; font-size:13px; color:var(--gg-ink); }',
+	'.gg-facts dd.bad { color:var(--gg-bad-ink); font-weight:600; }',
+	'.gg-gear { grid-area:gear; justify-self:end; display:grid; place-items:center; width:36px; height:36px; margin:-6px -8px 0 0; border-radius:6px; color:var(--gg-ink-2); transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
+	'.gg-gear svg { transition:transform 400ms var(--gg-ease); }',
+	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } }',
+	'.gg-gear:active { transform:scale(.94); }',
+	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-alert { display:flex; align-items:flex-start; gap:12px; margin-top:16px; padding:12px 14px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); }',
+	'.gg-alert.bad { border-color:var(--gg-bad-line); background:var(--gg-bad-tint); }',
+	'.gg-alert-icon { flex:none; margin-top:1px; color:var(--gg-warn-ink); }',
+	'.gg-alert.bad .gg-alert-icon { color:var(--gg-bad-ink); }',
+	'.gg-alert-body { flex:1 1 0; min-width:0; }',
+	'.gg-alert-title { margin:0; font-size:14px; line-height:1.4; font-weight:600; color:var(--gg-ink); }',
+	'.gg-alert-text { margin:2px 0 0; max-width:80ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-detail { margin:6px 0 0; font:12px/1.5 monospace; color:var(--gg-ink-2); }',
+	'.gg-alert-actions { flex:none; align-self:center; }',
+	'.gg-alert-actions a { text-decoration:none; }',
+	'.gg-card-pick { margin-top:20px; padding-top:20px; border-top:1px solid var(--gg-line); }',
+	'.gg-chips { display:flex; flex-wrap:wrap; gap:8px; }',
+	'.gg-chip { position:relative; display:inline-flex; align-items:center; gap:8px; height:38px; margin:0; padding:0 14px 0 10px; border:1px solid var(--gg-line); border-radius:6px; background:var(--background-color-high); color:var(--gg-ink); font:inherit; font-size:13px; line-height:1; cursor:pointer; transition:border-color 150ms var(--gg-ease), background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
+	'.gg-chip-flag { font-size:18px; line-height:1; }',
+	'.gg-chip:not(:disabled):not(.is-on):active { transform:scale(.97); }',
+	'.gg-chip.is-on { border-color:var(--gg-accent); background:var(--gg-accent-tint); box-shadow:inset 0 0 0 1px var(--gg-accent); font-weight:600; }',
+	'.gg-chip.is-on, .gg-chip:disabled { cursor:default; }',
+	'.gg-chip:disabled { color:var(--gg-ink); opacity:1; }',
+	'.gg-chip:disabled:not(.is-on) { opacity:.5; }',
+	'.gg-chip.is-busy { padding-right:34px; }',
+	'.gg-chip.is-busy::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
+	'@keyframes gg-spin { to { transform:rotate(360deg); } }',
+	'.gg-hint { margin:12px 0 0; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-card-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 24px; margin-top:20px; }',
+	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; }',
+	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
+	'.gg .cbi-button:not(:disabled):active { transform:scale(.97); }',
+	'.gg-sign { margin:0 0 0 auto; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-sign b { margin-right:6px; font-weight:700; letter-spacing:-.01em; color:var(--gg-ink); }',
+	'.gg-field { display:flex; gap:8px; align-items:center; max-width:640px; margin:16px 0 0; }',
+	'.gg-field input { flex:1 1 0; width:0; min-width:0; height:40px; padding:0 12px; font-size:15px; }',
+	'.gg-field .cbi-button { font-size:15px; line-height:2.7em; padding:0 22px; }',
+	'.gg-field.is-bad input { border-color:var(--gg-bad); box-shadow:0 0 0 1px var(--gg-bad); }',
+	'.gg-field-error { margin:10px 0 0; max-width:72ch; font-size:13px; line-height:1.5; color:var(--gg-bad-ink); }',
+	'@media (max-width:860px) {',
+	'  .gg-card { position:relative; }',
+	'  .gg-card-head { grid-template-columns:minmax(0,1fr); grid-template-areas:"main" "facts"; gap:8px; }',
+	'  .gg-card-main { padding-right:40px; }',
+	'  .gg-gear { position:absolute; top:8px; right:8px; margin:0; grid-area:auto; }',
+	'  .gg-facts { margin-top:8px; } }',
+	'@media (max-width:640px) {',
+	'  .gg-card { padding:16px 16px 20px; }',
+	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
+	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; }',
+	'  .gg-gear { width:44px; height:44px; }',
+	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
+	'  .gg-actions { flex:1 1 100%; } .gg-actions .cbi-button { flex:1 1 auto; }',
+	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; } }',
+	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn { animation:none; } .gg-gear:hover svg { transform:none; } }'
 ].join('\n');
+
+// Tabler icons (MIT). width/height are attributes: an icon never grows when the styles are missing.
+var ICONS = {
+	gear: [ 18, 1.8, 'M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065', 'M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0' ],
+	warn: [ 20, 2, 'M12 9v4', 'M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0', 'M12 16h.01' ],
+	bad: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 8v4', 'M12 16h.01' ]
+};
+
+function icon(name, cls) {
+	var i = ICONS[name], ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+	var attrs = { 'width': i[0], 'height': i[0], 'viewBox': '0 0 24 24', 'fill': 'none', 'stroke': 'currentColor', 'stroke-width': i[1],
+		'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' };
+	for (var k in attrs) svg.setAttribute(k, attrs[k]);
+	if (cls) svg.setAttribute('class', cls);
+	i.slice(2).forEach(function(d) { var p = document.createElementNS(ns, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+	return svg;
+}
 
 function fmtDuration(sec) {
 	sec = Math.max(0, Math.floor(sec));
@@ -56,17 +146,30 @@ function fmtIn(epoch) {
 	return fmtDuration(epoch - Math.floor(Date.now() / 1000));
 }
 
-function maskUrl(u) {
-	return (u.length > 20) ? u.slice(0, 12) + '…' + u.slice(-4) : u.slice(0, 8) + '…';
+// Panels put a flag or another emoji in front of the profile name: show it as the flag.
+function splitFlag(remarks) {
+	var m = /^((?:[\u{1F1E6}-\u{1F1FF}]){2}|\p{Extended_Pictographic}\uFE0F?)\s*(.+)$/u.exec(remarks || '');
+	return m ? { flag: m[1], name: m[2] } : { flag: '', name: remarks || '' };
+}
+
+function country(remarks, idle) {
+	var p = splitFlag(remarks);
+	return E('span', { 'class': 'gg-state-country' + (idle ? ' is-idle' : '') }, [ p.flag ? E('span', {}, p.flag) : '', p.name ]);
 }
 
 return view.extend({
 	status: null,
-	busy: null,            // 'select' | 'update' | 'init' while an action runs
-	updateSince: 0,        // last_update.time when Update now was pressed
+	haveUci: false,
+	busy: null,            // 'select' | 'update' | 'init' | 'connect' while an action runs
+	busyProfile: null,     // the profile being switched to
+	urlError: null,        // the first-run link did not look like a link
+	painted: null,         // what the panel was last painted from
 	panel: null,
-	nodesPane: null,
-	logPre: null,
+
+	// no form on this page: no Save & Apply footer
+	handleSaveApply: null,
+	handleSave: null,
+	handleReset: null,
 
 	load: function() {
 		return Promise.all([
@@ -75,49 +178,47 @@ return view.extend({
 		]);
 	},
 
-	// re-render the panel, keeping a profile the user has picked but not applied yet
+	// Repaint only when something visible changed (times are shown to the minute), and keep what
+	// the user holds: the focused control and a half-typed link.
 	repaint: function() {
-		var sel = this.panel.querySelector('select.gg-profile'), picked = sel ? sel.value : null;
-		dom.content(this.panel, this.renderPanel(this.status));
-		sel = this.panel.querySelector('select.gg-profile');
-		if (sel && picked != null && picked != this.status.profile_used)
-			sel.value = picked;
+		var st = this.status;
+		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, Math.floor(Date.now() / 60000) ],
+			function(k, v) { return (k == 'uptime' && v != null) ? Math.floor(v / 60) : v; });
+		if (key == this.painted) return;
+		this.painted = key;
+
+		var active = document.activeElement, focus = (active && this.panel.contains(active)) ? active.getAttribute('data-key') : null;
+		var url = this.panel.querySelector('.gg-url'), draft = url ? url.value : null;
+		dom.content(this.panel, this.renderPanel(st));
+		url = this.panel.querySelector('.gg-url');
+		if (url && draft != null) url.value = draft;
+		if (focus) {
+			var el = this.panel.querySelector('[data-key="' + focus.replace(/["\\]/g, '\\$&') + '"]');
+			if (el && !el.disabled) el.focus();
+		}
 	},
 
 	refresh: function() {
 		return callStatus().then(L.bind(function(st) {
 			this.status = st;
 			this.repaint();
-			if (this.updateSince && !st.updating && +st.last_update.time > this.updateSince) {
-				this.updateSince = 0;
-				this.notify(st.last_update.result, st.last_update.message);
-			}
 		}, this));
-	},
-
-	// A warning or error stays on the panel as an alert (repaint); only success needs a toast.
-	notify: function(result, message) {
-		if (result == 'ok')
-			ui.addNotification(null, E('p', message), 'info');
 	},
 
 	run: function(kind, promise) {
 		this.busy = kind;
 		this.repaint();
 		return promise.catch(function(e) { ui.addNotification(null, E('p', e.message), 'error'); })
-			.then(L.bind(function() { this.busy = null; return this.refresh(); }, this));
+			.then(L.bind(function() { this.busy = null; this.busyProfile = null; return this.refresh(); }, this));
 	},
 
-	handleSelect: function(ev) {
-		var sel = this.panel.querySelector('select.gg-profile'), profile = sel ? sel.value : '';
-		if (!profile) return;
-		return this.run('select', callSelect(profile).then(L.bind(function(r) {
-			this.notify(r.result, r.message);
-		}, this)));
+	handleSelect: function(profile, ev) {
+		if (profile == this.status.profile_used && this.status.last_update.code != 'profile_missing') return;
+		this.busyProfile = profile;
+		return this.run('select', callSelect(profile));
 	},
 
 	handleUpdate: function(ev) {
-		this.updateSince = +this.status.last_update.time || 1;
 		return this.run('update', callUpdate().then(function(started) {
 			if (!started)
 				ui.addNotification(null, E('p', _('An update is already running.')), 'warning');
@@ -131,217 +232,225 @@ return view.extend({
 		}));
 	},
 
+	// First run: store the link, enable the service and apply. The UCI reload trigger downloads
+	// the subscription and starts the tunnel; LuCI reloads the page when the apply is confirmed.
+	handleConnect: function(ev) {
+		ev.preventDefault();
+		var url = this.panel.querySelector('.gg-url').value.trim();
+		if (!/^https?:\/\/\S+$/.test(url)) {
+			this.urlError = _('This does not look like a link. It starts with https://');
+			this.repaint();
+			return;
+		}
+		this.urlError = null;
+		uci.set('gatygo', 'main', 'sub_url', url);
+		uci.set('gatygo', 'main', 'enabled', '1');
+		return this.run('connect', uci.save().then(function() { return ui.changes.apply(true); }));
+	},
+
+	// What went wrong, in the user's words. The daemon's own message goes below as the detail.
+	problem: function(st, running) {
+		var lu = st.last_update || {}, info = st.userinfo || {};
+		var exp = +info.expire || 0, total = +info.total || 0, used = (+info.upload || 0) + (+info.download || 0);
+		var kept = running ? ' ' + _('You stay connected with the previous settings.') : '';
+		var retry = { label: _('Try again'), handler: 'handleUpdate' };
+
+		if (exp && exp * 1000 < Date.now())
+			return { bad: true, state: _('Subscription expired'), title: _('Your subscription ended on %s').format(new Date(exp * 1000).toLocaleDateString()),
+				text: _('The VPN servers no longer accept this router, so sites may not open. Renew the subscription with your provider, then press Update now.') };
+		if (total && used >= total)
+			return { bad: true, state: _('Traffic used up'), title: _('You have used all %s of this period').format(fmtBytes(total)),
+				text: _('The VPN servers stop serving this router until your provider resets the counter or you buy more traffic. After that press Update now.') };
+		if (lu.result != 'error' && lu.result != 'warning')
+			return null;
+
+		var p = { detail: lu.message };
+		switch (lu.code) {
+		case 'fetch_failed':
+			p.title = _('Couldn’t update the list of countries');
+			p.text = _('Your provider’s server did not answer %s.').format(fmtAgo(+lu.time)) + kept +
+				((running && st.next_update) ? ' ' + _('gatygo tries again in %s.').format(fmtIn(st.next_update)) : '');
+			p.action = retry;
+			break;
+		case 'device_limit':
+			p.title = _('Too many devices on this subscription');
+			p.text = _('Your provider limits the number of devices and the limit is reached. Remove a device in your provider’s account, then try again.') + kept;
+			p.action = retry;
+			break;
+		case 'not_recognised':
+			p.title = _('Your provider’s server did not recognise this router');
+			p.text = _('It answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings.') + kept;
+			p.action = { label: _('Open settings'), href: L.url('admin/services/gatygo/advanced') };
+			break;
+		case 'test_failed':
+			p.title = _('The new settings from your provider did not pass the check');
+			p.text = _('gatygo tests every update before using it, and this one failed.') + kept;
+			p.action = retry;
+			break;
+		case 'profile_missing':
+			if (!st.profile || st.profile == st.profile_used) return null;
+			p.title = _('%s is no longer in your subscription').format(splitFlag(st.profile).name);
+			p.text = _('gatygo uses %s instead. Tap another country if you prefer.').format(splitFlag(st.profile_used).name);
+			// choosing the replacement makes it the saved country, so the warning does not come back
+			p.action = { label: _('OK'), handler: 'handleSelect', arg: st.profile_used };
+			break;
+		case 'apply_failed':
+			p.title = _('Couldn’t switch to %s').format(splitFlag(st.profile).name);
+			p.text = _('The country in use is still %s.').format(splitFlag(st.profile_used).name);
+			p.action = { label: _('Try again'), handler: 'handleSelect', arg: st.profile };
+			break;
+		case 'no_cache':
+			p.title = _('There is no list of countries yet');
+			p.text = _('Press Try again to download it.');
+			p.action = retry;
+			break;
+		default:
+			p.title = (lu.result == 'error') ? _('The last update failed') : _('The last update finished with a warning');
+			p.text = kept.trim();
+		}
+		return p;
+	},
+
+	renderAlert: function(p, dis) {
+		var action = '';
+		if (p.action && p.action.href)
+			action = E('a', { 'class': 'cbi-button cbi-button-neutral', 'href': p.action.href }, p.action.label);
+		else if (p.action)
+			action = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'disabled': dis, 'data-key': 'alert-action',
+				'click': (p.action.arg != null) ? ui.createHandlerFn(this, p.action.handler, p.action.arg) : ui.createHandlerFn(this, p.action.handler) }, p.action.label);
+		return E('div', { 'class': 'gg-alert' + (p.bad ? ' bad' : ''), 'role': p.bad ? 'alert' : 'status' }, [
+			icon(p.bad ? 'bad' : 'warn', 'gg-alert-icon'),
+			E('div', { 'class': 'gg-alert-body' }, [
+				E('p', { 'class': 'gg-alert-title' }, p.title),
+				p.text ? E('p', { 'class': 'gg-alert-text' }, p.text) : '',
+				p.detail ? E('p', { 'class': 'gg-detail' }, p.detail) : ''
+			]),
+			action ? E('div', { 'class': 'gg-alert-actions' }, action) : ''
+		]);
+	},
+
+	// the first-run form: paste the link, press Connect
+	renderSetup: function(st, dis) {
+		var lu = st.last_update || {}, error = this.urlError, detail = null;
+		if (!error && st.configured && lu.result == 'error') {
+			detail = lu.message;
+			error = (lu.code == 'fetch_failed') ? _('This link did not work. Check that you copied the whole link from your provider.')
+				: (lu.code == 'not_recognised') ? _('The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear).')
+				: (lu.code == 'device_limit') ? _('Too many devices on this subscription. Remove a device in your provider’s account and try again.')
+				: _('gatygo could not set up the connection.');
+		}
+		return [
+			E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' }), _('Not set up yet') ]),
+			E('p', { 'class': 'gg-meta' }, _('Paste the subscription link from your VPN provider. gatygo downloads the list of countries and connects your whole home network.')),
+			this.haveUci
+				? E('form', { 'class': 'gg-field' + (error ? ' is-bad' : ''), 'submit': ui.createHandlerFn(this, 'handleConnect') }, [
+					E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url' }),
+					E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, _('Connect'))
+				])
+				: E('p', { 'class': 'gg-field-error' }, _('Your account cannot change the gatygo settings.')),
+			error ? E('p', { 'class': 'gg-field-error' }, error) : '',
+			detail ? E('p', { 'class': 'gg-detail' }, detail) : ''
+		];
+	},
+
 	renderPanel: function(st) {
 		var running = st.running === true, updating = st.updating === true, hasConfig = !!st.profile_used;
-		var main = [], facts = [], actions = [];
-
-		if (this.busy == 'select') {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-warn' }, '●'), ' ', _('Running'), ' ', E('span', { 'class': 'gg-muted' }, _('restarting')) ]));
-			main.push(E('p', { 'class': 'gg-sub' }, E('span', { 'class': 'spinning' }, _('Applying the profile… connections drop for a few seconds.'))));
-		}
-		else if (!st.configured) {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-muted' }, '●'), ' ', _('Not configured') ]));
-			main.push(E('p', { 'class': 'gg-sub' }, _('Add your subscription URL in Settings and save. gatygo downloads the subscription, picks the first profile and starts the tunnel.')));
-		}
-		else if (running) {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-ok' }, '●'), ' ', _('Running'), ' ',
-				E('span', { 'class': 'gg-muted' }, (st.uptime != null) ? _('for %s').format(fmtDuration(st.uptime)) : '') ]));
-			main.push(E('p', { 'class': 'gg-sub' }, [ _('Profile'), ' ', E('strong', {}, st.profile_used || '—') ]));
-			if (updating || this.busy == 'update')
-				main.push(E('p', { 'class': 'gg-sub' }, E('span', { 'class': 'spinning' }, _('Updating the subscription…'))));
-			else if (st.last_update.result == 'error')
-				main.push(E('p', { 'class': 'gg-sub gg-warn' }, _('Update failed %s. Still using the previous configuration.').format(fmtAgo(+st.last_update.time))));
-			else
-				main.push(E('p', { 'class': 'gg-sub' }, [
-					st.last_update.time ? _('Updated %s.').format(fmtAgo(+st.last_update.time)) : '',
-					st.next_update ? ' ' + _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
-		}
-		else if (!hasConfig) {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-muted' }, '●'), ' ', _('Stopped'), ' ', E('span', { 'class': 'gg-muted' }, _('no configuration yet')) ]));
-			main.push(E('p', { 'class': 'gg-sub' }, _('The subscription has not been downloaded yet, so there is nothing to run. LAN traffic goes directly to the internet.')));
-		}
-		else {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-muted' }, '●'), ' ', _('Stopped') ]));
-			main.push(E('p', { 'class': 'gg-sub' }, _('LAN traffic goes directly to the internet. The last configuration is kept; Start uses it right away.')));
-			if (st.enabled)
-				main.push(E('p', { 'class': 'gg-sub' }, _('Autostart is on: the tunnel comes back after a reboot unless you disable it in Settings.')));
-		}
-
-		if (st.title) facts.push(E('dt', {}, _('Subscription')), E('dd', {}, st.title));
-		if (st.userinfo && (st.userinfo.upload || st.userinfo.download)) {
-			var used = (+st.userinfo.upload || 0) + (+st.userinfo.download || 0), total = +st.userinfo.total || 0;
-			facts.push(E('dt', {}, _('Traffic')), E('dd', {}, total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))));
-		}
-		if (st.userinfo && +st.userinfo.expire) {
-			var exp = +st.userinfo.expire, days = Math.floor((exp - Date.now() / 1000) / 86400);
-			facts.push(E('dt', {}, _('Expires')), E('dd', {}, new Date(exp * 1000).toLocaleDateString() + ', ' + (days >= 0 ? N_(days, 'in %d day', 'in %d days').format(days) : _('expired'))));
-		}
-		if (!running && hasConfig && st.profile_used) facts.push(E('dt', {}, _('Last profile')), E('dd', {}, st.profile_used));
-
+		var profiles = Array.isArray(st.profiles) ? st.profiles : [], lu = st.last_update || {};
 		// E() writes every non-null attribute, so a boolean false would still disable the control
 		var dis = (!!this.busy || updating) ? '' : null;
-		if (st.configured && hasConfig && Array.isArray(st.profiles) && st.profiles.length) {
-			actions.push(E('span', { 'class': 'gg-actions' }, [
-				E('select', { 'class': 'cbi-input-select gg-profile', 'disabled': dis }, st.profiles.map(function(p) {
-					return E('option', { 'value': p.remarks, 'selected': (p.remarks == st.profile_used) ? '' : null, 'title': p.description || '' },
-						p.balanced ? p.remarks : p.remarks + ' ' + _('(single server)'));
-				})),
-				E('button', { 'class': 'cbi-button cbi-button-apply', 'disabled': dis, 'click': ui.createHandlerFn(this, 'handleSelect') }, _('Apply'))
-			]));
+		var setup = !hasConfig && !updating && this.busy != 'connect';
+		var problem = (hasConfig && this.busy != 'select') ? this.problem(st, running) : null;
+		var main = [], facts = [], actions = [];
+
+		if (!st.configured || setup) {
+			main = this.renderSetup(st, dis);
 		}
-		if (st.configured)
-			actions.push(E('button', { 'class': 'cbi-button cbi-button-action', 'disabled': dis, 'click': ui.createHandlerFn(this, 'handleUpdate') }, _('Update now')));
-		if (running) {
-			actions.push(E('button', { 'class': 'cbi-button cbi-button-neutral', 'disabled': dis, 'click': ui.createHandlerFn(this, 'handleInit', 'restart') }, _('Restart')));
-			actions.push(E('button', { 'class': 'cbi-button cbi-button-negative', 'disabled': dis, 'click': ui.createHandlerFn(this, 'handleInit', 'stop') }, _('Stop')));
+		else if (!hasConfig) {
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Setting up') ]));
+			main.push(E('p', { 'class': 'gg-meta' }, E('span', { 'class': 'spinning' }, _('Downloading the list of countries…'))));
 		}
-		else if (st.configured && hasConfig) {
-			actions.push(E('button', { 'class': 'cbi-button cbi-button-apply', 'disabled': dis, 'click': ui.createHandlerFn(this, 'handleInit', 'start') }, _('Start')));
+		else if (this.busy == 'select' && running) {
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Switching'),
+				E('span', { 'class': 'gg-state-sep' }, '·'), country(this.busyProfile) ]));
+			main.push(E('p', { 'class': 'gg-meta' }, _('Connections drop for a few seconds.')));
+		}
+		else if (running) {
+			main.push(E('p', { 'class': 'gg-state' }, (problem && problem.state)
+				? [ E('span', { 'class': 'gg-dot bad' }), problem.state, E('span', { 'class': 'gg-state-sep' }, '·'), country(st.profile_used, true) ]
+				: [ E('span', { 'class': 'gg-dot on' }), _('Connected'), E('span', { 'class': 'gg-state-sep' }, '·'), country(st.profile_used),
+					(st.uptime != null) ? E('small', {}, fmtDuration(st.uptime)) : '' ]));
+			if (updating || this.busy == 'update')
+				main.push(E('p', { 'class': 'gg-meta' }, E('span', { 'class': 'spinning' }, _('Updating the list of countries…'))));
+			else
+				main.push(E('p', { 'class': 'gg-meta' }, [
+					(lu.time && lu.result != 'error') ? _('Updated %s.').format(fmtAgo(+lu.time)) + ' ' : '',
+					st.next_update ? _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
+		}
+		else {
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' }), _('Disconnected'),
+				E('span', { 'class': 'gg-state-sep' }, '·'), country(this.busyProfile || st.profile_used, true) ]));
+			main.push(E('p', { 'class': 'gg-meta' }, (updating || this.busy == 'update')
+				? E('span', { 'class': 'spinning' }, _('Updating the list of countries…'))
+				: _('Your home network is using the regular internet. Start connects to the selected country right away.')));
 		}
 
-		var alerts = [];
-		if (st.last_update.result == 'error' && st.last_update.message)
-			alerts.push(E('div', { 'class': 'alert-message error' }, st.last_update.message));
-		else if (st.last_update.result == 'warning' && st.last_update.message)
-			alerts.push(E('div', { 'class': 'alert-message warning' }, st.last_update.message));
+		if (hasConfig) {
+			var info = st.userinfo || {}, used = (+info.upload || 0) + (+info.download || 0), total = +info.total || 0, exp = +info.expire || 0;
+			if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, st.title) ]));
+			if (used || total)
+				facts.push(E('div', {}, [ E('dt', {}, _('Traffic')), E('dd', { 'class': (total && used >= total) ? 'bad' : null },
+					total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))) ]));
+			if (exp) {
+				var days = Math.floor((exp - Date.now() / 1000) / 86400);
+				facts.push(E('div', {}, [ E('dt', {}, _('Expires')), E('dd', { 'class': (days < 0) ? 'bad' : null },
+					new Date(exp * 1000).toLocaleDateString() + ', ' + (days >= 0 ? N_(days, 'in %d day', 'in %d days').format(days) : _('expired %s').format(fmtAgo(exp)))) ]));
+			}
+		}
 
-		return [
-			E('div', { 'class': 'gg-status' }, [
-				E('div', { 'class': 'gg-main' }, main),
-				facts.length ? E('dl', { 'class': 'gg-facts' }, facts) : '',
-				E('div', { 'class': 'gg-actions' }, actions)
-			])
-		].concat(alerts);
-	},
-
-	renderNodes: function(data) {
-		var table = this.nodesPane.querySelector('table');
-		var rows = (data.nodes || []).map(function(n) {
-			return [
-				n.address ? E('span', {}, [ n.address, ' ', E('span', { 'class': 'gg-muted' }, n.tag) ]) : n.tag,
-				n.in_use ? E('span', { 'class': 'label success' }, _('yes')) : '',
-				fmtBytes(n.up), fmtBytes(n.down)
-			];
-		});
-		cbi_update_table(table, rows, E('em', {}, data.api ? _('No outbounds in the installed configuration.') : _('xray is not running.')));
-		var note = this.nodesPane.querySelector('.cbi-section-descr');
-		note.textContent = data.balancer
-			? _('"In use" marks the nodes the balancer currently sends traffic to. Counters are since the last restart.')
-			: _('This profile has a single server and no balancer. Counters are since the last restart.');
-	},
-
-	renderLog: function() {
-		return callLog(200).then(L.bind(function(text) {
-			this.logPre.textContent = text || _('The log is empty.');
-			this.logPre.scrollTop = this.logPre.scrollHeight;
+		var selected = (this.busy == 'select') ? this.busyProfile : st.profile_used;
+		var chips = profiles.map(L.bind(function(p) {
+			var f = splitFlag(p.remarks), on = (p.remarks == selected);
+			return E('button', { 'class': 'gg-chip' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : ''), 'type': 'button',
+				'aria-pressed': on ? 'true' : 'false', 'disabled': dis, 'title': p.description || null,
+				'data-key': 'chip:' + p.remarks, 'click': ui.createHandlerFn(this, 'handleSelect', p.remarks) },
+				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', {}, f.name) ]);
 		}, this));
-	},
 
-	renderSettings: function(st) {
-		var m = new form.Map('gatygo', null, _('Changes take effect after Save & Apply: the subscription is downloaded again with the new settings.'));
-		var s = m.section(form.NamedSection, 'main', 'gatygo');
-		var o;
+		var button = L.bind(function(cls, label, handler, arg) {
+			return E('button', { 'class': 'cbi-button ' + cls, 'type': 'button', 'disabled': dis, 'data-key': 'act:' + label,
+				'click': (arg != null) ? ui.createHandlerFn(this, handler, arg) : ui.createHandlerFn(this, handler) }, label);
+		}, this);
+		if (hasConfig && running)
+			actions = [ button('cbi-button-action', _('Update now'), 'handleUpdate'), button('cbi-button-neutral', _('Restart'), 'handleInit', 'restart'),
+				button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') ];
+		else if (hasConfig)
+			actions = [ button('cbi-button-apply', _('Start'), 'handleInit', 'start'), button('cbi-button-action', _('Update now'), 'handleUpdate') ];
 
-		o = s.option(form.Flag, 'enabled', _('Enable'), _('Start the tunnel at boot and keep it running.'));
-		o.rmempty = false;
-
-		o = s.option(form.Value, 'sub_url', _('Subscription URL'), _('Stored on the router only. The log never shows it.'));
-		o.rmempty = false;
-		o.placeholder = 'https://';
-		o.validate = function(section_id, value) {
-			return (!value || /^https?:\/\/\S+$/.test(value)) ? true : _('Expecting an http:// or https:// URL');
-		};
-		o.renderWidget = function(section_id, option_index, cfgvalue) {
-			var field = form.Value.prototype.renderWidget.apply(this, arguments);
-			if (!cfgvalue) return field;
-			field.style.display = 'none';
-			var shown = E('span', {}, [
-				E('code', { 'class': 'gg-secret' }, maskUrl(cfgvalue)), ' ',
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': function(ev) {
-					ev.preventDefault();
-					shown.style.display = 'none';
-					field.style.display = '';
-					var input = field.querySelector('input'); if (input) { input.value = ''; input.focus(); }
-				} }, _('Change'))
-			]);
-			return E('div', {}, [ shown, field ]);
-		};
-
-		o = s.option(form.Value, 'user_agent', _('User agent'), _("The panel's subscription rules must return Xray JSON for this user agent."));
-		o.placeholder = 'gatygo/' + (st.version || '');
-
-		o = s.option(form.Flag, 'send_hwid', _('Send device ID'), _('Sent as the x-hwid header. Panels with a device limit count this router as one device.'));
-		o.default = '1';
-		o.rmempty = false;
-
-		o = s.option(form.DummyValue, 'hwid', _('Device ID'));
-		o.depends('send_hwid', '1');
-		o.cfgvalue = function(section_id) { return uci.get('gatygo', section_id, 'hwid') || _('generated on the first update'); };
-
-		o = s.option(form.Value, 'update_interval', _('Update every'), _('Hours. Empty: the interval the subscription suggests (currently %d h).').format(st.update_interval || 12));
-		o.datatype = 'uinteger';
-		o.placeholder = String(st.update_interval || 12);
-
-		o = s.option(form.Flag, 'ipv6_block', _('Block LAN IPv6'), _('IPv6 is not proxied. Blocking it keeps devices with IPv6 addresses from bypassing the tunnel.'));
-		o.default = '1';
-		o.rmempty = false;
-
-		o = s.option(form.Value, 'direct_dns', _('Resolver for server names'), _("Used only to resolve the VPN servers' own host names, outside the tunnel. Empty: the WAN DNS."));
-		o.datatype = 'ip4addr';
-		o.placeholder = _('WAN DNS');
-
-		o = s.option(form.ListValue, 'loglevel', _('Log level'));
-		o.value('warning'); o.value('info'); o.value('debug'); o.value('error'); o.value('none');
-		o.default = 'warning';
-
-		return m.render();
+		return E('section', { 'class': 'gg-card' }, [
+			E('div', { 'class': 'gg-card-head' }, [
+				E('div', { 'class': 'gg-card-main' }, main),
+				facts.length ? E('dl', { 'class': 'gg-facts' }, facts) : '',
+				E('a', { 'class': 'gg-gear', 'href': L.url('admin/services/gatygo/advanced'), 'title': _('Advanced: settings, nodes, log'),
+					'aria-label': _('Advanced: settings, nodes, log'), 'data-key': 'gear' }, icon('gear'))
+			]),
+			problem ? this.renderAlert(problem, dis) : '',
+			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
+				E('div', { 'class': 'gg-chips', 'role': 'group', 'aria-label': _('Country') }, chips),
+				E('p', { 'class': 'gg-hint' }, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.'))
+			]) : '',
+			E('div', { 'class': 'gg-card-foot' }, [
+				actions.length ? E('div', { 'class': 'gg-actions' }, actions) : '',
+				E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ])
+			])
+		]);
 	},
 
 	render: function(data) {
-		var st = data[0], haveUci = (data[1] !== null);
-		this.status = st;
+		this.status = data[0];
+		this.haveUci = (data[1] !== null);
 		this.panel = E('div', {});
-		dom.content(this.panel, this.renderPanel(st));
-
-		this.nodesPane = E('div', { 'data-tab': 'nodes', 'data-tab-title': _('Nodes') }, [
-			E('div', { 'class': 'cbi-section' }, [
-				E('div', { 'class': 'cbi-section-descr' }, ''),
-				E('table', { 'class': 'table gg-nodes' }, [
-					E('tr', { 'class': 'tr table-titles' }, [
-						E('th', { 'class': 'th' }, _('Node')),
-						E('th', { 'class': 'th' }, _('In use')),
-						E('th', { 'class': 'th' }, _('Sent')),
-						E('th', { 'class': 'th' }, _('Received'))
-					])
-				])
-			])
-		]);
-		this.logPre = E('pre', { 'class': 'gg-log' }, _('Loading…'));
-		var logPane = E('div', { 'data-tab': 'log', 'data-tab-title': _('Log') }, [
-			E('div', { 'class': 'cbi-section' }, [
-				this.logPre,
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': ui.createHandlerFn(this, 'renderLog') }, _('Refresh')),
-				' ', E('span', { 'class': 'gg-muted' }, _('Last 200 xray and gatygo lines of the system log'))
-			])
-		]);
-		var settingsPane = E('div', { 'data-tab': 'settings', 'data-tab-title': _('Settings') },
-			haveUci ? [] : [ E('div', { 'class': 'alert-message notice' }, _('Your account cannot read the gatygo settings.')) ]);
-
-		var tabs = E('div', {}, [ settingsPane, this.nodesPane, logPane ]);
-		var page = E('div', {}, [ E('style', {}, CSS), E('h2', {}, 'gatygo'), this.panel, tabs ]);
-
-		var self = this;
-		return (haveUci ? this.renderSettings(st) : Promise.resolve(null)).then(function(formNode) {
-			if (formNode) settingsPane.appendChild(formNode);
-			ui.tabs.initTabGroup(tabs.childNodes);
-			poll.add(L.bind(self.refresh, self), 5);
-			poll.add(function() {
-				if (!self.nodesPane.hasAttribute('data-tab-active')) return Promise.resolve();
-				return callNodes().then(L.bind(self.renderNodes, self));
-			}, 10);
-			callNodes().then(L.bind(self.renderNodes, self));
-			self.renderLog();
-			return page;
-		});
+		this.repaint();
+		poll.add(L.bind(this.refresh, this), 5);
+		return E('div', { 'class': 'gg' }, [ E('style', {}, CSS), E('h2', { 'class': 'gg-sr' }, 'gatygo'), this.panel ]);
 	}
 });
