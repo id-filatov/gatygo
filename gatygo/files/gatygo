@@ -90,10 +90,14 @@ cmd_status() {
 	(
 		[ -f "$GATYGO_STATE/headers.env" ] && . "$GATYGO_STATE/headers.env"
 		[ -f "$GATYGO_STATE/last-update.env" ] && . "$GATYGO_STATE/last-update.env"
+		# the profile of the installed config; installs from before this file existed only have
+		# the one named by the last result
+		_used=$(cat "$GATYGO_STATE/profile" 2>/dev/null) || _used=${PROFILE:-}
+		[ -s "$GATYGO_STATE/xray.json" ] || _used=''
 		jq -n --argjson running "$_running" --arg pid "$_pid" --arg version "$GATYGO_VERSION" \
 			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
 			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \
-			--arg profile "$GATYGO_PROFILE" --arg used "${PROFILE:-}" --argjson profiles "$_profiles" \
+			--arg profile "$GATYGO_PROFILE" --arg used "$_used" --argjson profiles "$_profiles" \
 			--arg title "${GATYGO_PROFILE_TITLE:-}" \
 			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \

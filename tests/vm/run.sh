@@ -59,7 +59,7 @@ vm 'uci set gatygo.main.enabled=1; uci set gatygo.main.sub_url=http://10.0.2.2:8
 check "start" '/etc/init.d/gatygo start && sleep 5'
 expect "xray running" "true" 'gatygo status | jq -r .running'
 expect "first balancer tile applied" "🌐 Auto" 'gatygo status | jq -r .profile_used'
-expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
+expect "update result ok" "ok updated" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\""'
 check "xray.json installed 0600" 'test "$(ls -l /etc/gatygo/xray.json | cut -c1-10)" = -rw-------'
 check "geo files installed" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
 check "foreign geo files replaced" 'test "$(wc -c < /usr/share/xray/geosite.dat)" -gt 100 && test -s /etc/gatygo/geo-source.env'
@@ -77,6 +77,7 @@ check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
+check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'
 
 echo "== 2c. settings reload"
 vm 'uci set gatygo.main.user_agent="gatygo/e2e"; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
@@ -112,6 +113,9 @@ P2=$(vm 'gatygo status | jq -r .pid')
 [ -n "$P2" ] && [ "$P2" != "$P1" ] && ok "xray restarted on profile switch ($P1 -> $P2)" || bad "xray restarted on profile switch"
 expect "profile_used updated" "📍 Bravo" 'gatygo status | jq -r .profile_used'
 expect "Bravo config installed" "11" 'jq ".outbounds | length" /etc/gatygo/xray.json'
+vm 'uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub-broken; uci commit gatygo; gatygo update >/dev/null 2>&1; uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo'
+expect "a failed update names its cause and keeps the profile in use" "error fetch_failed 📍 Bravo" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code) \(.profile_used)\""'
+vm 'gatygo update >/dev/null 2>&1'
 
 echo "== 8. LAN client (netns)"
 vm 'ip netns add c1 && ip link add veth-c1 type veth peer name veth-c1p && ip link set veth-c1p netns c1 && ip link set veth-c1 master br-lan up &&

@@ -90,6 +90,11 @@ gatygo_apply_profile() {
     if ! gatygo_xray_test "$_gatygo_t/xray.json" "$_gatygo_t/assets"; then rm -rf "$_gatygo_t"; return 1; fi
     GATYGO_SWAP_RESULT=$(gatygo_swap "$_gatygo_t/xray.json" "$2")
     mkdir -p "$GATYGO_RUN" && printf '%s\n' "$GATYGO_SWAP_RESULT" > "$GATYGO_RUN/swap-result"
+    # xray.json carries no profile name: keep it next to the config, so status knows the profile
+    # in use whatever the later updates end with. Rewritten only when it changes (flash wear).
+    if [ "$(cat "$GATYGO_STATE/profile" 2>/dev/null)" != "$_gatygo_prof" ]; then
+        printf '%s\n' "$_gatygo_prof" > "$_gatygo_t/profile" && _gatygo_install "$_gatygo_t/profile" "$GATYGO_STATE/profile" 600
+    fi
     rm -rf "$_gatygo_t"
     printf '%s\n' "$_gatygo_prof"
     return "$_gatygo_sel"
