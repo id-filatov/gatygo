@@ -33,7 +33,7 @@ case $1 in
 					exit 0
 				}
 				"$GATYGO" select "$_p" >/dev/null 2>&1
-				"$GATYGO" status | jq -c '{result: .last_update.result, profile: .profile_used, message: .last_update.message}'
+				"$GATYGO" status | jq -c '{result: .last_update.result, code: .last_update.code, profile: .profile_used, message: .last_update.message}'
 				;;
 			*) echo '{"error":"unknown method"}' ;;
 		esac

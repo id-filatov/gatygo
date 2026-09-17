@@ -21,6 +21,7 @@ assert_eq "false" "$(GATYGO_CLI_UPDATING_RC=0 call update | jq .started)" "updat
 assert_eq "1" "$(grep -c '^update$' "$GATYGO_CLI_LOG")" "the CLI was started exactly once"
 _sel=$(call select '{"profile":"📍 Bravo"}')
 assert_eq "ok" "$(printf '%s' "$_sel" | jq -r .result)" "select reports the result"
+assert_eq "applied" "$(printf '%s' "$_sel" | jq -r .code)" "select reports the result code"
 assert_eq "🌐 Auto" "$(printf '%s' "$_sel" | jq -r .profile)" "select reports the profile in use"
 assert_eq "1" "$(grep -c '^select 📍 Bravo$' "$GATYGO_CLI_LOG")" "select passed the profile verbatim"
 assert_eq "profile required" "$(call select '{}' | jq -r .error)" "select without a profile"

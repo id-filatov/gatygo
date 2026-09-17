@@ -12,22 +12,24 @@
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
-# gatygo_result RESULT MESSAGE [PROFILE] [RESTARTED] — record the outcome for the UI and log it.
+# gatygo_result RESULT CODE MESSAGE [PROFILE] [RESTARTED] — record the outcome for the UI and log it.
+# CODE is a stable name of the cause (the page picks its wording by it); MESSAGE is for the log.
 # One small file in the state dir, overwritten each time: the panel shows the last real result
 # right after a reboot instead of nothing until the boot-time update has run.
 gatygo_result() {
     mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
     {
         echo "RESULT=$(gatygo_shquote "$1")"
+        echo "CODE=$(gatygo_shquote "$2")"
         echo "TIME=$(date +%s)"
-        echo "MESSAGE=$(gatygo_shquote "$2")"
-        echo "PROFILE=$(gatygo_shquote "${3:-}")"
-        echo "RESTARTED=$(gatygo_shquote "${4:-0}")"
+        echo "MESSAGE=$(gatygo_shquote "$3")"
+        echo "PROFILE=$(gatygo_shquote "${4:-}")"
+        echo "RESTARTED=$(gatygo_shquote "${5:-0}")"
     } > "$GATYGO_STATE/last-update.env.tmp" && mv "$GATYGO_STATE/last-update.env.tmp" "$GATYGO_STATE/last-update.env"
     case $1 in
-        error) gatygo_log error "$2" ;;
-        warning) gatygo_log warn "$2" ;;
-        *) gatygo_log info "$2" ;;
+        error) gatygo_log error "$3" ;;
+        warning) gatygo_log warn "$3" ;;
+        *) gatygo_log info "$3" ;;
     esac
 }
 
@@ -105,7 +107,7 @@ _gatygo_reload() {
 # gatygo_update — exit 0 on ok/warning, 1 on error (the current config is never touched then)
 gatygo_update() {
     gatygo_load_config
-    if [ -z "$GATYGO_SUB_URL" ]; then gatygo_result error "subscription URL is not configured"; return 1; fi
+    if [ -z "$GATYGO_SUB_URL" ]; then gatygo_result error no_url "subscription URL is not configured"; return 1; fi
     mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
     _gatygo_hwid=''
     [ "$GATYGO_SEND_HWID" = 1 ] && _gatygo_hwid=$(gatygo_hwid_ensure)
@@ -115,17 +117,17 @@ gatygo_update() {
     # 1. fetch
     _gatygo_code=$(gatygo_fetch "$GATYGO_SUB_URL" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr")
     if [ $? -ne 0 ]; then
-        gatygo_result error "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
+        gatygo_result error fetch_failed "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
     # 2. validate
     gatygo_parse_headers "$_gatygo_w/hdr" > "$_gatygo_w/headers.env"
     if [ "$(_gatygo_env_get "$_gatygo_w/headers.env" GATYGO_HWID_MAX_DEVICES)" = 1 ]; then
-        gatygo_result error "panel reports the device limit reached for this subscription; keeping the current config"
+        gatygo_result error device_limit "panel reports the device limit reached for this subscription; keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
     if ! gatygo_sub_validate "$_gatygo_w/body" 2>/dev/null; then
-        gatygo_result error "panel did not recognise the client (check the User-Agent and the subscription request rules); keeping the current config"
+        gatygo_result error not_recognised "panel did not recognise the client (check the User-Agent and the subscription request rules); keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
     _gatygo_sub_changed=1
@@ -146,7 +148,7 @@ gatygo_update() {
     _gatygo_apply=$?
     if [ "$_gatygo_apply" -eq 1 ]; then
         _gatygo_why=''; [ -n "$_gatygo_urls" ] || _gatygo_why=' (no geo file URLs in the subscription)'
-        gatygo_result error "new config failed the xray test$_gatygo_why; keeping the current config"
+        gatygo_result error test_failed "new config failed the xray test$_gatygo_why; keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
     GATYGO_SWAP_RESULT=$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)
@@ -158,9 +160,9 @@ gatygo_update() {
     _gatygo_restarted=0
     if [ "$GATYGO_SWAP_RESULT" = changed ]; then _gatygo_restarted=1; _gatygo_reload; fi
     if [ "$_gatygo_apply" -eq 3 ]; then
-        gatygo_result warning "profile '$GATYGO_PROFILE' is not in the subscription; using '$_gatygo_prof'" "$_gatygo_prof" "$_gatygo_restarted"
+        gatygo_result warning profile_missing "profile '$GATYGO_PROFILE' is not in the subscription; using '$_gatygo_prof'" "$_gatygo_prof" "$_gatygo_restarted"
     else
-        gatygo_result ok "subscription updated" "$_gatygo_prof" "$_gatygo_restarted"
+        gatygo_result ok updated "subscription updated" "$_gatygo_prof" "$_gatygo_restarted"
     fi
     return 0
 }

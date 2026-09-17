@@ -20,6 +20,7 @@ _last() { ( . "$GATYGO_STATE/last-update.env"; eval "printf '%s' \"\$$1\"" ); }
 # --- no URL configured
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "no sub_url -> error"
 assert_eq "error" "$(_last RESULT)" "result recorded"
+assert_eq "no_url" "$(_last CODE)" "the code names the cause for the UI"
 assert_exit 0 "result lives in the state dir, not in tmpfs (the UI shows it after a reboot)" test -f "$GATYGO_STATE/last-update.env"
 assert_exit 1 "nothing in the run dir" test -f "$GATYGO_RUN/last-update.env"
 
@@ -27,6 +28,7 @@ assert_exit 1 "nothing in the run dir" test -f "$GATYGO_RUN/last-update.env"
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "first update succeeds"
 assert_eq "ok" "$(_last RESULT)" "RESULT=ok"
+assert_eq "updated" "$(_last CODE)" "CODE=updated"
 assert_eq "🌐 Auto" "$(_last PROFILE)" "first balancer profile used when profile is empty"
 assert_eq "1" "$(_last RESTARTED)" "first apply asks for a reload"
 assert_eq "1" "$(grep -c ' gatygo\[[0-9]*\]: .*\[info\] subscription updated$' "$SYSLOG_STUB_FILE")" "result message goes to the system log (cron and rpcd show nothing else)"
@@ -60,6 +62,7 @@ assert_eq "11" "$(jq '.outbounds | length' "$GATYGO_STATE/xray.json")" "Bravo: 1
 uci set gatygo.main.profile="📍 Missing"
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "fallback is not an error"
 assert_eq "warning" "$(_last RESULT)" "RESULT=warning"
+assert_eq "profile_missing" "$(_last CODE)" "CODE=profile_missing"
 assert_eq "🌐 Auto" "$(_last PROFILE)" "fell back to the first balancer profile"
 uci set gatygo.main.profile="📍 Bravo"; gatygo_update 2>>"$tmp/stderr.log"
 _sha_de=$(sha256sum < "$GATYGO_STATE/xray.json")
@@ -68,9 +71,11 @@ _sha_de=$(sha256sum < "$GATYGO_STATE/xray.json")
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-maxdev
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "device limit -> error"
 case $(_last MESSAGE) in *"device limit"*) _t_ok ;; *) _t_bad "message mentions the device limit: $(_last MESSAGE)" ;; esac
+assert_eq "device_limit" "$(_last CODE)" "CODE=device_limit"
 assert_eq "$_sha_de" "$(sha256sum < "$GATYGO_STATE/xray.json")" "config untouched on device limit"
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-broken
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "HTTP 500 -> error"
+assert_eq "fetch_failed" "$(_last CODE)" "CODE=fetch_failed"
 assert_eq "$_sha_de" "$(sha256sum < "$GATYGO_STATE/xray.json")" "config untouched on HTTP error"
 uci set gatygo.main.sub_url=http://127.0.0.1:1/sub
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "unreachable -> error"
@@ -78,6 +83,7 @@ uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub
 uci set gatygo.main.user_agent="curl/8.0"
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "wrong format (unknown UA) -> error"
 case $(_last MESSAGE) in *User-Agent*) _t_ok ;; *) _t_bad "message hints at the User-Agent: $(_last MESSAGE)" ;; esac
+assert_eq "not_recognised" "$(_last CODE)" "CODE=not_recognised"
 uci delete gatygo.main.user_agent
 assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -c '127.0.0.1')" "system log and stderr never contain the subscription host"
 
@@ -101,6 +107,7 @@ _before=$(_geo_requests)
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "templates with geo rules and no geo files -> error"
 assert_eq "$_before" "$(_geo_requests)" "no geo download without URLs"
 case $(_last MESSAGE) in *"no geo file URLs"*) _t_ok ;; *) _t_bad "error names the missing geo URLs: $(_last MESSAGE)" ;; esac
+assert_eq "test_failed" "$(_last CODE)" "CODE=test_failed"
 assert_exit 1 "no config installed" test -e "$GATYGO_STATE/xray.json"
 
 # --- geo files of unknown origin with a fresh mtime (feed package, another panel, a wiped state dir):

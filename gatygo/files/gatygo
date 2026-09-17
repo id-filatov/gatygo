@@ -47,7 +47,7 @@ cmd_select() {
 	uci set gatygo.main.profile="$1" && uci commit gatygo
 	gatygo_load_config
 	[ -s "$GATYGO_STATE/subscription.json" ] || {
-		gatygo_result error "no cached subscription; run 'gatygo update' first"
+		gatygo_result error no_cache "no cached subscription; run 'gatygo update' first"
 		return 1
 	}
 	_stage=$(mktemp -d)
@@ -58,11 +58,11 @@ cmd_select() {
 	[ "$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)" = changed ] && _changed=1
 	case $_rc in
 	1)
-		gatygo_result error "profile '$1' could not be applied; keeping the current config"
+		gatygo_result error apply_failed "profile '$1' could not be applied; keeping the current config"
 		return 1
 		;;
-	3) gatygo_result warning "profile '$1' is not in the subscription; using '$_prof'" "$_prof" "$_changed" ;;
-	*) gatygo_result ok "profile applied" "$_prof" "$_changed" ;;
+	3) gatygo_result warning profile_missing "profile '$1' is not in the subscription; using '$_prof'" "$_prof" "$_changed" ;;
+	*) gatygo_result ok applied "profile applied" "$_prof" "$_changed" ;;
 	esac
 	if [ "$_changed" = 1 ] && gatygo_xray_running; then
 		gatygo_dns_apply "$GATYGO_STATE/xray.json"
@@ -97,7 +97,7 @@ cmd_status() {
 			--arg title "${GATYGO_PROFILE_TITLE:-}" --arg announce "${GATYGO_ANNOUNCE:-}" \
 			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
-			--arg result "${RESULT:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
+			--arg result "${RESULT:-}" --arg code "${CODE:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
 			--arg interval "$_interval" --arg next "$_next" \
 			--arg maxdev "${GATYGO_HWID_MAX_DEVICES:-0}" --arg notsup "${GATYGO_HWID_NOT_SUPPORTED:-0}" \
 			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
@@ -108,7 +108,7 @@ cmd_status() {
 			  profile: $profile, profile_used: $used,
 			  profiles: $profiles, title: $title, announce: $announce,
 			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},
-			  last_update: {result: $result, time: $time, message: $message},
+			  last_update: {result: $result, code: $code, time: $time, message: $message},
 			  update_interval: ($interval | tonumber),
 			  next_update: (if $next == "" then null else ($next | tonumber) end),
 			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
