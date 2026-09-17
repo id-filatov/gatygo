@@ -32,18 +32,19 @@ gatygo_check_run() {
     rm -rf "$_gatygo_w"
 }
 
-# gatygo_check_store PROFILE SERVICES_JSON — keep the result in the run dir (tmpfs) and print it
+# gatygo_check_store TUNNEL SERVICES_JSON — keep the result in the run dir (tmpfs) and print it.
+# TUNNEL names what was measured: the profile and the xray process ("<profile>:<pid>").
 gatygo_check_store() {
     mkdir -p "$GATYGO_RUN"
-    jq -nc --arg profile "$1" --argjson services "$2" --argjson time "$(date +%s)" \
-        '{available: true, profile: $profile, time: $time, services: $services}' > "$GATYGO_RUN/check.json.tmp" \
+    jq -nc --arg tunnel "$1" --argjson services "$2" --argjson time "$(date +%s)" \
+        '{available: true, tunnel: $tunnel, time: $time, services: $services}' > "$GATYGO_RUN/check.json.tmp" \
         && mv "$GATYGO_RUN/check.json.tmp" "$GATYGO_RUN/check.json" && cat "$GATYGO_RUN/check.json"
 }
 
-# gatygo_check_cached PROFILE MAX_AGE — print the kept result when it is for PROFILE and younger
+# gatygo_check_cached TUNNEL MAX_AGE — print the kept result when it is for TUNNEL and younger
 # than MAX_AGE seconds; exit 1 otherwise
 gatygo_check_cached() {
     [ -s "$GATYGO_RUN/check.json" ] || return 1
-    jq -ce --arg profile "$1" --argjson max "$2" --argjson now "$(date +%s)" \
-        'select(.profile == $profile and ($now - .time) < $max)' "$GATYGO_RUN/check.json" 2>/dev/null || return 1
+    jq -ce --arg tunnel "$1" --argjson max "$2" --argjson now "$(date +%s)" \
+        'select(.tunnel == $tunnel and ($now - .time) < $max)' "$GATYGO_RUN/check.json" 2>/dev/null || return 1
 }

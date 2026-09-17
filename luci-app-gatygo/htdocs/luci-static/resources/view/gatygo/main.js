@@ -5,24 +5,26 @@
 'require rpc';
 'require ui';
 
-// The main page: one block with the connection state and the country in it, the subscription
-// facts, every profile of the subscription as a button, and the service buttons. Settings, nodes
-// and the log live on the Advanced page behind the gear.
+// The main page: one block. The connection state with the country in it and the on/off and
+// update buttons, the subscription facts, whether the usual services open through the tunnel,
+// and every profile of the subscription as a button. Settings and the log live on the Advanced
+// page behind the gear.
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callUpdate = rpc.declare({ object: 'gatygo', method: 'update', expect: { started: false } });
 var callSelect = rpc.declare({ object: 'gatygo', method: 'select', params: [ 'profile' ], expect: { } });
 var callConnect = rpc.declare({ object: 'gatygo', method: 'connect', params: [ 'url' ], expect: { } });
+var callCheck = rpc.declare({ object: 'gatygo', method: 'check', params: [ 'fresh' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 
 var CSS = [
 	'.gg { --gg-ink:var(--text-color-highest); --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-line:hsl(0 0% 86%); --gg-line-2:hsl(0 0% 92%);',
-	'  --gg-accent:var(--primary-color-high); --gg-accent-tint:hsl(210 80% 96%); --gg-on:var(--success-color-medium); --gg-off:hsl(0 0% 62%); --gg-bad:hsl(0 72% 50%);',
+	'  --gg-accent:var(--primary-color-high); --gg-accent-tint:hsl(210 80% 96%); --gg-on:var(--success-color-medium); --gg-off:hsl(0 0% 62%); --gg-bad:hsl(0 72% 50%); --gg-good:hsl(150 60% 27%); --gg-slow:hsl(30 85% 31%);',
 	'  --gg-warn-ink:hsl(32 90% 26%); --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%);',
 	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%);',
 	'  --gg-ease:cubic-bezier(.23,1,.32,1); font-variant-numeric:tabular-nums; min-width:0; overflow-wrap:anywhere; }',
 	'[data-darkmode="true"] .gg { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-line:hsl(0 0% 27%); --gg-line-2:hsl(0 0% 21%);',
-	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%);',
+	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%); --gg-good:hsl(150 45% 62%); --gg-slow:hsl(38 75% 62%);',
 	'  --gg-warn-ink:hsl(40 85% 68%); --gg-warn-tint:hsl(38 45% 15%); --gg-warn-line:hsl(38 40% 28%);',
 	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); }',
 	'.gg-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }',
@@ -47,9 +49,9 @@ var CSS = [
 	'.gg-facts dd.bad { color:var(--gg-bad-ink); font-weight:600; }',
 	'.gg-gear { grid-area:gear; justify-self:end; display:grid; place-items:center; width:36px; height:36px; margin:-6px -8px 0 0; border-radius:6px; color:var(--gg-ink-2); transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-gear svg { transition:transform 400ms var(--gg-ease); }',
-	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } }',
+	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } }',
 	'.gg-gear:active { transform:scale(.94); }',
-	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg-icon-btn:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
 	'.gg-alert { display:flex; align-items:flex-start; gap:12px; margin-top:16px; padding:12px 14px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); }',
 	'.gg-alert.bad { border-color:var(--gg-bad-line); background:var(--gg-bad-tint); }',
 	'.gg-alert-icon { flex:none; margin-top:1px; color:var(--gg-warn-ink); }',
@@ -60,6 +62,20 @@ var CSS = [
 	'.gg-detail { margin:6px 0 0; font:12px/1.5 monospace; color:var(--gg-ink-2); }',
 	'.gg-alert-actions { flex:none; align-self:center; }',
 	'.gg-alert-actions a { text-decoration:none; }',
+	'.gg-card-check { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--gg-line); }',
+	'.gg-checks { display:flex; flex-wrap:wrap; gap:6px 28px; margin:0; padding:0; list-style:none; }',
+	'.gg-check { display:inline-flex; align-items:center; gap:6px; font-size:13px; line-height:1.5; color:var(--gg-ink); }',
+	'.gg-check svg { flex:none; color:var(--gg-good); } .gg-check.is-none svg { color:var(--gg-bad-ink); } .gg-check.is-wait svg { color:var(--gg-ink-3); }',
+	'.gg-check-name { font-weight:600; } .gg-check.is-none .gg-check-name { font-weight:500; color:var(--gg-ink-2); }',
+	'.gg-check-ms { display:inline-flex; align-items:center; min-width:44px; font-size:12px; color:var(--gg-ink-3); }',
+	'.gg-check-ms.good { color:var(--gg-good); } .gg-check-ms.slow { color:var(--gg-slow); } .gg-check-ms.bad, .gg-check-ms.none { color:var(--gg-bad-ink); }',
+	'.gg-check-ms.wait::before { content:""; width:34px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--gg-line-2) 25%, var(--gg-line) 50%, var(--gg-line-2) 75%) 0 0 / 200% 100%; animation:gg-shimmer 1.1s linear infinite; }',
+	'@keyframes gg-shimmer { to { background-position:-200% 0; } }',
+	'.gg-checked { display:inline-flex; align-items:center; gap:6px; margin:0; justify-self:end; font-size:12px; color:var(--gg-ink-2); }',
+	'.gg-icon-btn { display:grid; place-items:center; width:28px; height:28px; margin:0; padding:0; border:0; border-radius:6px; background:none; color:var(--gg-ink-2); cursor:pointer; transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
+	'.gg-icon-btn:disabled { cursor:default; } .gg-icon-btn:disabled svg { animation:gg-spin .9s linear infinite; }',
+	'.gg-icon-btn:not(:disabled):active { transform:scale(.94); }',
+	'.gg-check-hint { grid-column:1 / -1; margin:2px 0 0; font-size:12px; line-height:1.5; color:var(--gg-warn-ink); }',
 	'.gg-card-pick { margin-top:20px; padding-top:20px; border-top:1px solid var(--gg-line); }',
 	'.gg-chips { display:flex; flex-wrap:wrap; gap:8px; }',
 	'.gg-chip { position:relative; display:inline-flex; align-items:center; gap:8px; height:38px; margin:0; padding:0 14px 0 10px; border:1px solid var(--gg-line); border-radius:6px; background:var(--background-color-high); color:var(--gg-ink); font:inherit; font-size:13px; line-height:1; cursor:pointer; transition:border-color 150ms var(--gg-ease), background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
@@ -73,8 +89,8 @@ var CSS = [
 	'.gg-chip.is-busy::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
 	'@keyframes gg-spin { to { transform:rotate(360deg); } }',
 	'.gg-hint { margin:12px 0 0; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
-	'.gg-card-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 24px; margin-top:20px; }',
-	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; }',
+	'.gg-card-foot { display:flex; margin-top:16px; }',
+	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }',
 	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
 	'.gg .cbi-button:not(:disabled):active { transform:scale(.97); }',
 	'.gg-sign { margin:0 0 0 auto; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
@@ -89,23 +105,29 @@ var CSS = [
 	'  .gg-card-head { grid-template-columns:minmax(0,1fr); grid-template-areas:"main" "facts"; gap:8px; }',
 	'  .gg-card-main { padding-right:40px; }',
 	'  .gg-gear { position:absolute; top:8px; right:8px; margin:0; grid-area:auto; }',
-	'  .gg-facts { margin-top:8px; } }',
+	'  .gg-facts { margin-top:8px; }',
+	'  .gg-card-check { grid-template-columns:minmax(0,1fr); }',
+	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
 	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; }',
 	'  .gg-gear { width:44px; height:44px; }',
 	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
-	'  .gg-actions { flex:1 1 100%; } .gg-actions .cbi-button { flex:1 1 auto; }',
+	'  .gg-actions .cbi-button { flex:1 1 auto; }',
 	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; } }',
-	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn { animation:none; } .gg-gear:hover svg { transform:none; } }'
+	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before { animation:none; } .gg-gear:hover svg { transform:none; } }'
 ].join('\n');
 
 // Tabler icons (MIT). width/height are attributes: an icon never grows when the styles are missing.
 var ICONS = {
 	gear: [ 18, 1.8, 'M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065', 'M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0' ],
 	warn: [ 20, 2, 'M12 9v4', 'M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0', 'M12 16h.01' ],
-	bad: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 8v4', 'M12 16h.01' ]
+	bad: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 8v4', 'M12 16h.01' ],
+	ok: [ 14, 2.4, 'M5 12l5 5l10 -10' ],
+	none: [ 14, 2.4, 'M18 6l-12 12', 'M6 6l12 12' ],
+	wait: [ 14, 2.4, 'M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0' ],
+	refresh: [ 15, 2, 'M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4', 'M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4' ]
 };
 
 function icon(name, cls) {
@@ -163,6 +185,9 @@ return view.extend({
 	busyProfile: null,     // the profile being switched to
 	urlError: null,        // the first-run link did not look like a link
 	painted: null,         // what the panel was last painted from
+	check: null,           // the last services check: {available, tunnel, time, services}
+	checking: false,       // a check is running
+	checkedTunnel: null,   // the tunnel (profile and xray pid) the last check was started for; null = page just opened
 	panel: null,
 
 	// no form on this page: no Save & Apply footer
@@ -178,7 +203,7 @@ return view.extend({
 	// the user holds: the focused control and a half-typed link.
 	repaint: function() {
 		var st = this.status;
-		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, Math.floor(Date.now() / 60000) ],
+		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, Math.floor(Date.now() / 60000) ],
 			function(k, v) { return (k == 'uptime' && v != null) ? Math.floor(v / 60) : v; });
 		if (key == this.painted) return;
 		this.painted = key;
@@ -197,8 +222,37 @@ return view.extend({
 	refresh: function() {
 		return callStatus().then(L.bind(function(st) {
 			this.status = st;
+			this.syncCheck();
 			this.repaint();
 		}, this));
+	},
+
+	// The services check belongs to one tunnel. A tunnel the page has not checked yet (the page
+	// just opened, another country, a start, an update that restarted xray) gets a check by
+	// itself: the daemon's recent result when the page opens, a new run after a change, once the
+	// tunnel had a moment to come up.
+	syncCheck: function() {
+		var st = this.status;
+		if (st.running !== true || !st.profile_used) { this.check = null; if (this.checkedTunnel != null) this.checkedTunnel = ''; return; }
+		var tunnel = st.profile_used + ':' + st.pid;
+		if (this.busy || this.checking || tunnel == this.checkedTunnel) return;
+		var first = (this.checkedTunnel == null);
+		this.checkedTunnel = tunnel;
+		if (first) return this.runCheck(false);
+		// the numbers on the page are another tunnel's: blank them now, measure in a moment
+		this.checking = true;
+		window.setTimeout(L.bind(this.runCheck, this, true), 2000);
+	},
+
+	runCheck: function(fresh) {
+		this.checking = true;
+		this.repaint();
+		return callCheck(!!fresh).then(L.bind(function(r) { this.check = r; }, this), L.bind(function() { this.check = null; }, this))
+			.then(L.bind(function() { this.checking = false; this.repaint(); }, this));
+	},
+
+	handleCheck: function(ev) {
+		return this.runCheck(true);
 	},
 
 	run: function(kind, promise) {
@@ -328,6 +382,27 @@ return view.extend({
 		]);
 	},
 
+	// Do the usual services open through the tunnel? The mark says whether, the colour of the
+	// number how fast (the time to the end of the TLS handshake). Plain items: only ↻ is a button.
+	renderCheck: function() {
+		var c = this.check, busy = this.checking;
+		if (!c || !c.available || !Array.isArray(c.services) || !c.services.length) return '';
+		var items = c.services.map(function(sv) {
+			var ms = sv.ms, st = busy ? 'wait' : (ms == null) ? 'none' : 'ok';
+			return E('li', { 'class': 'gg-check is-' + st }, [ icon(st), E('span', { 'class': 'gg-check-name' }, sv.name),
+				E('span', { 'class': 'gg-check-ms ' + (busy ? 'wait' : ms == null ? 'none' : ms < 1000 ? 'good' : ms < 2000 ? 'slow' : 'bad') },
+					busy ? '' : (ms == null) ? _('no reply') : (ms < 1000) ? _('%d ms').format(ms) : _('%s s').format((ms / 1000).toFixed(1))) ]);
+		});
+		var none = !busy && c.services.every(function(sv) { return sv.ms == null; });
+		return E('div', { 'class': 'gg-card-check' }, [
+			E('ul', { 'class': 'gg-checks', 'title': _('Checked through the VPN'), 'aria-live': 'polite' }, items),
+			E('p', { 'class': 'gg-checked' }, [ busy ? _('Checking…') : _('Checked %s').format(fmtAgo(+c.time)),
+				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': busy ? '' : null, 'title': _('Check again'), 'aria-label': _('Check again'),
+					'data-key': 'recheck', 'click': ui.createHandlerFn(this, 'handleCheck') }, icon('refresh')) ]),
+			none ? E('p', { 'class': 'gg-check-hint' }, _('Nothing opens through this country. Try another one.')) : ''
+		]);
+	},
+
 	// the first-run form: paste the link, press Connect
 	renderSetup: function(st, dis) {
 		var lu = st.last_update || {}, error = this.urlError, detail = null;
@@ -356,7 +431,7 @@ return view.extend({
 		// E() writes every non-null attribute, so a boolean false would still disable the control
 		var dis = (!!this.busy || updating) ? '' : null;
 		var problem = (hasConfig && this.busy != 'select') ? this.problem(st, running) : null;
-		var main = [], facts = [], actions = [];
+		var main = [], facts = [];
 
 		if (!hasConfig && (updating || this.busy == 'connect')) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Setting up') ]));
@@ -416,11 +491,11 @@ return view.extend({
 			return E('button', { 'class': 'cbi-button ' + cls, 'type': 'button', 'disabled': dis, 'data-key': 'act:' + label,
 				'click': (arg != null) ? ui.createHandlerFn(this, handler, arg) : ui.createHandlerFn(this, handler) }, label);
 		}, this);
-		if (hasConfig && running)
-			actions = [ button('cbi-button-action', _('Update now'), 'handleUpdate'), button('cbi-button-neutral', _('Restart'), 'handleInit', 'restart'),
-				button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') ];
-		else if (hasConfig)
-			actions = [ button('cbi-button-apply', _('Start'), 'handleInit', 'start'), button('cbi-button-action', _('Update now'), 'handleUpdate') ];
+		// the on/off button keeps its place whatever the state; Stop then Start is the restart
+		if (hasConfig)
+			main.push(E('div', { 'class': 'gg-actions' }, [
+				running ? button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') : button('cbi-button-apply', _('Start'), 'handleInit', 'start'),
+				button('cbi-button-action', _('Update now'), 'handleUpdate') ]));
 
 		return E('section', { 'class': 'gg-card' }, [
 			E('div', { 'class': 'gg-card-head' }, [
@@ -430,20 +505,19 @@ return view.extend({
 					'aria-label': _('Advanced: settings, nodes, log'), 'data-key': 'gear' }, icon('gear'))
 			]),
 			problem ? this.renderAlert(problem, dis) : '',
+			(hasConfig && running && this.busy != 'select') ? this.renderCheck() : '',
 			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
 				E('div', { 'class': 'gg-chips', 'role': 'group', 'aria-label': _('Country') }, chips),
 				E('p', { 'class': 'gg-hint' }, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.'))
 			]) : '',
-			E('div', { 'class': 'gg-card-foot' }, [
-				actions.length ? E('div', { 'class': 'gg-actions' }, actions) : '',
-				E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ])
-			])
+			E('div', { 'class': 'gg-card-foot' }, E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ]))
 		]);
 	},
 
 	render: function(st) {
 		this.status = st;
 		this.panel = E('div', {});
+		this.syncCheck();
 		this.repaint();
 		poll.add(L.bind(this.refresh, this), 5);
 		return E('div', { 'class': 'gg' }, [ E('style', {}, CSS), E('h2', { 'class': 'gg-sr' }, 'gatygo'), this.panel ]);

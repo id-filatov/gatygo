@@ -36,16 +36,17 @@ _out=$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10809)
 assert_eq '[null,null,null]' "$(printf '%s' "$_out" | jq -c 'map(.ms)')" "no tunnel -> no answers (so the answers above did come through the SOCKS inbound)"
 [ $(( $(date +%s) - _t0 )) -le 3 ] && _t_ok || _t_bad "a dead SOCKS port fails fast"
 
-# --- the cache: per profile, with an age limit
-gatygo_check_store "📍 Bravo" '[{"name":"Alpha","ms":12}]' > "$tmp/stored.json"
-assert_eq '{"available":true,"profile":"📍 Bravo","services":[{"name":"Alpha","ms":12}]}' "$(jq -c 'del(.time)' "$tmp/stored.json")" "store prints what it keeps"
+# --- the cache: per tunnel (the profile and the xray process), with an age limit
+gatygo_check_store "📍 Bravo:4242" '[{"name":"Alpha","ms":12}]' > "$tmp/stored.json"
+assert_eq '{"available":true,"tunnel":"📍 Bravo:4242","services":[{"name":"Alpha","ms":12}]}' "$(jq -c 'del(.time)' "$tmp/stored.json")" "store prints what it keeps"
 assert_exit 0 "the result has its time" jq -e '.time > 1700000000' "$tmp/stored.json"
 assert_exit 0 "kept in the run dir (tmpfs), not in flash" test -s "$GATYGO_RUN/check.json"
-assert_eq "12" "$(gatygo_check_cached "📍 Bravo" 300 | jq '.services[0].ms')" "a fresh result for the same profile is reused"
-assert_exit 1 "another profile -> not reused" gatygo_check_cached "📍 Alpha" 300
-assert_exit 1 "too old -> not reused" gatygo_check_cached "📍 Bravo" 0
+assert_eq "12" "$(gatygo_check_cached "📍 Bravo:4242" 300 | jq '.services[0].ms')" "a fresh result for the same tunnel is reused"
+assert_exit 1 "another profile -> not reused" gatygo_check_cached "📍 Alpha:4242" 300
+assert_exit 1 "the same profile after an xray restart -> not reused" gatygo_check_cached "📍 Bravo:4243" 300
+assert_exit 1 "too old -> not reused" gatygo_check_cached "📍 Bravo:4242" 0
 rm -f "$GATYGO_RUN/check.json"
-assert_exit 1 "no cache -> not reused" gatygo_check_cached "📍 Bravo" 300
+assert_exit 1 "no cache -> not reused" gatygo_check_cached "📍 Bravo:4242" 300
 
 # --- CLI: available only with a running xray whose config has the inbound; fresh really runs
 CLI=/src/gatygo/files/gatygo
@@ -53,7 +54,7 @@ cp "$tmp/xray.json" "$GATYGO_STATE/xray.json"; printf '%s\n' "📍 Bravo" > "$GA
 export GATYGO_CHECK_LIST="$tmp/list"
 assert_eq '{"available":false}' "$(UBUS_STUB_RUNNING=0 sh "$CLI" check)" "cli: xray not running -> not available"
 _a=$(UBUS_STUB_RUNNING=1 sh "$CLI" check)
-assert_eq 'true 📍 Bravo 3' "$(printf '%s' "$_a" | jq -r '"\(.available) \(.profile) \(.services | length)"')" "cli: a run for the profile in use"
+assert_eq 'true 📍 Bravo:4242 3' "$(printf '%s' "$_a" | jq -r '"\(.available) \(.tunnel) \(.services | length)"')" "cli: a run for the tunnel in use (profile and xray pid)"
 sleep 1
 assert_eq "$(printf '%s' "$_a" | jq .time)" "$(UBUS_STUB_RUNNING=1 sh "$CLI" check | jq .time)" "cli: a recent result is reused"
 _c=$(UBUS_STUB_RUNNING=1 sh "$CLI" check fresh | jq .time)

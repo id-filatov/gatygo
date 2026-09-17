@@ -28,9 +28,9 @@ cmd_connect() {
 	"$_init" start
 }
 
-# Do the listed services open through the tunnel? Prints {available, profile, time, services:
-# [{name, ms|null}]}. A result younger than 5 minutes for the same profile is reused unless
-# `fresh` is given. available=false: xray is not running, or its config predates the check
+# Do the listed services open through the tunnel? Prints {available, tunnel, time, services:
+# [{name, ms|null}]}. A result younger than 5 minutes for the same tunnel (profile and xray
+# process) is reused unless `fresh` is given. available=false: xray is not running, or its config predates the check
 # inbound (the next update rebuilds it).
 cmd_check() {
 	. "$GATYGO_LIB/check.sh"
@@ -41,9 +41,9 @@ cmd_check() {
 		echo '{"available":false}'
 		return 0
 	fi
-	_prof=$(cat "$GATYGO_STATE/profile" 2>/dev/null)
-	if [ "$1" != fresh ] && gatygo_check_cached "$_prof" 300; then return 0; fi
-	gatygo_check_store "$_prof" "$(gatygo_check_run "$GATYGO_CHECK_PORT")"
+	_tunnel="$(cat "$GATYGO_STATE/profile" 2>/dev/null):$(gatygo_xray_pid)"
+	if [ "$1" != fresh ] && gatygo_check_cached "$_tunnel" 300; then return 0; fi
+	gatygo_check_store "$_tunnel" "$(gatygo_check_run "$GATYGO_CHECK_PORT")"
 }
 
 cmd_update() {
