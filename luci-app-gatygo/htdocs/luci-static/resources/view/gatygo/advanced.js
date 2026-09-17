@@ -21,7 +21,9 @@ var CSS = [
 	'.gg-muted { color:var(--gg-ink-2); }',
 	'.gg-adv .cbi-value-field select { width:auto; min-width:210px; max-width:100%; }',
 	'.gg-url-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5em; }',
-	'.gg-url-row input { flex:1 1 16em; width:auto; min-width:0; max-width:34em; font-family:monospace; }',
+	// the real field comes wrapped in LuCI's own div: size the wrapper, let the input fill it
+	'.gg-url-row > input, .gg-url-row > div { flex:1 1 16em; min-width:0; max-width:34em; }',
+	'.gg-url-row input { width:100%; font-family:monospace; }',
 	'pre.gg-log { max-height:32em; overflow:auto; margin:0 0 1em; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; }',
 	'.gg-lt, .gg-ltag { color:var(--gg-ink-3); }',
 	'.gg-ltag.is-gatygo { color:var(--gg-accent-ink); font-weight:600; }',
@@ -95,8 +97,9 @@ return view.extend({
 				shown.style.display = edit ? 'none' : '';
 				editing.style.display = edit ? '' : 'none';
 				input.value = edit ? '' : cfgvalue;
-				input.dispatchEvent(new Event('change', { bubbles: true }));
+				// an empty field is no mistake until the user leaves it; going back clears a complaint
 				if (edit) input.focus();
+				else [ 'keyup', 'blur', 'change' ].forEach(function(t) { input.dispatchEvent(new Event(t, { bubbles: true })); });
 			};
 			var shown = E('div', { 'class': 'gg-url-row' }, [
 				E('input', { 'class': 'cbi-input-text', 'type': 'text', 'readonly': '', 'value': maskUrl(cfgvalue), 'aria-label': _('Subscription URL, masked') }),
