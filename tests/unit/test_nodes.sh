@@ -4,9 +4,9 @@
 . "$GATYGO_LIB/nodes.sh"
 tmp=$(mktemp -d)
 jq '.[0]' "$FIXTURES/subscription.json" > "$tmp/auto.json"
-gatygo_transform "$tmp/auto.json" "$tmp/xray.json" 12345 5353 255 warning /tmp/x.log
+gatygo_transform "$tmp/auto.json" "$tmp/xray.json" 12345 5353 255 warning 10808
 jq '.[15]' "$FIXTURES/subscription.json" > "$tmp/single.json"
-gatygo_transform "$tmp/single.json" "$tmp/xray-single.json" 12345 5353 255 warning /tmp/x.log
+gatygo_transform "$tmp/single.json" "$tmp/xray-single.json" 12345 5353 255 warning 10808
 
 # --- with canned API answers
 _n=$(XRAY_STUB_DIR="$FIXTURES/xray-api" gatygo_nodes "$tmp/xray.json")
