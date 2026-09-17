@@ -1,0 +1,9 @@
+#!/bin/sh
+# ubus stand-in for unit tests: `call service list` says whether procd runs the xray instance
+# (UBUS_STUB_RUNNING=1). Anything else fails, as on a machine without ubus.
+case "$1 $2" in
+    "call service")
+        if [ "${UBUS_STUB_RUNNING:-0}" = 1 ]; then echo '{"gatygo":{"instances":{"xray":{"running":true,"pid":4242}}}}'; else echo '{}'; fi
+        ;;
+    *) exit 1 ;;
+esac

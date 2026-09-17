@@ -75,6 +75,8 @@ check "ubus log: text" 'ubus -S call gatygo log "{\"lines\":5}" | jq -e ".log | 
 expect "ubus update: started" "true" 'ubus -S call gatygo update | jq -r .started'
 check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]; do i=$((i+1)); sleep 1; done; ! gatygo updating'
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
+check "check: probes go in through the tunnel's own inbound" 'gatygo check fresh | jq -e ".available == true and (.services | length) == 4 and (.services | map(.name) | join(\" \")) == \"YouTube Instagram Telegram WhatsApp\"" >/dev/null'
+expect "check: a recent result is reused" "same" 'a=$(gatygo check | jq .time); sleep 1; b=$(ubus -S call gatygo check | jq .time); [ "$a" = "$b" ] && echo same'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'

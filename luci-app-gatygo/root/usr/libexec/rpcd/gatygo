@@ -6,7 +6,7 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"check":{"fresh":true}}'
 		;;
 	call)
 		case $2 in
@@ -33,6 +33,10 @@ case $1 in
 				}
 				"$GATYGO" select "$_p" >/dev/null 2>&1
 				"$GATYGO" status | jq -c '{result: .last_update.result, code: .last_update.code, profile: .profile_used, message: .last_update.message}'
+				;;
+			check)
+				# the kept result unless a new run is asked for; a run takes up to 5 s
+				if [ "$(jq -r '.fresh // false' 2>/dev/null)" = true ]; then "$GATYGO" check fresh; else "$GATYGO" check; fi
 				;;
 			connect)
 				_u=$(jq -r '.url // empty' 2>/dev/null)
