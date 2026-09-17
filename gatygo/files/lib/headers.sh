@@ -66,7 +66,6 @@ gatygo_parse_headers() {
     echo "GATYGO_USERINFO_DOWNLOAD=$(gatygo_shquote "$(_gatygo_userinfo download "$_gatygo_ui")")"
     echo "GATYGO_USERINFO_TOTAL=$(gatygo_shquote "$(_gatygo_userinfo total "$_gatygo_ui")")"
     echo "GATYGO_USERINFO_EXPIRE=$(gatygo_shquote "$(_gatygo_userinfo expire "$_gatygo_ui")")"
-    echo "GATYGO_ANNOUNCE=$(gatygo_shquote "$(_gatygo_b64text "$(_gatygo_hdr announce "$_gatygo_f")")")"
     echo "GATYGO_GEOSITE_URL=$(gatygo_shquote "$(_gatygo_geo_url Geositeurl "$_gatygo_routing")")"
     echo "GATYGO_GEOIP_URL=$(gatygo_shquote "$(_gatygo_geo_url Geoipurl "$_gatygo_routing")")"
     echo "GATYGO_HWID_MAX_DEVICES=$(gatygo_shquote "$(_gatygo_flag x-hwid-max-devices-reached "$_gatygo_f")")"

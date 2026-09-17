@@ -7,7 +7,7 @@ tmp=$(mktemp -d)
 _reset() {
     unset GATYGO_CONTENT_TYPE GATYGO_PROFILE_TITLE GATYGO_UPDATE_INTERVAL \
         GATYGO_USERINFO_UPLOAD GATYGO_USERINFO_DOWNLOAD GATYGO_USERINFO_TOTAL GATYGO_USERINFO_EXPIRE \
-        GATYGO_ANNOUNCE GATYGO_GEOSITE_URL GATYGO_GEOIP_URL GATYGO_HWID_MAX_DEVICES GATYGO_HWID_NOT_SUPPORTED
+        GATYGO_GEOSITE_URL GATYGO_GEOIP_URL GATYGO_HWID_MAX_DEVICES GATYGO_HWID_NOT_SUPPORTED
 }
 
 # --- full response: every supported header present
@@ -21,13 +21,13 @@ assert_eq "1024" "$GATYGO_USERINFO_UPLOAD" "userinfo upload"
 assert_eq "123456789" "$GATYGO_USERINFO_DOWNLOAD" "userinfo download"
 assert_eq "0" "$GATYGO_USERINFO_TOTAL" "userinfo total"
 assert_eq "1767225600" "$GATYGO_USERINFO_EXPIRE" "userinfo expire"
-assert_eq "Planned maintenance — use code 'GO' ✓" "$GATYGO_ANNOUNCE" "announce decoded; single quote survives sourcing"
+assert_eq "0" "$(grep -c ANNOUNCE "$tmp/full.env")" "the panel's announce header is not read"
 assert_eq "https://geo.example.com/geosite.dat" "$GATYGO_GEOSITE_URL" "Geositeurl from routing header"
 assert_eq "https://geo.example.com/geoip.dat" "$GATYGO_GEOIP_URL" "Geoipurl from routing header"
 assert_eq "0" "$GATYGO_HWID_MAX_DEVICES" "max-devices flag absent -> 0"
 assert_eq "0" "$GATYGO_HWID_NOT_SUPPORTED" "not-supported flag absent -> 0"
-assert_eq "12" "$(grep -c "^GATYGO_[A-Z_]*='" "$tmp/full.env")" "12 quoted assignments"
-assert_eq "12" "$(wc -l < "$tmp/full.env" | tr -d ' ')" "and nothing else"
+assert_eq "11" "$(grep -c "^GATYGO_[A-Z_]*='" "$tmp/full.env")" "11 quoted assignments"
+assert_eq "11" "$(wc -l < "$tmp/full.env" | tr -d ' ')" "and nothing else"
 
 # --- minimal response: optional headers missing
 _reset
@@ -36,7 +36,6 @@ gatygo_parse_headers "$FIXTURES/headers-minimal.txt" > "$tmp/min.env"
 assert_eq "" "$GATYGO_PROFILE_TITLE" "missing title -> empty"
 assert_eq "" "$GATYGO_UPDATE_INTERVAL" "missing interval -> empty"
 assert_eq "" "$GATYGO_USERINFO_DOWNLOAD" "missing userinfo -> empty"
-assert_eq "" "$GATYGO_ANNOUNCE" "missing announce -> empty"
 assert_eq "" "$GATYGO_GEOSITE_URL" "missing routing -> empty geosite url"
 assert_eq "" "$GATYGO_GEOIP_URL" "missing routing -> empty geoip url"
 assert_eq "0" "$GATYGO_HWID_MAX_DEVICES" "minimal: max-devices 0"

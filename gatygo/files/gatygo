@@ -94,7 +94,7 @@ cmd_status() {
 			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
 			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \
 			--arg profile "$GATYGO_PROFILE" --arg used "${PROFILE:-}" --argjson profiles "$_profiles" \
-			--arg title "${GATYGO_PROFILE_TITLE:-}" --arg announce "${GATYGO_ANNOUNCE:-}" \
+			--arg title "${GATYGO_PROFILE_TITLE:-}" \
 			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg code "${CODE:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
@@ -106,7 +106,7 @@ cmd_status() {
 			  configured: $configured, enabled: $enabled, send_hwid: $send_hwid, updating: $updating,
 			  uptime: (if $uptime == "" then null else ($uptime | tonumber) end), xray_version: $xray_version,
 			  profile: $profile, profile_used: $used,
-			  profiles: $profiles, title: $title, announce: $announce,
+			  profiles: $profiles, title: $title,
 			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},
 			  last_update: {result: $result, code: $code, time: $time, message: $message},
 			  update_interval: ($interval | tonumber),

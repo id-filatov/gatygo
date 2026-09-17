@@ -204,8 +204,6 @@ return view.extend({
 			alerts.push(E('div', { 'class': 'alert-message error' }, st.last_update.message));
 		else if (st.last_update.result == 'warning' && st.last_update.message)
 			alerts.push(E('div', { 'class': 'alert-message warning' }, st.last_update.message));
-		if (st.announce)
-			alerts.push(E('div', { 'class': 'alert-message notice' }, [ st.title ? E('strong', {}, st.title + ': ') : '', st.announce ]));
 
 		return [
 			E('div', { 'class': 'gg-status' }, [
