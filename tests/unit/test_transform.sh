@@ -19,8 +19,9 @@ while [ "$i" -lt 13 ]; do
 
     # inbounds are replaced
     assert_eq '["tproxy","dns-in","api","check"]' "$(jq -c '[.inbounds[].tag]' "$out")" "inbounds replaced: $name"
+    # local only: the nft rule hands the LAN's packets to it, nothing can connect to it directly
     assert_exit 0 "tproxy inbound shape: $name" jq -e \
-        '.inbounds[0] | .protocol == "dokodemo-door" and .listen == "0.0.0.0" and .port == 12345
+        '.inbounds[0] | .protocol == "dokodemo-door" and .listen == "127.0.0.1" and .port == 12345
             and .settings.network == "tcp,udp" and .settings.followRedirect == true
             and .streamSettings.sockopt.tproxy == "tproxy"' "$out"
     assert_eq "$(jq -c '.inbounds[] | select(.protocol == "socks") | .sniffing' "$in")" \

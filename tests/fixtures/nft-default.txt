@@ -17,7 +17,7 @@ table inet gatygo {
 		fib daddr type local return
 		ip daddr @reserved4 return
 		meta l4proto { tcp, udp } th dport 53 return
-		meta l4proto { tcp, udp } tproxy ip to :12345 meta mark set 0x1 counter accept
+		meta l4proto { tcp, udp } tproxy ip to 127.0.0.1:12345 meta mark set 0x1 counter accept
 	}
 	chain dns_redirect {
 		type nat hook prerouting priority dstnat - 1; policy accept;

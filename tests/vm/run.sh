@@ -142,6 +142,9 @@ vm 'ip netns exec c1 /tmp/tmo 3 nslookup example.com 192.168.1.1 >/dev/null 2>&1
 [ "$D2" = "$D1" ] && ok "DNS to the router itself is not redirected" || bad "DNS to the router itself is not redirected ($D1 -> $D2)"
 T0=$(tp_counter); vm 'ip netns exec c1 /tmp/tmo 3 nc 1.1.1.1 443 </dev/null >/dev/null 2>&1; true'; T1=$(tp_counter)
 [ "${T1:-0}" -gt "${T0:-0}" ] && ok "TCP from the LAN hits tproxy ($T0 -> $T1)" || bad "TCP from the LAN hits tproxy ($T0 -> $T1)"
+# 192.0.2.1 answers nobody: a connection means xray's local-only inbound took the packet from the nft rule
+check "TCP from the LAN is accepted by xray" 'ip netns exec c1 curl -s -o /dev/null -m 4 -w "%{time_connect}" http://192.0.2.1/ | awk "{ exit !(\$1 > 0) }"'
+check "the tproxy inbound cannot be reached directly from the LAN" '! ip netns exec c1 /tmp/tmo 3 nc 192.168.1.1 12345 </dev/null'
 
 echo "== 9. stop cleans up"
 vm '/etc/init.d/gatygo stop; sleep 2'

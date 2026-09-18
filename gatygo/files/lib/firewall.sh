@@ -4,7 +4,9 @@
 # by gatygo_fw_apply is removed by gatygo_fw_remove.
 #
 # `redirect` is only valid in a nat chain, so the DNS hijack lives in its own nat-hook chain and
-# port 53 is excluded from the tproxy chain.
+# port 53 is excluded from the tproxy chain. tproxy hands the packets to xray's inbound on
+# 127.0.0.1: nothing on the LAN can connect to that port by itself. `redirect` rewrites the
+# destination to the router's LAN address, so the DNS inbound listens on every address.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
@@ -30,7 +32,7 @@ table inet gatygo {
 		fib daddr type local return
 		ip daddr @reserved4 return
 		meta l4proto { tcp, udp } th dport 53 return
-		meta l4proto { tcp, udp } tproxy ip to :$GATYGO_TPROXY_PORT meta mark set 0x1 counter accept
+		meta l4proto { tcp, udp } tproxy ip to 127.0.0.1:$GATYGO_TPROXY_PORT meta mark set 0x1 counter accept
 	}
 	chain dns_redirect {
 		type nat hook prerouting priority dstnat - 1; policy accept;

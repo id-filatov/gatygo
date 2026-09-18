@@ -22,7 +22,9 @@ def with_mark:
 . as $in
 | del(.remarks, .meta)
 | .inbounds = [
-    { tag: "tproxy", protocol: "dokodemo-door", listen: "0.0.0.0", port: $tproxy_port,
+    # 127.0.0.1: the nft rule delivers the LAN's packets here (firewall.sh); dns-in takes
+    # redirected packets, whose destination is the router's LAN address
+    { tag: "tproxy", protocol: "dokodemo-door", listen: "127.0.0.1", port: $tproxy_port,
       settings: { network: "tcp,udp", followRedirect: true },
       streamSettings: { sockopt: { tproxy: "tproxy" } },
       sniffing: ($in | sniffing_from_socks) },
