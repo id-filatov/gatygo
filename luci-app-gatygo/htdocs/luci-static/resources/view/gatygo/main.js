@@ -178,12 +178,8 @@ function fmtIn(epoch) {
 
 // Panels put a flag or another emoji in front of the profile name: show it as the flag.
 function splitFlag(remarks) {
-	var m = /^((?:[\u{1F1E6}-\u{1F1FF}]){2}|\p{Extended_Pictographic}\uFE0F?)\s*(?!\uFE0F)(.+)$/u.exec(remarks || '');
-	if (!m) return { flag: '', name: remarks || '' };
-	// a panel may repeat the emoji in front of the name: it is shown once
-	var name = m[2];
-	while (name.indexOf(m[1]) == 0) name = name.slice(m[1].length).replace(/^\s+/, '');
-	return name ? { flag: m[1], name: name } : { flag: '', name: remarks };
+	var m = /^((?:[\u{1F1E6}-\u{1F1FF}]){2}|\p{Extended_Pictographic}\uFE0F?)\s*(.+)$/u.exec(remarks || '');
+	return m ? { flag: m[1], name: m[2] } : { flag: '', name: remarks || '' };
 }
 
 function country(remarks, idle) {
