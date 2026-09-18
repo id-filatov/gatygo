@@ -4,7 +4,8 @@
 # procd owns the xray process; the side effects around it (nft table, dnsmasq settings,
 # cron line) are applied once xray runs and removed on stop. `start` on a running service
 # re-submits the instance: procd restarts xray only when xray.json, a geo file or the core changed.
-# `reload` (UCI trigger) additionally refreshes the subscription with the new settings.
+# `reload` (UCI trigger) additionally refreshes the subscription with the new settings. A VPN
+# stopped by hand stays off: the settings are applied to the subscription only.
 START=95
 STOP=10
 USE_PROCD=1
@@ -25,6 +26,7 @@ start_service() {
 	[ "$GATYGO_ENABLED" = 1 ] || return 0
 	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
 	chmod 700 "$GATYGO_STATE"
+	rm -f "$GATYGO_RUN/stopped"
 	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
 	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
 		gatygo_log info "no cached config, xray core or geo files yet, downloading"
@@ -76,6 +78,17 @@ stop_service() {
 	gatygo_dns_restore
 	gatygo_fw_remove
 	gatygo_cron_remove
+	# stopped by hand, as opposed to switched off in the settings: reload_service keeps it off
+	# (tmpfs: a reboot starts an enabled service as usual)
+	mkdir -p "$GATYGO_RUN"
+	if [ "$GATYGO_ENABLED" = 1 ]; then touch "$GATYGO_RUN/stopped"; else rm -f "$GATYGO_RUN/stopped"; fi
+}
+
+# procd forgets a stopped service and its config trigger with it. Register the service again
+# with the trigger alone, so that Save & Apply still reaches reload_service.
+service_stopped() {
+	procd_open_service gatygo "$initscript"
+	procd_close_service
 }
 
 # reload = the UCI config changed (Save & Apply). A changed URL, user agent or hwid flag needs a
@@ -85,6 +98,10 @@ reload_service() {
 	_gatygo_env
 	if [ "$GATYGO_ENABLED" != 1 ]; then
 		stop
+		return 0
+	fi
+	if [ -f "$GATYGO_RUN/stopped" ]; then
+		(/usr/bin/gatygo update) >/dev/null 2>&1 &
 		return 0
 	fi
 	_gatygo_was_running=0

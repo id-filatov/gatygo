@@ -165,6 +165,16 @@ check "policy rule removed" '! ip rule | grep -q "fwmark 0x1"'
 check "cron line removed" '! grep -q "# gatygo$" /etc/crontabs/root'
 check "dnsmasq restored" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && ! test -e /etc/gatygo/dnsmasq.backup'
 check "LAN client resolves via the router again" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
+# Save & Apply (reload_config is what LuCI runs) with the VPN stopped by hand: the subscription is
+# downloaded with the new settings, the VPN stays off
+vm 'uci set gatygo.main.user_agent="gatygo/e2e-stopped"; uci commit gatygo; reload_config; sleep 12'
+if ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq -e '[.[] | select(.headers["user-agent"] == "gatygo/e2e-stopped")] | length > 0' >/dev/null; then ok "settings applied while stopped refresh the subscription"; else bad "settings applied while stopped refresh the subscription"; fi
+expect "and the VPN stays off" "false" 'gatygo status | jq -r .running'
+check "with nothing of the tunnel back" '! nft list table inet gatygo >/dev/null 2>&1 && test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
+# switched off and on again in the settings is another matter: that starts it
+vm 'uci delete gatygo.main.user_agent; uci set gatygo.main.enabled=0; uci commit gatygo; reload_config; sleep 4; uci set gatygo.main.enabled=1; uci commit gatygo; reload_config; sleep 12'
+expect "enabling it in the settings starts it" "true" 'gatygo status | jq -r .running'
+vm '/etc/init.d/gatygo stop; sleep 2'
 
 echo "== 10. start again, reboot"
 # the cached config needs geo files that are gone (as after a sysupgrade): start gets them first
