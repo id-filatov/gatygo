@@ -1,3 +1,4 @@
 DISTRIB_ID='OpenWrt'
 DISTRIB_RELEASE='25.12.5'
 DISTRIB_TARGET='armsr/armv8'
+DISTRIB_ARCH='aarch64_generic'

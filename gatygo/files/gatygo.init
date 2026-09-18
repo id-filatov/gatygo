@@ -1,8 +1,9 @@
 #!/bin/sh /etc/rc.common
-# gatygo: xray-core with a subscription profile + transparent proxy for the LAN.
+# gatygo: xray (gatygo's own core, lib/core.sh) with a subscription profile + transparent proxy
+# for the LAN.
 # procd owns the xray process; the side effects around it (nft table, dnsmasq settings,
 # cron line) are applied once xray runs and removed on stop. `start` on a running service
-# re-submits the instance: procd restarts xray only when xray.json or a geo file changed.
+# re-submits the instance: procd restarts xray only when xray.json, a geo file or the core changed.
 # `reload` (UCI trigger) additionally refreshes the subscription with the new settings.
 START=95
 STOP=10
@@ -23,17 +24,19 @@ start_service() {
 	[ "$GATYGO_ENABLED" = 1 ] || return 0
 	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
 	chmod 700 "$GATYGO_STATE"
-	if [ ! -s "$GATYGO_STATE/xray.json" ]; then
-		gatygo_log info "no cached config yet, downloading the subscription"
+	# an update brings both: the xray core (once per gatygo release) and the config
+	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ]; then
+		gatygo_log info "no cached config or no xray core yet, downloading"
 		gatygo_dns_restore
 		/usr/bin/gatygo update || {
-			gatygo_log error "cannot start without a config"
+			gatygo_log error "cannot start without a config and a core"
 			return 1
 		}
 	fi
 	procd_open_instance xray
-	procd_set_param command /usr/bin/xray run -c "$GATYGO_STATE/xray.json"
-	procd_set_param env XRAY_LOCATION_ASSET="$GATYGO_ASSETS"
+	procd_set_param command "$GATYGO_XRAY" run -c "$GATYGO_STATE/xray.json"
+	# the core's pin is a part of the instance: a replaced core means a restart
+	procd_set_param env XRAY_LOCATION_ASSET="$GATYGO_ASSETS" GATYGO_CORE="$(cut -c1-64 "$GATYGO_CORE_DIR/pin" 2>/dev/null)"
 	procd_set_param file "$GATYGO_STATE/xray.json" "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
 	procd_set_param respawn 3600 5 5
 	procd_set_param limits nofile="65535 65535"

@@ -137,5 +137,39 @@ assert_eq "" "$(uci -q get gatygo.main.hwid)" "no hwid generated when send_hwid=
 assert_eq "false" "$(curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path == "/sub-nohwid")][-1].headers | has("x-hwid")')" "request carried no x-hwid"
 uci set gatygo.main.send_hwid=1
 
+# --- the xray core: an update makes sure the pinned one is in place before anything runs it.
+#     The "release" is a zip on the mock panel; its binary hands over to the image's xray.
+GATYGO_STATE="$tmp/state-core" GATYGO_ASSETS="$tmp/assets-core"; mkdir -p "$GATYGO_ASSETS"
+uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub; uci set gatygo.main.profile=""
+GATYGO_CORE_DIR="$tmp/core" GATYGO_XRAY="$tmp/core/xray" GATYGO_CORE_BASE=http://127.0.0.1:8789/geo GATYGO_CORE_PIN="$tmp/core.pin"
+_core_zip() {
+    python3 -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1], "w").writestr("xray", "#!/bin/sh\n# " + sys.argv[2] + "\nexec /usr/local/bin/xray \"$@\"\n")' \
+        "$tmp/geo-src/Xray-linux-arm64-v8a.zip" "$1"
+}
+_core_pin() { printf '%s  %s/Xray-linux-arm64-v8a.zip\n' "$2" "$1" > "$GATYGO_CORE_PIN"; }
+_core_zip one
+_core_pin v1.0.0 "$(printf '%064d' 0)"
+_before=$(curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path == "/sub")] | length')
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "no core and none to be had -> error"
+assert_eq "core_failed" "$(_last CODE)" "CODE=core_failed"
+assert_eq "$_before" "$(curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path == "/sub")] | length')" "the subscription is not asked for without a core to test it with"
+_core_pin v1.0.0 "$(sha256sum < "$tmp/geo-src/Xray-linux-arm64-v8a.zip" | cut -d' ' -f1)"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the update installs the pinned core and goes on"
+assert_exit 0 "the core is in place" test -x "$GATYGO_XRAY"
+assert_exit 0 "the config was tested with it and installed" test -s "$GATYGO_STATE/xray.json"
+: > "$GATYGO_INIT_LOG"
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "0 " "$(_last RESTARTED) $(cat "$GATYGO_INIT_LOG")" "the pinned core in place, nothing changed: no restart"
+_core_zip two
+_core_pin v2.0.0 "$(sha256sum < "$tmp/geo-src/Xray-linux-arm64-v8a.zip" | cut -d' ' -f1)"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a newly pinned core (the package was updated)"
+assert_eq "1 running start" "$(_last RESTARTED) $(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "a replaced core restarts xray though the config is the same"
+assert_exit 0 "it is the new one" grep -q '^# two$' "$GATYGO_XRAY"
+_core_pin v3.0.0 "$(printf '%064d' 0)"
+: > "$GATYGO_INIT_LOG"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a core that cannot be replaced does not stop the update"
+assert_eq "ok 0" "$(_last RESULT) $(_last RESTARTED)" "the one in place goes on working"
+GATYGO_XRAY=xray
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

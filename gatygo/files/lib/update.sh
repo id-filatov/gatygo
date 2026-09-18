@@ -1,5 +1,5 @@
 #!/bin/sh
-# The update cycle: fetch → validate → geo → select → transform → test → swap,
+# The update cycle: core → fetch → validate → geo → select → transform → test → swap,
 # plus the pieces the CLI reuses for `select`.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
@@ -10,6 +10,7 @@
 . "${GATYGO_LIB:-/usr/lib/gatygo}/check.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/fetch.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/geo.sh"
+. "${GATYGO_LIB:-/usr/lib/gatygo}/core.sh"
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
@@ -36,7 +37,7 @@ gatygo_result() {
 
 # gatygo_xray_test CONFIG ASSET_DIR — `xray run -test`; on failure log the tail of xray's output
 gatygo_xray_test() {
-    _gatygo_out=$(XRAY_LOCATION_ASSET=$2 xray run -test -c "$1" 2>&1) && return 0
+    _gatygo_out=$(XRAY_LOCATION_ASSET=$2 "$GATYGO_XRAY" run -test -c "$1" 2>&1) && return 0
     gatygo_log error "xray -test failed: $(printf '%s' "$_gatygo_out" | grep -v -e '^Xray ' -e '^A unified' | tail -n 3 | tr '\n' ' ')"
     return 1
 }
@@ -115,6 +116,11 @@ gatygo_update() {
     gatygo_load_config
     if [ -z "$GATYGO_SUB_URL" ]; then gatygo_result error no_url "subscription URL is not configured"; return 1; fi
     mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
+    # 0. the xray core: the pinned one, or at least the one in place (the config test needs it)
+    _gatygo_core=$(gatygo_core_ensure) || {
+        gatygo_result error core_failed "the xray core is not installed and could not be downloaded (see the lines above)"
+        return 1
+    }
     _gatygo_hwid=''
     [ "$GATYGO_SEND_HWID" = 1 ] && _gatygo_hwid=$(gatygo_hwid_ensure)
     _gatygo_w=$(mktemp -d)
@@ -164,7 +170,8 @@ gatygo_update() {
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"
     _gatygo_restarted=0
-    if [ "$GATYGO_SWAP_RESULT" = changed ]; then _gatygo_restarted=1; _gatygo_reload; fi
+    # a replaced core restarts xray too: the init script makes the core a part of the instance
+    if [ "$GATYGO_SWAP_RESULT" = changed ] || [ "$_gatygo_core" = installed ]; then _gatygo_restarted=1; _gatygo_reload; fi
     if [ "$_gatygo_apply" -eq 3 ]; then
         gatygo_result warning profile_missing "profile '$GATYGO_PROFILE' is not in the subscription; using '$_gatygo_prof'" "$_gatygo_prof" "$_gatygo_restarted"
     else

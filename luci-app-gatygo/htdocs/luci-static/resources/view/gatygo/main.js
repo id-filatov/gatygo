@@ -386,6 +386,11 @@ return view.extend({
 			p.text = _('The country in use is still %s.').format(splitFlag(st.profile_used).name);
 			p.action = { label: _('Try again'), handler: 'handleSelect', arg: st.profile };
 			break;
+		case 'core_failed':
+			p.title = _('Couldn’t download the VPN engine');
+			p.text = _('gatygo downloads it from GitHub once after it is installed or updated. Check the router’s internet connection, then try again.');
+			p.action = retry;
+			break;
 		case 'no_cache':
 			p.title = _('There is no list of countries yet');
 			p.text = _('Press Try again to download it.');
@@ -445,6 +450,7 @@ return view.extend({
 			error = (lu.code == 'fetch_failed') ? _('This link did not work. Check that you copied the whole link from your provider.')
 				: (lu.code == 'not_recognised') ? _('The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear).')
 				: (lu.code == 'device_limit') ? _('Too many devices on this subscription. Remove a device in your provider’s account and try again.')
+				: (lu.code == 'core_failed') ? _('gatygo could not download the VPN engine from GitHub. Check the router’s internet connection and try again.')
 				: _('gatygo could not set up the connection.');
 		}
 		return [

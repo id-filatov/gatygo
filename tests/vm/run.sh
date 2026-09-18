@@ -59,6 +59,10 @@ vm 'uci set gatygo.main.enabled=1; uci set gatygo.main.sub_url=http://10.0.2.2:8
 check "start" '/etc/init.d/gatygo start && sleep 5'
 expect "xray running" "true" 'gatygo status | jq -r .running'
 expect "first balancer tile applied" "🌐 Auto" 'gatygo status | jq -r .profile_used'
+# the first start downloaded the core pinned in the package (about 20 MB from GitHub), checked and unpacked it
+check "core: the pinned xray is in gatygo's own directory" '. /usr/lib/gatygo/core.sh && gatygo_core_ready'
+expect "core: xray runs from there" "/usr/lib/gatygo/core/xray" 'readlink /proc/$(gatygo status | jq -r .pid)/exe'
+expect "core: status reports the pinned version" "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$ROOT/gatygo/files/lib/core.pin" | head -n 1)" 'gatygo status | jq -r .xray_version'
 expect "update result ok" "ok updated" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\""'
 check "xray.json installed 0600" 'test "$(ls -l /etc/gatygo/xray.json | cut -c1-10)" = -rw-------'
 check "geo files installed" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
@@ -158,6 +162,7 @@ check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 
 echo "== 11. removal"
 vm '/etc/init.d/gatygo stop; apk del luci-app-gatygo gatygo >/dev/null 2>&1; true'
+check "core removed with the package" '! test -e /usr/lib/gatygo/core'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
 # the fixture geo files must not survive either: a real subscription would keep them (304 on the newer mtime)

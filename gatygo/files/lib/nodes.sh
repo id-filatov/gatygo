@@ -12,10 +12,10 @@ GATYGO_API=${GATYGO_API:-127.0.0.1:10085}
 gatygo_nodes() {
     _gatygo_bal=$(jq -r '.routing.balancers[0].tag // empty' "$1" 2>/dev/null)
     _gatygo_stats='{"stat":[]}' _gatygo_sel='[]' _gatygo_api=false
-    if _gatygo_s=$(xray api statsquery --server="$GATYGO_API" -timeout 1 -json -pattern 'outbound>>>' 2>/dev/null); then
+    if _gatygo_s=$("$GATYGO_XRAY" api statsquery --server="$GATYGO_API" -timeout 1 -json -pattern 'outbound>>>' 2>/dev/null); then
         _gatygo_stats=$_gatygo_s _gatygo_api=true
         if [ -n "$_gatygo_bal" ]; then
-            _gatygo_sel=$(xray api bi --server="$GATYGO_API" -timeout 1 -json "$_gatygo_bal" 2>/dev/null \
+            _gatygo_sel=$("$GATYGO_XRAY" api bi --server="$GATYGO_API" -timeout 1 -json "$_gatygo_bal" 2>/dev/null \
                 | jq -c '.balancer.principleTarget.tag // []' 2>/dev/null)
             [ -n "$_gatygo_sel" ] || _gatygo_sel='[]'
         fi

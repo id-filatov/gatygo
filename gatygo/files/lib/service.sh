@@ -124,5 +124,5 @@ gatygo_proc_uptime() {
 }
 
 gatygo_xray_version() {
-    xray version 2>/dev/null | sed -n '1s/^Xray \([^ ]*\).*/\1/p'
+    "$GATYGO_XRAY" version 2>/dev/null | sed -n '1s/^Xray \([^ ]*\).*/\1/p'
 }

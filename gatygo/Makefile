@@ -15,7 +15,7 @@ define Package/gatygo
   SUBMENU:=VPN
   TITLE:=Xray-JSON subscription VPN client with transparent proxy
   URL:=https://github.com/id-filatov/gatygo
-  DEPENDS:=+xray-core +jq +curl +ca-bundle +kmod-nft-tproxy +ip-full
+  DEPENDS:=+unzip +jq +curl +ca-bundle +kmod-nft-tproxy +ip-full
   CONFLICTS:=luci-app-passwall luci-app-passwall2
   PKGARCH:=all
 endef
@@ -23,7 +23,9 @@ endef
 define Package/gatygo/description
  Fetches an Xray-JSON subscription, lets you pick a
  profile, runs xray-core with the profile's balancer and routing, and
- transparently proxies the whole LAN via nftables tproxy.
+ transparently proxies the whole LAN via nftables tproxy. The xray core is
+ not the feed's package: gatygo downloads the XTLS release pinned in it
+ (about 35 MB on the overlay) and checks its SHA256.
 endef
 
 define Package/gatygo/conffiles
@@ -51,7 +53,7 @@ endef
 
 define Package/gatygo/prerm
 #!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] || /etc/init.d/gatygo stop
+[ -n "$${IPKG_INSTROOT}" ] || { /etc/init.d/gatygo stop; rm -rf /usr/lib/gatygo/core; }
 exit 0
 endef
 
