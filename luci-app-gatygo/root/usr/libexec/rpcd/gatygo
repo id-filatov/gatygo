@@ -6,7 +6,7 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"check":{"fresh":true}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"check":{"fresh":true},"ping":{"fresh":true}}'
 		;;
 	call)
 		case $2 in
@@ -37,6 +37,16 @@ case $1 in
 			check)
 				# the kept result unless a new run is asked for; a run takes up to 5 s
 				if [ "$(jq -r '.fresh // false' 2>/dev/null)" = true ]; then "$GATYGO" check fresh; else "$GATYGO" check; fi
+				;;
+			ping)
+				# the kept result at once; a run takes 10-20 s, so it goes on in the background when
+				# one is due or asked for, and the page asks again while measuring is true
+				_f=$(jq -r '.fresh // false' 2>/dev/null)
+				_r=$("$GATYGO" ping kept) && [ "$_f" != true ] || {
+					("$GATYGO" ping </dev/null >/dev/null 2>&1 &)
+					_r=$(printf '%s' "$_r" | jq -c '.measuring = true')
+				}
+				printf '%s\n' "$_r"
 				;;
 			connect)
 				_u=$(jq -r '.url // empty' 2>/dev/null)

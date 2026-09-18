@@ -3,6 +3,8 @@
 #   gatygo start|stop|restart        service control
 #   gatygo update                    run the subscription update cycle now
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
+#   gatygo check [fresh]             JSON: do the usual services open through the tunnel
+#   gatygo ping [kept]               JSON: the response time of every country
 #   gatygo status                    JSON for scripts and the LuCI page
 #   gatygo nodes                     JSON: outbounds with balancer selection and traffic
 #   gatygo log [N]                   last N xray/gatygo lines of the system log (default 200)
@@ -13,7 +15,7 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|check [fresh]|status|nodes|log [N]|updating|cron-sync|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|version" >&2
 	exit 1
 }
 
@@ -47,6 +49,20 @@ cmd_check() {
 	_auth=$(jq -r '.inbounds[] | select(.tag == "check") | .settings.accounts[0] // empty | "\(.user):\(.pass)"' \
 		"$GATYGO_STATE/xray.json" 2>/dev/null)
 	gatygo_check_store "$_tunnel" "$(gatygo_check_run "$GATYGO_CHECK_PORT" "$_auth")"
+}
+
+# The response time of every country: prints {time, measuring, profiles: [{remarks, ms|null}]}.
+# `ping` measures now (10-20 s on a large subscription, one run at a time); `ping kept` prints
+# the last result and exits 1 when a run is due (none yet, or older than 5 minutes).
+cmd_ping() {
+	. "$GATYGO_LIB/ping.sh"
+	if [ "$1" = kept ]; then gatygo_ping_kept 300; return; fi
+	if [ ! -s "$GATYGO_STATE/subscription.json" ] || ! gatygo_lock ping; then
+		gatygo_ping_kept 300
+		return 0
+	fi
+	trap 'gatygo_unlock ping' EXIT
+	gatygo_ping_store "$(gatygo_ping_run "$GATYGO_STATE/subscription.json")"
 }
 
 cmd_update() {
@@ -158,6 +174,7 @@ connect) cmd_connect "$2" ;;
 update) cmd_update ;;
 select) cmd_select "$2" ;;
 check) cmd_check "$2" ;;
+ping) cmd_ping "$2" ;;
 status) cmd_status ;;
 nodes)
 	. "$GATYGO_LIB/nodes.sh"

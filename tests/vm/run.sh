@@ -81,6 +81,9 @@ expect "check: a recent result is reused" "same" 'a=$(gatygo check | jq .time); 
 check "check: the router's password opens the inbound" 'printf "proxy-user = \"gatygo:%s\"\n" "$(cat /etc/gatygo/check.secret)" | curl -K - -fs -o /dev/null -m 5 --socks5-hostname 127.0.0.1:10808 http://10.0.2.2:8787/log'
 check "check: no way in without the password" '! curl -fs -o /dev/null -m 5 --socks5-hostname 127.0.0.1:10808 http://10.0.2.2:8787/log'
 check "check: the password is kept 0600" 'test "$(ls -l /etc/gatygo/check.secret | cut -c1-10)" = -rw-------'
+# the fixture's relays do not exist: what is checked is the run itself, a line for every country
+check "ping: a run gives every country of the page a line" 'n=$(gatygo status | jq ".profiles | length"); gatygo ping | jq -e --argjson n "$n" ".measuring == false and .time > 0 and \$n > 0 and (.profiles | length) == \$n and (.profiles | all(has(\"ms\")))" >/dev/null'
+expect "ping: ubus gives the kept result at once" "false true" 'n=$(gatygo status | jq ".profiles | length"); ubus -S call gatygo ping | jq -r --argjson n "$n" "\"\(.measuring) \((.profiles | length) == \$n)\""'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'

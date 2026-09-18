@@ -64,11 +64,11 @@ gatygo_log_tail() {
         | tail -n "$1" | sed -E 's/^([^ ]+ +){6}(gatygo|xray)(\[[0-9]+\])?: /\2: /'
 }
 
-# gatygo_update_lock — take $GATYGO_RUN/update.lock (a directory: mkdir is atomic). Exit 1 when a
+# gatygo_lock NAME — take $GATYGO_RUN/NAME.lock (a directory: mkdir is atomic). Exit 1 when a
 # live process holds it; a lock left by a dead process is taken over.
-gatygo_update_lock() {
+gatygo_lock() {
     mkdir -p "$GATYGO_RUN"
-    _gatygo_l=$GATYGO_RUN/update.lock
+    _gatygo_l=$GATYGO_RUN/$1.lock
     if ! mkdir "$_gatygo_l" 2>/dev/null; then
         _gatygo_p=$(cat "$_gatygo_l/pid" 2>/dev/null)
         [ -n "$_gatygo_p" ] && kill -0 "$_gatygo_p" 2>/dev/null && return 1
@@ -78,15 +78,20 @@ gatygo_update_lock() {
     echo $$ > "$_gatygo_l/pid"
 }
 
-gatygo_update_unlock() {
-    rm -rf "$GATYGO_RUN/update.lock"
+gatygo_unlock() {
+    rm -rf "$GATYGO_RUN/$1.lock"
 }
 
-# gatygo_updating — exit 0 iff an update holds the lock and its process is alive
-gatygo_updating() {
-    _gatygo_p=$(cat "$GATYGO_RUN/update.lock/pid" 2>/dev/null)
+# gatygo_locked NAME — exit 0 iff a live process holds the lock
+gatygo_locked() {
+    _gatygo_p=$(cat "$GATYGO_RUN/$1.lock/pid" 2>/dev/null)
     [ -n "$_gatygo_p" ] && kill -0 "$_gatygo_p" 2>/dev/null
 }
+
+# the update cycle: one at a time
+gatygo_update_lock() { gatygo_lock update; }
+gatygo_update_unlock() { gatygo_unlock update; }
+gatygo_updating() { gatygo_locked update; }
 
 # gatygo_next_update HOURS [NOW] — epoch of the next cron slot written by gatygo_cron_sync:
 # every HOURS hours on the hour counted from local midnight (`0 */H`), or 03:00 daily when

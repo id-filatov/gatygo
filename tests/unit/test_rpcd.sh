@@ -6,7 +6,7 @@ export GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_CLI_LOG="$tmp/calls" GATYGO
 : > "$GATYGO_CLI_LOG"
 call() { _m=$1; shift; printf '%s' "${1:-{\}}" | sh "$RPCD" call "$_m"; }
 
-assert_eq '["check","connect","log","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the six methods"
+assert_eq '["check","connect","log","ping","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the seven methods"
 assert_eq "32" "$(sh "$RPCD" list | jq '.log.lines')" "log declares a numeric argument"
 assert_eq "true" "$(call status | jq .running)" "status passes the CLI JSON through"
 assert_eq "unknown method" "$(call nodes | jq -r .error)" "the page has no node list: no nodes method"
@@ -31,6 +31,19 @@ assert_eq "true" "$(call check | jq .available)" "check passes the CLI JSON thro
 assert_eq "true" "$(call check '{"fresh":true}' | jq .available)" "check with fresh"
 assert_eq "check
 check fresh" "$(grep '^check' "$GATYGO_CLI_LOG")" "fresh reaches the CLI as its argument, and only when asked"
+
+# --- ping: the kept result at once; a run (10-20 s) goes on in the background when it is due or asked for
+_p=$(call ping)
+assert_eq "false 12" "$(printf '%s' "$_p" | jq -r '"\(.measuring) \(.profiles[0].ms)"')" "ping passes the kept result through"
+assert_eq "0" "$(grep -c '^ping$' "$GATYGO_CLI_LOG")" "a recent result -> no run"
+_p=$(call ping '{"fresh":true}')
+assert_eq "true 12" "$(printf '%s' "$_p" | jq -r '"\(.measuring) \(.profiles[0].ms)"')" "ping with fresh: the kept result, marked as being measured"
+assert_exit 1 "ping returns before the run finishes" test -e "$GATYGO_CLI_UPDATE_MARK.ping"
+sleep 1.5
+assert_exit 0 "the backgrounded run did happen" test -e "$GATYGO_CLI_UPDATE_MARK.ping"
+assert_eq "true" "$(GATYGO_CLI_PING_KEPT_RC=1 call ping | jq .measuring)" "an old or missing result -> a run by itself"
+sleep 1.5
+assert_eq "2" "$(grep -c '^ping$' "$GATYGO_CLI_LOG")" "two runs in all"
 
 # --- connect: the link goes to the CLI verbatim, the call returns before the first download ends
 assert_eq "true" "$(call connect '{"url":"https://panel.example.com/sub/a b&c"}' | jq .started)" "connect starts"
