@@ -10,12 +10,13 @@
 #   gatygo log [N]                   last N xray/gatygo lines of the system log (default 200)
 #   gatygo updating                  exit 0 while an update runs
 #   gatygo cron-sync                 re-create the periodic update line
+#   gatygo watch                     wait for xray to quit for good (run by the service itself)
 #   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
 	exit 1
 }
 
@@ -131,8 +132,14 @@ cmd_status() {
 	[ "$GATYGO_SEND_HWID" = 1 ] && _send_hwid=true
 	_pid=$(gatygo_xray_pid)
 	[ -n "$_pid" ] && _uptime=$(gatygo_proc_uptime "$_pid")
-	_crashed=''
+	_crashed='' _crash=null
 	[ "$_running" = true ] || _crashed=$(gatygo_xray_crashed)
+	# what the watcher noted when procd gave up on xray (lib/crash.sh)
+	if [ -n "$_crashed" ] && [ -s "$GATYGO_RUN/crash.env" ]; then
+		_crash=$(jq -nc --arg time "$(_gatygo_env_get "$GATYGO_RUN/crash.env" TIME)" \
+			--arg direct "$(_gatygo_env_get "$GATYGO_RUN/crash.env" DIRECT)" --rawfile log "$GATYGO_RUN/crash.log" \
+			'{time: ($time | tonumber), direct: ($direct == "1"), log: ($log | rtrimstr("\n"))}' 2>/dev/null) || _crash=null
+	fi
 	_interval=$(gatygo_update_interval_hours)
 	[ "$_running" = true ] && _next=$(gatygo_next_update "$_interval")
 	_profiles='[]'
@@ -144,7 +151,7 @@ cmd_status() {
 		# the one named by the last result
 		_used=$(cat "$GATYGO_STATE/profile" 2>/dev/null) || _used=${PROFILE:-}
 		[ -s "$GATYGO_STATE/xray.json" ] || _used=''
-		jq -n --argjson running "$_running" --arg pid "$_pid" --arg crashed "$_crashed" --arg version "$GATYGO_VERSION" \
+		jq -n --argjson running "$_running" --arg pid "$_pid" --arg crashed "$_crashed" --argjson crash "$_crash" --arg version "$GATYGO_VERSION" \
 			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
 			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \
 			--arg profile "$GATYGO_PROFILE" --arg used "$_used" --argjson profiles "$_profiles" \
@@ -157,7 +164,7 @@ cmd_status() {
 			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
 			--arg geoip "$(date -r "$GATYGO_ASSETS/geoip.dat" +%s 2>/dev/null)" \
 			'{running: $running, pid: $pid, version: $version,
-			  crashed: (if $crashed == "" then null else ($crashed | tonumber) end),
+			  crashed: (if $crashed == "" then null else ($crashed | tonumber) end), crash: $crash,
 			  configured: $configured, enabled: $enabled, send_hwid: $send_hwid, updating: $updating,
 			  uptime: (if $uptime == "" then null else ($uptime | tonumber) end), xray_version: $xray_version,
 			  profile: $profile, profile_used: $used,
@@ -195,6 +202,25 @@ updating)
 log)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_log_tail "${2:-200}"
+	;;
+watch)
+	# procd notifies the subscribers of its ubus object; every line is one notification. The
+	# subscriber is a child of this process and has to go with it when procd stops the instance,
+	# hence the fifo instead of a pipeline: its pid is known.
+	. "$GATYGO_LIB/crash.sh"
+	_fifo=$GATYGO_RUN/watch.fifo
+	mkdir -p "$GATYGO_RUN"
+	rm -f "$_fifo"
+	mkfifo "$_fifo" || exit 1
+	ubus subscribe service > "$_fifo" 2>/dev/null &
+	_sub=$!
+	trap 'kill "$_sub" 2>/dev/null; rm -f "$_fifo"; exit 0' TERM INT
+	while read -r _line; do
+		gatygo_watch_line "$_line" && gatygo_on_crash
+	done < "$_fifo"
+	# the subscriber is gone (ubusd was restarted): procd starts the watcher again
+	rm -f "$_fifo"
+	exit 1
 	;;
 cron-sync)
 	. "$GATYGO_LIB/service.sh"

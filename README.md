@@ -22,6 +22,9 @@ tproxy. Everything is driven from one LuCI page; settings and the log live behin
   routing rules or server lists of its own.
 - Says what went wrong in plain words: expired subscription, device limit, a server that did
   not recognise the client, and so on.
+- If xray quits for good (the router ran out of memory, say), the page says when and why. What
+  the home network gets meanwhile is a setting: no internet until the VPN is back, so nothing
+  goes around it (the default), or the regular internet.
 
 ## Requirements
 

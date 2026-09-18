@@ -138,6 +138,12 @@ return view.extend({
 		o.default = '1';
 		o.rmempty = false;
 
+		o = s.option(form.ListValue, 'on_crash', _('If the VPN stops by itself'),
+			_('It is rare, but xray can quit, for example when the router runs out of memory. Blocking keeps everything inside the VPN at the price of no internet at home until someone presses Start. Either way the main page says what happened and when.'));
+		o.value('block', _('Block the internet until the VPN is back'));
+		o.value('direct', _('Let devices use the regular internet'));
+		o.default = 'block';
+
 		o = s.option(form.Value, 'direct_dns', _('Resolver for server names'), _("Used only to resolve the VPN servers' own host names, outside the tunnel. Empty: the WAN DNS."));
 		o.datatype = 'ip4addr';
 		o.placeholder = _('WAN DNS');

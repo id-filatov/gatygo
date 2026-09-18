@@ -60,7 +60,7 @@ var CSS = [
 	'.gg-alert-body { flex:1 1 0; min-width:0; }',
 	'.gg-alert-title { margin:0; font-size:14px; line-height:1.4; font-weight:600; color:var(--gg-ink); }',
 	'.gg-alert-text { margin:2px 0 0; max-width:80ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
-	'.gg-detail { margin:6px 0 0; font:12px/1.5 monospace; color:var(--gg-ink-2); }',
+	'.gg-detail { margin:6px 0 0; font:12px/1.5 monospace; color:var(--gg-ink-2); white-space:pre-wrap; }',
 	'.gg-alert-actions { flex:none; align-self:center; }',
 	'.gg-alert-actions a { text-decoration:none; }',
 	'.gg-card-check { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--gg-line); }',
@@ -342,12 +342,20 @@ return view.extend({
 		var kept = running ? ' ' + _('You stay connected with the previous settings.') : '';
 		var retry = { label: _('Try again'), handler: 'handleUpdate' };
 
-		// xray quit and procd no longer restarts it (or is about to). The firewall rules are still
-		// in place, so the home network has no way out until the VPN is started again or turned off.
-		if (!running && st.crashed != null)
-			return { bad: true, crashed: true, state: _('Stopped by itself'), title: _('The VPN stopped by itself'),
-				text: _('Devices at home have no internet now. Press Start to try again, or turn the VPN off to use the regular internet.'),
-				detail: _('xray exit code %d').format(st.crashed), action: { label: _('Turn off'), handler: 'handleInit', arg: 'stop' } };
+		// xray quit and procd no longer restarts it (or is about to). What the home network has now
+		// is the "If the VPN stops by itself" setting: no way out (the firewall rules stay), or the
+		// regular internet (the daemon took them back and says so in st.crash.direct). The daemon
+		// also notes the moment and the last lines of xray's log.
+		if (!running && st.crashed != null) {
+			var crash = st.crash || {}, direct = (crash.direct === true);
+			return { bad: !direct, crashed: true, state: _('Stopped by itself'),
+				title: crash.time ? _('The VPN stopped by itself %s').format(fmtAgo(+crash.time)) : _('The VPN stopped by itself'),
+				text: direct ? _('Devices at home use the regular internet since then: what needs the VPN does not open. Press Start to try again.')
+					: _('Devices at home have no internet now. Press Start to try again, or turn the VPN off to use the regular internet.'),
+				detail: [ (st.crashed == 137) ? _('xray was killed (exit code 137), most often because the router ran out of memory')
+					: _('xray exit code %d').format(st.crashed), crash.log ].filter(Boolean).join('\n'),
+				action: { label: _('Turn off'), handler: 'handleInit', arg: 'stop' } };
+		}
 		if (exp && exp * 1000 < Date.now())
 			return { bad: true, state: _('Subscription expired'), title: _('Your subscription ended on %s').format(new Date(exp * 1000).toLocaleDateString()),
 				text: _('The VPN servers no longer accept this router, so sites may not open. Renew the subscription with your provider, then press Update now.') };

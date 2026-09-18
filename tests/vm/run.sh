@@ -154,11 +154,23 @@ echo "== 8b. xray quits by itself"
 # procd restarts it 5 times, 5 s apart, then gives up: the instance stays, not running
 vm 'for i in 1 2 3 4 5 6 7; do p=$(gatygo status | jq -r .pid); [ -n "$p" ] && kill -9 "$p"; sleep 7; done'
 expect "status tells a crash from a stop" "false 137" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
+# the watcher (the service's second instance) noted it; on_crash is block by default
+check "the moment is noted, the home network stays closed" 'gatygo status | jq -e ".crash.time > 1700000000 and .crash.direct == false" >/dev/null && nft list table inet gatygo >/dev/null'
+check "the log says what happened" 'gatygo log 20 | grep -q "gatygo: .*xray quit by itself .*no internet"'
 vm '/etc/init.d/gatygo start; sleep 5'
-expect "start brings it back" "true null" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
+expect "start brings it back, with nothing left to show" "true null null" 'gatygo status | jq -r "\"\(.running) \(.crashed) \(.crash)\""'
+# [g]: the pattern must not match the shell that runs the check
+expect "one watcher, one subscriber" "1 1" 'echo $(pgrep -f "[g]atygo watch" | wc -l) $(pgrep -f "[u]bus subscribe service" | wc -l)'
+# on_crash=direct: the rules and the DNS settings are taken back, the crash is still there to see
+vm 'uci set gatygo.main.on_crash=direct; uci commit gatygo; for i in 1 2 3 4 5 6 7; do p=$(gatygo status | jq -r .pid); [ -n "$p" ] && kill -9 "$p"; sleep 7; done'
+expect "direct: the crash is there to see" "false 137 true" 'gatygo status | jq -r "\"\(.running) \(.crashed) \(.crash.direct)\""'
+check "direct: the home network is back on the regular internet" '! nft list table inet gatygo >/dev/null 2>&1 && test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
+vm 'uci delete gatygo.main.on_crash; uci commit gatygo; /etc/init.d/gatygo start; sleep 5'
+check "start puts the tunnel back" 'gatygo status | jq -e ".running == true and .crash == null" >/dev/null && nft list table inet gatygo >/dev/null'
 
 echo "== 9. stop cleans up"
 vm '/etc/init.d/gatygo stop; sleep 2'
+expect "the watcher goes with the service" "0 0" 'echo $(pgrep -f "[g]atygo watch" | wc -l) $(pgrep -f "[u]bus subscribe service" | wc -l)'
 expect "a stop is not a crash" "false null" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
 check "table removed" '! nft list table inet gatygo >/dev/null 2>&1'
 check "policy rule removed" '! ip rule | grep -q "fwmark 0x1"'

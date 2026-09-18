@@ -1,7 +1,8 @@
 #!/bin/sh /etc/rc.common
 # gatygo: xray (gatygo's own core, lib/core.sh) with a subscription profile + transparent proxy
 # for the LAN.
-# procd owns the xray process; the side effects around it (nft table, dnsmasq settings,
+# procd owns the xray process and a watcher that waits for procd to give up on it (lib/crash.sh);
+# the side effects around it (nft table, dnsmasq settings,
 # cron line) are applied once xray runs and removed on stop. `start` on a running service
 # re-submits the instance: procd restarts xray only when xray.json, a geo file or the core changed.
 # `reload` (UCI trigger) additionally refreshes the subscription with the new settings. A VPN
@@ -18,6 +19,7 @@ _gatygo_env() {
 	. "$GATYGO_LIB/dns.sh"
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/geo.sh"
+	. "$GATYGO_LIB/crash.sh"
 	gatygo_load_config
 }
 
@@ -27,6 +29,7 @@ start_service() {
 	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
 	chmod 700 "$GATYGO_STATE"
 	rm -f "$GATYGO_RUN/stopped"
+	gatygo_crash_clear
 	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
 	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
 		gatygo_log info "no cached config, xray core or geo files yet, downloading"
@@ -46,6 +49,11 @@ start_service() {
 	# xray logs to its console: procd relays both streams to the system log (tag xray)
 	procd_set_param stdout 1
 	procd_set_param stderr 1
+	procd_close_instance
+	# never given up on: it only waits
+	procd_open_instance watch
+	procd_set_param command /usr/bin/gatygo watch
+	procd_set_param respawn 3600 5 0
 	procd_close_instance
 }
 
@@ -78,6 +86,7 @@ stop_service() {
 	gatygo_dns_restore
 	gatygo_fw_remove
 	gatygo_cron_remove
+	gatygo_crash_clear
 	# stopped by hand, as opposed to switched off in the settings: reload_service keeps it off
 	# (tmpfs: a reboot starts an enabled service as usual)
 	mkdir -p "$GATYGO_RUN"

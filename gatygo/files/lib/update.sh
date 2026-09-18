@@ -107,7 +107,7 @@ gatygo_apply_profile() {
 # hook of the init script and would kick another update.
 _gatygo_reload() {
     [ -x "$GATYGO_INIT" ] || return 0
-    "$GATYGO_INIT" running >/dev/null 2>&1 || return 0
+    "$GATYGO_INIT" running xray >/dev/null 2>&1 || return 0
     "$GATYGO_INIT" start >/dev/null 2>&1
 }
 
