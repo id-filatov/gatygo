@@ -38,6 +38,16 @@ gatygo_geo_due() {
     return 1
 }
 
+# gatygo_geo_missing CONFIG — exit 0 when CONFIG names geo data and a dat file is not there: the
+# state dir with the config survives a sysupgrade, the dats do not, and xray would only crash.
+gatygo_geo_missing() {
+    for _gatygo_n in geosite geoip; do
+        grep -q "\"$_gatygo_n:" "$1" 2>/dev/null || continue
+        [ -s "$GATYGO_ASSETS/$_gatygo_n.dat" ] || return 0
+    done
+    return 1
+}
+
 # gatygo_geo_record GEOSITE_URL GEOIP_URL — remember where the installed dats came from. Written
 # by the update cycle once the files passed `xray run -test` and were installed.
 gatygo_geo_record() {

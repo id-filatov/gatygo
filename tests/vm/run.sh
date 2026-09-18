@@ -167,8 +167,10 @@ check "dnsmasq restored" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && !
 check "LAN client resolves via the router again" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
 
 echo "== 10. start again, reboot"
-vm '/etc/init.d/gatygo start; sleep 5'
+# the cached config needs geo files that are gone (as after a sysupgrade): start gets them first
+vm 'rm -f /usr/share/xray/geosite.dat /usr/share/xray/geoip.dat; /etc/init.d/gatygo start; sleep 5'
 expect "running after start" "true" 'gatygo status | jq -r .running'
+check "start brought the missing geo files back" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
 vm 'reboot' >/dev/null 2>&1; sleep 5
 ssh "$LAB_HOST" "cd $LAB_DIR && ./openwrt.sh wait >/dev/null" && sleep 15
 expect "running after reboot" "true" 'gatygo status | jq -r .running'

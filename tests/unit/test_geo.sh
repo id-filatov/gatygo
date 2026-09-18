@@ -27,6 +27,18 @@ assert_exit 1 "missing headers file, no cache -> no geo URLs" gatygo_geo_urls "$
 printf "GATYGO_GEOSITE_URL='ftp://x/geosite.dat'\nGATYGO_GEOIP_URL='http://127.0.0.1:8788/geo/geoip.dat'\n" > "$tmp/bad.env"
 assert_exit 1 "a non-http URL invalidates the pair" gatygo_geo_urls "$tmp/bad.env"
 
+# --- a cached config whose geo files are gone (the state dir survives a sysupgrade, the dats do not)
+printf '{"routing":{"rules":[{"domain":["geosite:ads"],"outboundTag":"block"},{"ip":["geoip:private"],"outboundTag":"direct"}]}}' > "$tmp/geo.json"
+printf '{"routing":{"rules":[{"domain":["domain:example.com"],"outboundTag":"block"}]}}' > "$tmp/nogeo.json"
+assert_exit 0 "the config names geo data, no dats -> missing" gatygo_geo_missing "$tmp/geo.json"
+assert_exit 1 "a config without geo rules needs no dats" gatygo_geo_missing "$tmp/nogeo.json"
+cp "$FIXTURES/geo/geosite.dat" "$GATYGO_ASSETS/"
+assert_exit 0 "one dat of the two -> still missing" gatygo_geo_missing "$tmp/geo.json"
+cp "$FIXTURES/geo/geoip.dat" "$GATYGO_ASSETS/"
+assert_exit 1 "both dats in place -> nothing missing" gatygo_geo_missing "$tmp/geo.json"
+assert_exit 1 "no config -> nothing to miss" gatygo_geo_missing "$tmp/none.json"
+rm -f "$GATYGO_ASSETS"/*.dat
+
 # --- due?
 assert_exit 0 "due when files are missing" gatygo_geo_due
 

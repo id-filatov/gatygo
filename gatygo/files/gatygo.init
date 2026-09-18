@@ -16,6 +16,7 @@ _gatygo_env() {
 	. "$GATYGO_LIB/firewall.sh"
 	. "$GATYGO_LIB/dns.sh"
 	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/geo.sh"
 	gatygo_load_config
 }
 
@@ -24,12 +25,12 @@ start_service() {
 	[ "$GATYGO_ENABLED" = 1 ] || return 0
 	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
 	chmod 700 "$GATYGO_STATE"
-	# an update brings both: the xray core (once per gatygo release) and the config
-	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ]; then
-		gatygo_log info "no cached config or no xray core yet, downloading"
+	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
+	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
+		gatygo_log info "no cached config, xray core or geo files yet, downloading"
 		gatygo_dns_restore
 		/usr/bin/gatygo update || {
-			gatygo_log error "cannot start without a config and a core"
+			gatygo_log error "cannot start without a config, a core and the geo files"
 			return 1
 		}
 	fi
