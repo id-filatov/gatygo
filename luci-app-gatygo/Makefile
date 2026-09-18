@@ -29,7 +29,7 @@ endef
 
 define Package/luci-app-gatygo/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/gatygo $(1)/usr/share/luci/menu.d $(1)/usr/share/rpcd/acl.d $(1)/usr/libexec/rpcd
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/gatygo/main.js $(1)/www/luci-static/resources/view/gatygo/main.js
+	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/gatygo/*.js $(1)/www/luci-static/resources/view/gatygo/
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-gatygo.json $(1)/usr/share/luci/menu.d/luci-app-gatygo.json
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-gatygo.json $(1)/usr/share/rpcd/acl.d/luci-app-gatygo.json
 	$(INSTALL_BIN) ./root/usr/libexec/rpcd/gatygo $(1)/usr/libexec/rpcd/gatygo

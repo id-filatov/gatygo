@@ -46,7 +46,8 @@ check "tmo helper works" '/tmp/tmo 1 sleep 5; test $? -ne 0 && /tmp/tmo 3 true'
 
 echo "== 1. install"
 vm 'cp /etc/config/gatygo /root/gatygo.config.pre-e2e 2>/dev/null; true'
-vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del luci-app-gatygo gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo; true'
+# page scripts copied to the VM by hand would hide a file the package forgot
+vm 'ip netns del c1 2>/dev/null; ip link del veth-c1 2>/dev/null; /etc/init.d/gatygo stop 2>/dev/null; apk del luci-app-gatygo gatygo >/dev/null 2>&1; rm -rf /etc/gatygo /var/run/gatygo /etc/config/gatygo /www/luci-static/resources/view/gatygo; true'
 # geo files of unknown origin with a fresh mtime must not block the first update (they got 304 and stayed)
 vm 'mkdir -p /usr/share/xray; echo junk > /usr/share/xray/geosite.dat; echo junk > /usr/share/xray/geoip.dat'
 check "apk installs" 'apk add --allow-untrusted /tmp/gatygo.apk >/dev/null 2>&1'
@@ -90,6 +91,9 @@ check "ping: a run gives every country of the page a line" 'n=$(gatygo status | 
 expect "ping: ubus gives the kept result at once" "false true" 'n=$(gatygo status | jq ".profiles | length"); ubus -S call gatygo ping | jq -r --argjson n "$n" "\"\(.measuring) \((.profiles | length) == \$n)\""'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
+for v in main advanced; do
+    expect "the package brings the $v page's script" "$(wc -c < "$ROOT/luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/$v.js" | tr -d ' ')" "curl -s http://127.0.0.1/luci-static/resources/view/gatygo/$v.js | wc -c"
+done
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'
 
 echo "== 2c. settings reload"
