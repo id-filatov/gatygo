@@ -146,8 +146,16 @@ T0=$(tp_counter); vm 'ip netns exec c1 /tmp/tmo 3 nc 1.1.1.1 443 </dev/null >/de
 check "TCP from the LAN is accepted by xray" 'ip netns exec c1 curl -s -o /dev/null -m 4 -w "%{time_connect}" http://192.0.2.1/ | awk "{ exit !(\$1 > 0) }"'
 check "the tproxy inbound cannot be reached directly from the LAN" '! ip netns exec c1 /tmp/tmo 3 nc 192.168.1.1 12345 </dev/null'
 
+echo "== 8b. xray quits by itself"
+# procd restarts it 5 times, 5 s apart, then gives up: the instance stays, not running
+vm 'for i in 1 2 3 4 5 6 7; do p=$(gatygo status | jq -r .pid); [ -n "$p" ] && kill -9 "$p"; sleep 7; done'
+expect "status tells a crash from a stop" "false 137" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
+vm '/etc/init.d/gatygo start; sleep 5'
+expect "start brings it back" "true null" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
+
 echo "== 9. stop cleans up"
 vm '/etc/init.d/gatygo stop; sleep 2'
+expect "a stop is not a crash" "false null" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
 check "table removed" '! nft list table inet gatygo >/dev/null 2>&1'
 check "policy rule removed" '! ip rule | grep -q "fwmark 0x1"'
 check "cron line removed" '! grep -q "# gatygo$" /etc/crontabs/root'

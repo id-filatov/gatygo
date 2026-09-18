@@ -76,8 +76,19 @@ assert_exit 1 "unknown pid -> exit 1" gatygo_proc_uptime 1
 # the test image's xray is the pinned core (tools/pin-core.sh moves both)
 assert_eq "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$GATYGO_LIB/core.pin" | head -n 1)" "$(gatygo_xray_version)" "xray version parsed, and it is the pinned one"
 
-# --- CLI: updating / log
+# --- xray quit by itself: procd keeps the instance it gave up on; after a stop it knows nothing
+assert_exit 1 "stopped -> not crashed" gatygo_xray_crashed
+assert_eq "137" "$(UBUS_STUB_CRASHED=1 gatygo_xray_crashed)" "an instance that is not running -> crashed, with xray's exit code"
+UBUS_STUB_CRASHED=1 gatygo_xray_crashed >/dev/null; assert_eq "0" "$?" "crashed -> exit 0"
+assert_exit 1 "running -> not crashed" env UBUS_STUB_RUNNING=1 sh -c ". $GATYGO_LIB/service.sh; gatygo_xray_crashed"
+
+# --- CLI: status tells a VPN that stopped by itself from one that was stopped
 CLI=/src/gatygo/files/gatygo
+assert_eq "false null" "$(sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: stopped"
+assert_eq "true null" "$(UBUS_STUB_RUNNING=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: running"
+assert_eq "false 137" "$(UBUS_STUB_CRASHED=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: crashed, with the exit code"
+
+# --- CLI: updating / log
 printf 'Wed Sep  9 14:00:0%s 2026 %s\n' 1 'daemon.info xray[1]: one' 2 'daemon.info gatygo[2]: two' 3 'daemon.err xray[1]: three' > "$SYSLOG_STUB_FILE"
 assert_eq "gatygo: two
 xray: three" "$(GATYGO_LIB=$GATYGO_LIB sh "$CLI" log 2)" "log N prints the last N lines"

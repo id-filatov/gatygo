@@ -8,6 +8,14 @@ gatygo_xray_running() {
     ubus call service list '{"name":"gatygo"}' 2>/dev/null | jq -e '.gatygo.instances.xray.running == true' >/dev/null 2>&1
 }
 
+# gatygo_xray_crashed — xray quit by itself: procd still has the instance (the one it is about
+# to restart, or gave up restarting after 5 tries) but it does not run; after a stop procd knows
+# nothing of the service. Prints xray's exit code; exit 0 iff crashed.
+gatygo_xray_crashed() {
+    ubus call service list '{"name":"gatygo"}' 2>/dev/null \
+        | jq -e -r '.gatygo.instances.xray | select(. != null and .running != true) | .exit_code // 0' 2>/dev/null || return 1
+}
+
 gatygo_xray_pid() {
     ubus call service list '{"name":"gatygo"}' 2>/dev/null | jq -r '.gatygo.instances.xray.pid // empty' 2>/dev/null
 }

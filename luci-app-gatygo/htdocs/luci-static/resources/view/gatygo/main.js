@@ -342,6 +342,12 @@ return view.extend({
 		var kept = running ? ' ' + _('You stay connected with the previous settings.') : '';
 		var retry = { label: _('Try again'), handler: 'handleUpdate' };
 
+		// xray quit and procd no longer restarts it (or is about to). The firewall rules are still
+		// in place, so the home network has no way out until the VPN is started again or turned off.
+		if (!running && st.crashed != null)
+			return { bad: true, crashed: true, state: _('Stopped by itself'), title: _('The VPN stopped by itself'),
+				text: _('Devices at home have no internet now. Press Start to try again, or turn the VPN off to use the regular internet.'),
+				detail: _('xray exit code %d').format(st.crashed), action: { label: _('Turn off'), handler: 'handleInit', arg: 'stop' } };
 		if (exp && exp * 1000 < Date.now())
 			return { bad: true, state: _('Subscription expired'), title: _('Your subscription ended on %s').format(new Date(exp * 1000).toLocaleDateString()),
 				text: _('The VPN servers no longer accept this router, so sites may not open. Renew the subscription with your provider, then press Update now.') };
@@ -498,11 +504,12 @@ return view.extend({
 					st.next_update ? _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
 		}
 		else {
-			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' }), _('Disconnected'),
+			var state = (problem && problem.crashed) ? problem.state : null;
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' + (state ? ' bad' : '') }), state || _('Disconnected'),
 				E('span', { 'class': 'gg-state-sep' }, '·'), country(this.busyProfile || st.profile_used, true) ]));
 			main.push(E('p', { 'class': 'gg-meta' }, (updating || this.busy == 'update')
 				? E('span', { 'class': 'spinning' }, _('Updating the list of countries…'))
-				: _('Your home network is using the regular internet. Start connects to the selected country right away.')));
+				: state ? '' : _('Your home network is using the regular internet. Start connects to the selected country right away.')));
 		}
 
 		if (hasConfig) {

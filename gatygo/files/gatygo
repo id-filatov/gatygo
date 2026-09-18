@@ -131,6 +131,8 @@ cmd_status() {
 	[ "$GATYGO_SEND_HWID" = 1 ] && _send_hwid=true
 	_pid=$(gatygo_xray_pid)
 	[ -n "$_pid" ] && _uptime=$(gatygo_proc_uptime "$_pid")
+	_crashed=''
+	[ "$_running" = true ] || _crashed=$(gatygo_xray_crashed)
 	_interval=$(gatygo_update_interval_hours)
 	[ "$_running" = true ] && _next=$(gatygo_next_update "$_interval")
 	_profiles='[]'
@@ -142,7 +144,7 @@ cmd_status() {
 		# the one named by the last result
 		_used=$(cat "$GATYGO_STATE/profile" 2>/dev/null) || _used=${PROFILE:-}
 		[ -s "$GATYGO_STATE/xray.json" ] || _used=''
-		jq -n --argjson running "$_running" --arg pid "$_pid" --arg version "$GATYGO_VERSION" \
+		jq -n --argjson running "$_running" --arg pid "$_pid" --arg crashed "$_crashed" --arg version "$GATYGO_VERSION" \
 			--argjson configured "$_configured" --argjson enabled "$_enabled" --argjson send_hwid "$_send_hwid" \
 			--argjson updating "$_updating" --arg uptime "$_uptime" --arg xray_version "$(gatygo_xray_version)" \
 			--arg profile "$GATYGO_PROFILE" --arg used "$_used" --argjson profiles "$_profiles" \
@@ -155,6 +157,7 @@ cmd_status() {
 			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
 			--arg geoip "$(date -r "$GATYGO_ASSETS/geoip.dat" +%s 2>/dev/null)" \
 			'{running: $running, pid: $pid, version: $version,
+			  crashed: (if $crashed == "" then null else ($crashed | tonumber) end),
 			  configured: $configured, enabled: $enabled, send_hwid: $send_hwid, updating: $updating,
 			  uptime: (if $uptime == "" then null else ($uptime | tonumber) end), xray_version: $xray_version,
 			  profile: $profile, profile_used: $used,
