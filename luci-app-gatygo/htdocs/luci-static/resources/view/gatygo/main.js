@@ -7,14 +7,15 @@
 
 // The main page: one block. The connection state with the country in it and the on/off and
 // update buttons, the subscription facts, whether the usual services open through the tunnel,
-// and every profile of the subscription as a button. Settings and the log live on the Advanced
-// page behind the gear.
+// and every profile of the subscription as a button with its response time. Settings and the log
+// live on the Advanced page behind the gear.
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callUpdate = rpc.declare({ object: 'gatygo', method: 'update', expect: { started: false } });
 var callSelect = rpc.declare({ object: 'gatygo', method: 'select', params: [ 'profile' ], expect: { } });
 var callConnect = rpc.declare({ object: 'gatygo', method: 'connect', params: [ 'url' ], expect: { } });
 var callCheck = rpc.declare({ object: 'gatygo', method: 'check', params: [ 'fresh' ], expect: { } });
+var callPing = rpc.declare({ object: 'gatygo', method: 'ping', params: [ 'fresh' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 
 var CSS = [
@@ -85,10 +86,17 @@ var CSS = [
 	'.gg-chip.is-on, .gg-chip:disabled { cursor:default; }',
 	'.gg-chip:disabled { color:var(--gg-ink); opacity:1; }',
 	'.gg-chip:disabled:not(.is-on) { opacity:.5; }',
-	'.gg-chip.is-busy { padding-right:34px; }',
-	'.gg-chip.is-busy::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
+	'.gg-chip.is-busy:not(.has-ms) { padding-right:34px; }',
+	'.gg-chip.is-busy:not(.has-ms)::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
 	'@keyframes gg-spin { to { transform:rotate(360deg); } }',
-	'.gg-hint { margin:12px 0 0; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-chip.has-ms { padding-right:12px; } .gg-chip-name { min-width:0; }',
+	'.gg-chip-ms { display:inline-flex; align-items:center; justify-content:flex-end; min-width:40px; margin-left:2px; font-size:12px; font-weight:400; color:var(--gg-ink-3); }',
+	'.gg-chip-ms.good { color:var(--gg-good); } .gg-chip-ms.slow { color:var(--gg-slow); }',
+	'.gg-chip-ms.wait::before { content:""; width:30px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--gg-line-2) 25%, var(--gg-line) 50%, var(--gg-line-2) 75%) 0 0 / 200% 100%; animation:gg-shimmer 1.1s linear infinite; }',
+	'.gg-chip.is-busy .gg-chip-ms { position:relative; color:transparent; } .gg-chip.is-busy .gg-chip-ms.wait::before { display:none; }',
+	'.gg-chip.is-busy .gg-chip-ms::after { content:""; position:absolute; right:0; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
+	'.gg-chips-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px 24px; margin-top:12px; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-chips-foot p { margin:0; } .gg-measure { display:inline-flex; align-items:center; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
 	'.gg-card-foot { display:flex; margin-top:16px; }',
 	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }',
 	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
@@ -111,12 +119,12 @@ var CSS = [
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
-	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; }',
+	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; } .gg-chip-name { flex:1 1 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }',
 	'  .gg-gear { width:44px; height:44px; }',
 	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
 	'  .gg-actions .cbi-button { flex:1 1 auto; }',
 	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; } }',
-	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before { animation:none; } .gg-gear:hover svg { transform:none; } }'
+	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before, .gg-chip-ms.wait::before { animation:none; } .gg-gear:hover svg { transform:none; } }'
 ].join('\n');
 
 // Tabler icons (MIT). width/height are attributes: an icon never grows when the styles are missing.
@@ -188,6 +196,8 @@ return view.extend({
 	check: null,           // the last services check: {available, tunnel, time, services}
 	checking: false,       // a check is running
 	checkedTunnel: null,   // the tunnel (profile and xray pid) the last check was started for; null = page just opened
+	ping: null,            // the countries' response times: {time, measuring, profiles: [{remarks, ms}]}; null = not asked yet
+	pinging: false,        // a ping call is on its way
 	panel: null,
 
 	// no form on this page: no Save & Apply footer
@@ -203,7 +213,7 @@ return view.extend({
 	// the user holds: the focused control and a half-typed link.
 	repaint: function() {
 		var st = this.status;
-		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, Math.floor(Date.now() / 60000) ],
+		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, this.ping, Math.floor(Date.now() / 60000) ],
 			function(k, v) { return (k == 'uptime' && v != null) ? Math.floor(v / 60) : v; });
 		if (key == this.painted) return;
 		this.painted = key;
@@ -223,6 +233,7 @@ return view.extend({
 		return callStatus().then(L.bind(function(st) {
 			this.status = st;
 			this.syncCheck();
+			this.syncPing();
 			this.repaint();
 		}, this));
 	},
@@ -253,6 +264,29 @@ return view.extend({
 
 	handleCheck: function(ev) {
 		return this.runCheck(true);
+	},
+
+	// The response times belong to the subscription, not to the tunnel. Asked for once there are
+	// countries to show: the daemon answers at once with what it has and measures again by itself
+	// when that is older than 5 minutes. While it measures, the page asks again.
+	syncPing: function() {
+		if (this.ping == null && !this.pinging && this.status.profile_used) this.runPing(false);
+	},
+
+	runPing: function(fresh) {
+		if (this.pinging) return;
+		this.pinging = true;
+		// a daemon from before there was a ping: no times, and no asking again
+		return callPing(!!fresh).then(L.bind(function(r) { this.ping = r; }, this), L.bind(function() { this.ping = {}; }, this))
+			.then(L.bind(function() {
+				this.pinging = false;
+				if (this.ping.measuring === true) window.setTimeout(L.bind(this.runPing, this, false), 2000);
+				this.repaint();
+			}, this));
+	},
+
+	handlePing: function(ev) {
+		return this.runPing(true);
 	},
 
 	run: function(kind, promise) {
@@ -478,14 +512,31 @@ return view.extend({
 			}
 		}
 
+		// the response time of a country: its fastest server, from the router and not through the VPN
+		var pg = this.ping || {}, measuring = (pg.measuring === true), times = Object.create(null);
+		(Array.isArray(pg.profiles) ? pg.profiles : []).forEach(function(p) { times[p.remarks] = p.ms; });
+
 		var selected = (this.busy == 'select') ? this.busyProfile : st.profile_used;
 		var chips = profiles.map(L.bind(function(p) {
-			var f = splitFlag(p.remarks), on = (p.remarks == selected);
-			return E('button', { 'class': 'gg-chip' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : ''), 'type': 'button',
+			var f = splitFlag(p.remarks), on = (p.remarks == selected), ms = times[p.remarks], hasMs = measuring || (p.remarks in times);
+			return E('button', { 'class': 'gg-chip' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : '') + (hasMs ? ' has-ms' : ''), 'type': 'button',
 				'aria-pressed': on ? 'true' : 'false', 'disabled': dis, 'title': p.description || null,
 				'data-key': 'chip:' + p.remarks, 'click': ui.createHandlerFn(this, 'handleSelect', p.remarks) },
-				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', {}, f.name) ]);
+				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', { 'class': 'gg-chip-name' }, f.name),
+					hasMs ? E('span', { 'class': 'gg-chip-ms' + (measuring ? ' wait' : ms == null ? '' : ms <= 60 ? ' good' : ms >= 120 ? ' slow' : ''),
+						'title': measuring ? null : (ms == null) ? _('No reply from this server') : _('Response time from your router to this server') },
+						measuring ? '' : (ms == null) ? '—' : _('%d ms').format(ms)) : '' ]);
 		}, this));
+
+		var measure = '';
+		if (measuring || pg.time != null) {
+			var silent = !measuring && profiles.length > 0 && profiles.every(function(p) { return times[p.remarks] == null; });
+			measure = E('p', { 'class': 'gg-measure' + (silent ? ' bad' : '') }, [
+				E('span', {}, measuring ? _('Measuring response time…') : silent ? _('No server answered. Check the router’s internet connection.')
+					: _('Response time measured %s').format(fmtAgo(+pg.time))),
+				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': measuring ? '' : null, 'title': _('Measure again'), 'aria-label': _('Measure again'),
+					'data-key': 'remeasure', 'click': ui.createHandlerFn(this, 'handlePing') }, icon('refresh')) ]);
+		}
 
 		var button = L.bind(function(cls, label, handler, arg) {
 			return E('button', { 'class': 'cbi-button ' + cls, 'type': 'button', 'disabled': dis, 'data-key': 'act:' + label,
@@ -508,7 +559,9 @@ return view.extend({
 			(hasConfig && running && this.busy != 'select') ? this.renderCheck() : '',
 			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
 				E('div', { 'class': 'gg-chips', 'role': 'group', 'aria-label': _('Country') }, chips),
-				E('p', { 'class': 'gg-hint' }, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.'))
+				E('div', { 'class': 'gg-chips-foot' }, [
+					E('p', {}, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.')),
+					measure ])
 			]) : '',
 			E('div', { 'class': 'gg-card-foot' }, E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ]))
 		]);
@@ -518,6 +571,7 @@ return view.extend({
 		this.status = st;
 		this.panel = E('div', {});
 		this.syncCheck();
+		this.syncPing();
 		this.repaint();
 		poll.add(L.bind(this.refresh, this), 5);
 		return E('div', { 'class': 'gg' }, [ E('style', {}, CSS), E('h2', { 'class': 'gg-sr' }, 'gatygo'), this.panel ]);
