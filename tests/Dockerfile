@@ -1,6 +1,7 @@
-# Unit-test image: busybox ash + jq + xray-core 26.3.27 for `xray run -test`, trimmed to what
+# Unit-test image: busybox ash + jq + the pinned xray core (tools/pin-core.sh keeps the tag
+# below in step with gatygo/files/lib/core.pin) for `xray run -test`, trimmed to what
 # OpenWrt 25.12 actually ships so the tests fail on anything the router would reject.
-FROM ghcr.io/xtls/xray-core:26.3.27 AS xray
+FROM ghcr.io/xtls/xray-core:26.9.9 AS xray
 
 # OpenWrt's `jq` package is built without oniguruma: no test/match/sub/capture/scan/splits.
 FROM alpine:3.22 AS jq
@@ -18,7 +19,9 @@ COPY --from=xray /usr/local/bin/xray /usr/local/bin/xray
 RUN rm -f /bin/stat /usr/bin/stat /bin/timeout /usr/bin/timeout \
  && ! command -v stat && ! command -v timeout \
  && jq --version && ! jq -n '"a" | test("a")' 2>/dev/null
+# GATYGO_XRAY: the tests run this image's xray (or the stub in front of it), not a downloaded core
 ENV GATYGO_LIB=/src/gatygo/files/lib \
+    GATYGO_XRAY=xray \
     FIXTURES=/src/tests/fixtures \
     XRAY_LOCATION_ASSET=/src/tests/fixtures/geo
 WORKDIR /src

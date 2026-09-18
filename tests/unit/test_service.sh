@@ -73,7 +73,8 @@ assert_eq "1036800" "$(gatygo_next_update 5 1024000)" "20:26:40 + 5h slots -> mi
 export GATYGO_SYSROOT="$FIXTURES/sysroot"
 assert_eq "50000" "$(gatygo_proc_uptime 4242)" "uptime = system uptime - start time"
 assert_exit 1 "unknown pid -> exit 1" gatygo_proc_uptime 1
-assert_eq "26.3.27" "$(gatygo_xray_version)" "xray version parsed"
+# the test image's xray is the pinned core (tools/pin-core.sh moves both)
+assert_eq "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$GATYGO_LIB/core.pin" | head -n 1)" "$(gatygo_xray_version)" "xray version parsed, and it is the pinned one"
 
 # --- CLI: updating / log
 CLI=/src/gatygo/files/gatygo

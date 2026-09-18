@@ -1,0 +1,14 @@
+# The xray core of this gatygo release: SHA256 and path of every XTLS release archive a
+# router may ask for (core.sh). Written by tools/pin-core.sh, not by hand.
+52a825a06d77f6e2d0d72d8d873b1fd277ae503ac9a2aedb112f4f5db0e347e0  v26.9.9/Xray-linux-32.zip
+1eb9175d0f0a8f8149c9230a7fc5ae66ce332ed20a53155ce61fe62e3f58b7df  v26.9.9/Xray-linux-64.zip
+09628b8657037fcf155ed2498ba54b5a2c778212ae2193042fe54d789a26c039  v26.9.9/Xray-linux-arm32-v5.zip
+259583689327b21e696e0837b4f6a57dc3c2ef07d63edec64be7ec54eb356f19  v26.9.9/Xray-linux-arm32-v6.zip
+5b2a9e2767c0197f7bd41c2db133f91440e845771e621178e0fd2b8520228e5f  v26.9.9/Xray-linux-arm32-v7a.zip
+3e38d72dfc5eb65c91df0e5583e9b6676c32232041da47de6ae73946b526d66c  v26.9.9/Xray-linux-arm64-v8a.zip
+4b9838c570f283d7104e0c775df3562a4f12f33c06e6c77ddcf2319845bf47ba  v26.9.9/Xray-linux-mips32.zip
+e572d2cdd819318383460443140898e6117e8e0da5f0c359b25f6c890b8d81a2  v26.9.9/Xray-linux-mips32le.zip
+2e43c5cfb27a0e2af0570b6f1d09491a3dd3a1e9670cd87d64ff9d7539d49cac  v26.9.9/Xray-linux-mips64.zip
+fe3d2d9c696d9256e0e139e4ad4c5da164b232a1a11cf7183830003bd0de75b4  v26.9.9/Xray-linux-mips64le.zip
+032663d3ef60278dc40e225c6fff8514ed850473e8845337bad08af9badbb449  v26.9.9/Xray-linux-riscv64.zip
+021b66354e5666765bfe7e21d973e587d19552ab8ff209ade5fe4562740c318e  v26.9.9/Xray-linux-loong64.zip
