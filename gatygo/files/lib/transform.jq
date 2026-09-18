@@ -43,6 +43,7 @@ def with_mark:
 # error "" = console; procd relays it to the system log (bounded ring buffer, `logread -e xray`)
 | .log = (.log // {}) + { loglevel: $loglevel, access: "none", error: "" }
 | .stats = (.stats // {})
-| .api = (.api // {}) + { tag: "api", services: ["HandlerService", "StatsService", "RoutingService"] }
+# no HandlerService: it hands the outbounds (server addresses and keys) to any local process
+| .api = (.api // {}) + { tag: "api", services: ["StatsService", "RoutingService"] }
 | .policy = (.policy // {})
 | .policy.system = (.policy.system // {}) + { statsOutboundUplink: true, statsOutboundDownlink: true }

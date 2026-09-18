@@ -61,7 +61,7 @@ while [ "$i" -lt 13 ]; do
     assert_exit 0 "log/stats/api/policy added: $name" jq -e \
         '.log == {"loglevel": "warning", "access": "none", "error": ""}
          and .stats == {}
-         and .api == {"tag": "api", "services": ["HandlerService", "StatsService", "RoutingService"]}
+         and .api == {"tag": "api", "services": ["StatsService", "RoutingService"]}
          and .policy == {"system": {"statsOutboundUplink": true, "statsOutboundDownlink": true}}' "$out"
 
     i=$((i + 1))
@@ -77,8 +77,9 @@ jq '.api = {"tag": "api", "services": ["HandlerService"], "listen": "127.0.0.1:1
     | .policy = {"levels": {"0": {"handshake": 4}}}
     | .stats = {"x": 1}' "$tmp/in-12.json" > "$tmp/merge-in.json"
 gatygo_transform "$tmp/merge-in.json" "$tmp/merge-out.json" 12345 5353 255 debug 10808
-assert_exit 0 "api merged (ours wins, extra keys kept)" jq -e \
-    '.api.listen == "127.0.0.1:1" and .api.services == ["HandlerService", "StatsService", "RoutingService"]' "$tmp/merge-out.json"
+# HandlerService would let any local process read the outbounds (server addresses and keys)
+assert_exit 0 "api merged (ours wins: the panel's HandlerService is dropped, extra keys kept)" jq -e \
+    '.api.listen == "127.0.0.1:1" and .api.services == ["StatsService", "RoutingService"]' "$tmp/merge-out.json"
 assert_exit 0 "log merged (access forced to none, error to console, dnsLog kept)" jq -e \
     '.log == {"access": "none", "dnsLog": true, "loglevel": "debug", "error": ""}' "$tmp/merge-out.json"
 assert_exit 0 "policy merged (levels kept, system added)" jq -e \
