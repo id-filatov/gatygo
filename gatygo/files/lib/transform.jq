@@ -6,7 +6,7 @@
 #
 # Arguments:
 #   --argjson tproxy_port N   --argjson dns_port N   --argjson mark N
-#   --arg loglevel S          --argjson check_port N
+#   --arg loglevel S          --argjson check_port N   --arg check_pass S
 
 def sniffing_from_socks:
   ([.inbounds[]? | select(.protocol == "socks") | .sniffing] | first)
@@ -31,9 +31,10 @@ def with_mark:
     { tag: "api", protocol: "dokodemo-door", listen: "127.0.0.1", port: 10085,
       settings: { address: "127.0.0.1" } },
     # The router's own traffic bypasses the tproxy rules, so `gatygo check` enters here:
-    # local only, routed by the same rules as the LAN.
+    # local only, routed by the same rules as the LAN. The password keeps every other process
+    # on the router out of the tunnel.
     { tag: "check", protocol: "socks", listen: "127.0.0.1", port: $check_port,
-      settings: { auth: "noauth", udp: false } }
+      settings: { auth: "password", accounts: [{ user: "gatygo", pass: $check_pass }], udp: false } }
   ]
 | .outbounds = ((.outbounds // []) | map(with_mark)) + [{ tag: "dns-out", protocol: "dns" }]
 | .routing.rules = [

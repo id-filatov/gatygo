@@ -7,6 +7,7 @@
 . "${GATYGO_LIB:-/usr/lib/gatygo}/headers.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/subscription.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/transform.sh"
+. "${GATYGO_LIB:-/usr/lib/gatygo}/check.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/fetch.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/geo.sh"
 
@@ -82,7 +83,7 @@ gatygo_apply_profile() {
     _gatygo_sel=$?
     if [ "$_gatygo_sel" -eq 1 ]; then rm -rf "$_gatygo_t"; return 1; fi
     if ! gatygo_transform "$_gatygo_t/selected.json" "$_gatygo_t/xray.json" "$GATYGO_TPROXY_PORT" "$GATYGO_DNS_PORT" \
-            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL" "$GATYGO_CHECK_PORT"; then
+            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL" "$GATYGO_CHECK_PORT" "$(gatygo_check_secret)"; then
         rm -rf "$_gatygo_t"; return 1
     fi
     mkdir -p "$_gatygo_t/assets"

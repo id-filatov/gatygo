@@ -8,7 +8,7 @@ mkdir -p "$GATYGO_STATE"; : > "$UCI_STUB_FILE"; : > "$GATYGO_DNSMASQ_LOG"
 . "$GATYGO_LIB/transform.sh"
 . "$GATYGO_LIB/dns.sh"
 jq '.[0]' "$FIXTURES/subscription.json" > "$tmp/in.json"
-gatygo_transform "$tmp/in.json" "$tmp/xray.json" 12345 5353 255 warning 10808
+gatygo_transform "$tmp/in.json" "$tmp/xray.json" 12345 5353 255 warning 10808 s3cret
 _expected_hosts=$(jq -r '[.outbounds[].settings.vnext[]?.address] | unique | .[]' "$tmp/in.json")
 
 # --- relay hosts: every unique address of the profile (the fixture has host names only)

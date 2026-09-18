@@ -5,22 +5,35 @@
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
-# gatygo_check_probe PORT URL — print the time to the end of the TLS handshake in ms when the
-# service gave any HTTP answer (a 403 or 405 to a bare HEAD still means it is reachable); print
-# nothing when there was none within 5 s.
+# gatygo_check_secret — print the password of the SOCKS inbound; made once and kept in the state
+# dir: a new one on every update would change xray.json and restart xray each time.
+gatygo_check_secret() {
+    if [ ! -s "$GATYGO_STATE/check.secret" ]; then
+        mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
+        (umask 077; head -c 32 /dev/urandom | sha256sum | cut -c1-32 > "$GATYGO_STATE/check.secret")
+    fi
+    cat "$GATYGO_STATE/check.secret"
+}
+
+# gatygo_check_probe PORT URL [USER:PASSWORD] — print the time to the end of the TLS handshake in
+# ms when the service gave any HTTP answer (a 403 or 405 to a bare HEAD still means it is
+# reachable); print nothing when there was none within 5 s. The password goes to curl on stdin:
+# arguments are visible to every process on the router.
 gatygo_check_probe() {
-    curl -s -I -o /dev/null -w '%{http_code} %{time_pretransfer}' --connect-timeout 3 --max-time 5 \
-        --socks5-hostname "127.0.0.1:$1" "$2" 2>/dev/null \
+    { [ -z "$3" ] || printf 'proxy-user = "%s"\n' "$3"; } \
+        | curl -K - -s -I -o /dev/null -w '%{http_code} %{time_pretransfer}' --connect-timeout 3 --max-time 5 \
+            --socks5-hostname "127.0.0.1:$1" "$2" 2>/dev/null \
         | awk '$1 != "000" && $1 != "" { printf "%d", $2 * 1000 + 0.5 }'
 }
 
-# gatygo_check_run PORT — probe every listed service at once; print [{name, ms|null}] in list order
+# gatygo_check_run PORT [USER:PASSWORD] — probe every listed service at once; print
+# [{name, ms|null}] in list order
 gatygo_check_run() {
     _gatygo_w=$(mktemp -d) _gatygo_i=0 _gatygo_pids=''
     while read -r _gatygo_name _gatygo_url; do
         [ -n "$_gatygo_url" ] || continue
         _gatygo_i=$((_gatygo_i + 1))
-        (printf '%s\t%s\n' "$_gatygo_name" "$(gatygo_check_probe "$1" "$_gatygo_url")" > "$_gatygo_w/$_gatygo_i") &
+        (printf '%s\t%s\n' "$_gatygo_name" "$(gatygo_check_probe "$1" "$_gatygo_url" "$2")" > "$_gatygo_w/$_gatygo_i") &
         _gatygo_pids="$_gatygo_pids $!"
     done < "${GATYGO_CHECK_LIST:-${GATYGO_LIB:-/usr/lib/gatygo}/check.list}"
     # only the probes: a bare `wait` would also wait for anything else the caller runs

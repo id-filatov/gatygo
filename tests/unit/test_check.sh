@@ -11,7 +11,7 @@ python3 /src/tests/mock/sub_server.py 8790 "$FIXTURES/subscription.json" "$tmp" 
 _mock=$!
 cat > "$tmp/xray.json" <<'EOF'
 { "log": { "loglevel": "none" },
-  "inbounds": [ { "tag": "check", "protocol": "socks", "listen": "127.0.0.1", "port": 10808, "settings": { "auth": "noauth", "udp": false } } ],
+  "inbounds": [ { "tag": "check", "protocol": "socks", "listen": "127.0.0.1", "port": 10808, "settings": { "auth": "password", "accounts": [ { "user": "gatygo", "pass": "s3cret" } ], "udp": false } } ],
   "outbounds": [ { "protocol": "freedom" } ] }
 EOF
 /usr/local/bin/xray run -c "$tmp/xray.json" >/dev/null 2>&1 &
@@ -24,7 +24,7 @@ assert_eq "4" "$(grep -c '^[A-Za-z]* https://' "$GATYGO_LIB/check.list")" "every
 
 # --- a run: any HTTP answer counts, no answer is null, the list order is kept
 printf '%s\n' "Alpha http://127.0.0.1:8790/log" "Dead http://127.0.0.1:1/" "Beta http://127.0.0.1:8790/sub-broken" > "$tmp/list"
-_out=$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10808)
+_out=$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10808 gatygo:s3cret)
 assert_eq '["Alpha","Dead","Beta"]' "$(printf '%s' "$_out" | jq -c 'map(.name)')" "results follow the list order"
 assert_exit 0 "a service that answers has a time in ms" sh -c "printf '%s' '$_out' | jq -e '.[0].ms | type == \"number\" and . >= 0 and . < 3000' >/dev/null"
 assert_eq "null" "$(printf '%s' "$_out" | jq -c '.[1].ms')" "no answer -> null"
@@ -32,9 +32,30 @@ assert_exit 0 "an HTTP error is still an answer (the mock's 500)" sh -c "printf 
 
 # --- nothing listens on the SOCKS port: every service is null, quickly
 _t0=$(date +%s)
-_out=$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10809)
+_out=$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10809 gatygo:s3cret)
 assert_eq '[null,null,null]' "$(printf '%s' "$_out" | jq -c 'map(.ms)')" "no tunnel -> no answers (so the answers above did come through the SOCKS inbound)"
 [ $(( $(date +%s) - _t0 )) -le 3 ] && _t_ok || _t_bad "a dead SOCKS port fails fast"
+
+# --- the inbound is closed to anything that does not know the password
+assert_eq '[null,null,null]' "$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10808 | jq -c 'map(.ms)')" "no password -> no way in"
+assert_eq '[null,null,null]' "$(GATYGO_CHECK_LIST="$tmp/list" gatygo_check_run 10808 gatygo:wrong | jq -c 'map(.ms)')" "a wrong password -> no way in"
+
+# --- the password stays out of the process list: curl gets it on stdin, not as an argument
+curl() { printf '%s\n' "$*" >> "$tmp/curl-args"; command curl "$@"; }
+_ms=$(gatygo_check_probe 10808 http://127.0.0.1:8790/log gatygo:s3cret)
+unset -f curl
+assert_exit 0 "the probe still answers" test -n "$_ms"
+assert_exit 1 "curl's arguments do not carry the password" grep -q s3cret "$tmp/curl-args"
+
+# --- the password: made once, kept 0600 next to the config, the same on every call
+_s1=$(gatygo_check_secret)
+assert_exit 0 "the password is 32 hex characters" sh -c "printf '%s' '$_s1' | grep -Eq '^[0-9a-f]{32}\$'"
+assert_eq "-rw-------" "$(ls -l "$GATYGO_STATE/check.secret" | cut -c1-10)" "check.secret is 0600"
+assert_eq "$_s1" "$(gatygo_check_secret)" "the second call gives the same password (xray.json must not change between updates)"
+assert_eq "$_s1" "$(cat "$GATYGO_STATE/check.secret")" "the file holds the password"
+: > "$GATYGO_STATE/check.secret"
+_s2=$(gatygo_check_secret)
+assert_exit 0 "an empty file -> a new password" sh -c "printf '%s' '$_s2' | grep -Eq '^[0-9a-f]{32}\$'"
 
 # --- the cache: per tunnel (the profile and the xray process), with an age limit
 gatygo_check_store "📍 Bravo:4242" '[{"name":"Alpha","ms":12}]' > "$tmp/stored.json"
@@ -55,6 +76,7 @@ export GATYGO_CHECK_LIST="$tmp/list"
 assert_eq '{"available":false}' "$(UBUS_STUB_RUNNING=0 sh "$CLI" check)" "cli: xray not running -> not available"
 _a=$(UBUS_STUB_RUNNING=1 sh "$CLI" check)
 assert_eq 'true 📍 Bravo:4242 3' "$(printf '%s' "$_a" | jq -r '"\(.available) \(.tunnel) \(.services | length)"')" "cli: a run for the tunnel in use (profile and xray pid)"
+assert_eq "number" "$(printf '%s' "$_a" | jq -r '.services[0].ms | type')" "cli: the password comes from the config in use"
 sleep 1
 assert_eq "$(printf '%s' "$_a" | jq .time)" "$(UBUS_STUB_RUNNING=1 sh "$CLI" check | jq .time)" "cli: a recent result is reused"
 _c=$(UBUS_STUB_RUNNING=1 sh "$CLI" check fresh | jq .time)

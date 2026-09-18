@@ -43,7 +43,10 @@ cmd_check() {
 	fi
 	_tunnel="$(cat "$GATYGO_STATE/profile" 2>/dev/null):$(gatygo_xray_pid)"
 	if [ "$1" != fresh ] && gatygo_check_cached "$_tunnel" 300; then return 0; fi
-	gatygo_check_store "$_tunnel" "$(gatygo_check_run "$GATYGO_CHECK_PORT")"
+	# the password as the config in use has it (none in a config from before there was one)
+	_auth=$(jq -r '.inbounds[] | select(.tag == "check") | .settings.accounts[0] // empty | "\(.user):\(.pass)"' \
+		"$GATYGO_STATE/xray.json" 2>/dev/null)
+	gatygo_check_store "$_tunnel" "$(gatygo_check_run "$GATYGO_CHECK_PORT" "$_auth")"
 }
 
 cmd_update() {

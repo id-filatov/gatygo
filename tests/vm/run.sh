@@ -77,6 +77,10 @@ check "update finishes within 60 s" 'i=0; while gatygo updating && [ $i -lt 60 ]
 expect "update result ok" "ok" 'gatygo status | jq -r .last_update.result'
 check "check: probes go in through the tunnel's own inbound" 'gatygo check fresh | jq -e ".available == true and (.services | length) == 4 and (.services | map(.name) | join(\" \")) == \"YouTube Instagram Telegram WhatsApp\"" >/dev/null'
 expect "check: a recent result is reused" "same" 'a=$(gatygo check | jq .time); sleep 1; b=$(ubus -S call gatygo check | jq .time); [ "$a" = "$b" ] && echo same'
+# the mock panel is a private address: the fixture routes it direct, so an answer means the SOCKS handshake passed
+check "check: the router's password opens the inbound" 'printf "proxy-user = \"gatygo:%s\"\n" "$(cat /etc/gatygo/check.secret)" | curl -K - -fs -o /dev/null -m 5 --socks5-hostname 127.0.0.1:10808 http://10.0.2.2:8787/log'
+check "check: no way in without the password" '! curl -fs -o /dev/null -m 5 --socks5-hostname 127.0.0.1:10808 http://10.0.2.2:8787/log'
+check "check: the password is kept 0600" 'test "$(ls -l /etc/gatygo/check.secret | cut -c1-10)" = -rw-------'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'

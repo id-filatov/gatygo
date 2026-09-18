@@ -40,6 +40,8 @@ assert_eq "-rw-------" "$(ls -l "$GATYGO_STATE/subscription.json" | cut -c1-10)"
 assert_exit 0 "headers.env saved" test -s "$GATYGO_STATE/headers.env"
 assert_exit 0 "geo installed" test -s "$GATYGO_ASSETS/geoip.dat"
 assert_eq '["tproxy","dns-in","api","check"]' "$(jq -c '[.inbounds[].tag]' "$GATYGO_STATE/xray.json")" "installed config is transformed"
+assert_eq "-rw------- $(jq -r '.inbounds[3].settings.accounts[0].pass' "$GATYGO_STATE/xray.json")" \
+    "$(ls -l "$GATYGO_STATE/check.secret" | cut -c1-10) $(cat "$GATYGO_STATE/check.secret")" "the check inbound's password is the router's own, kept 0600"
 assert_eq "2" "$(_geo_requests)" "both geo files downloaded once"
 _sha1=$(sha256sum < "$GATYGO_STATE/xray.json")
 
