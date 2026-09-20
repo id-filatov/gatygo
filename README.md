@@ -36,7 +36,25 @@ tproxy. Everything is driven from one LuCI page; settings and the log live behin
 
 ## Install
 
-Download `gatygo-<version>.apk` and `luci-app-gatygo-<version>.apk` from the
+On the router:
+
+```sh
+wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | sh
+```
+
+(`wget` is the stock image's uclient-fetch; `curl` is not in it yet.)
+
+The script installs both packages of the latest release and, through apk, everything they
+need: `jq`, `curl`, `ca-bundle`, `unzip`, `ip-full` and `kmod-nft-tproxy`. A stock image
+already has the rest. It then says what it found: the xray core pinned for this
+architecture, the free space, whether nftables takes a tproxy rule, whether dnsmasq is
+running and whether GitHub answers. Nothing is switched on and no subscription is written.
+
+`install.sh --version v20260918.1851` takes that release instead of the latest, and
+`install.sh gatygo-*.apk luci-app-gatygo-*.apk` installs local files without downloading
+anything.
+
+By hand instead: download `gatygo-<version>.apk` and `luci-app-gatygo-<version>.apk` from the
 [latest release](https://github.com/id-filatov/gatygo/releases/latest), copy them to the
 router and install:
 
@@ -46,9 +64,9 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/gatygo-*.apk /tmp/luci-app-
 ```
 
 Then open **Services → gatygo** in LuCI, paste the subscription link and press **Connect**.
-The first start downloads the xray core (about 20 MB, from GitHub) and the list of countries.
+The first start downloads the xray core (35 MB, from GitHub) and the list of countries.
 
-To update, install the newer packages the same way. To remove:
+To update, run the script again (it keeps `/etc/config/gatygo`). To remove:
 `apk del luci-app-gatygo gatygo` (the router's DNS and firewall are put back, the core is
 deleted; `/etc/gatygo` and `/etc/config/gatygo` stay until you delete them).
 
