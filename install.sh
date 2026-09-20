@@ -117,11 +117,13 @@ official_kmods_url() {
 explain_apk_failure() {
     _missing=$(printf '%s' "$1" | sed -n 's/^  \([^ ]*\) (no such package):$/\1/p' | tr '\n' ' ' | sed 's/ *$//')
     if [ -z "$_missing" ]; then
-        printf '%s\n' "$1" >&2
-        [ -z "${KMODS_X:-}" ] || die "apk would not take the modules from
+        # apk lists every package it can satisfy as well; the first lines carry the refusal
+        printf '%s\n' "$1" | grep -E 'ERROR|breaks:|^ {12}[a-z]' | head -n 5 >&2
+        [ -z "${KMODS_X:-}" ] || die "apk will not take the modules of
     $KMODS_X
-  They are built for the kernel of the official image; this one runs a kernel of its own
-  build. Build the packages into the image ($DEPS) and run this script again."
+  They are built for the kernel of the official image, and this router runs a kernel of its
+  own build. Put them in the image itself ($DEPS),
+  or build kmod-nft-tproxy in the same buildroot and install its .apk here."
         die "apk refused the packages"
     fi
     _kmods=$(grep -h kmods /etc/apk/repositories.d/* 2>/dev/null | head -n 1)
