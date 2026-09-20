@@ -186,6 +186,8 @@ APK_X=''
 # shellcheck disable=SC2086
 if ! SIM_OUT=$(apk add --simulate $DEPS 2>&1); then
     KMODS_X=$(official_kmods_url || true)
+    # -X alone only looks in the cache: the index has to be fetched first
+    [ -z "$KMODS_X" ] || apk update -X "$KMODS_X" >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
     if [ -n "$KMODS_X" ] && SIM_OUT=$(apk add --simulate -X "$KMODS_X" $DEPS 2>&1); then
         APK_X=$KMODS_X
