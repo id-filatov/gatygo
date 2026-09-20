@@ -44,11 +44,18 @@ wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | 
 
 (`wget` is the stock image's uclient-fetch; `curl` is not in it yet.)
 
-The script installs both packages of the latest release and, through apk, everything they
-need: `jq`, `curl`, `ca-bundle`, `unzip`, `ip-full` and `kmod-nft-tproxy`. A stock image
-already has the rest. It then says what it found: the xray core pinned for this
-architecture, the free space, whether nftables takes a tproxy rule, whether dnsmasq is
-running and whether GitHub answers. Nothing is switched on and no subscription is written.
+The script first checks the router and installs nothing until every check has passed: that
+this OpenWrt is 25.12, that no other transparent-proxy package owns the same rules, that the
+feeds can actually serve what gatygo needs (`jq`, `curl`, `ca-bundle`, `unzip`, `ip-full`,
+`kmod-nft-tproxy`), that there is room on the overlay, that dnsmasq runs, and that XTLS
+builds an xray for this architecture. A stock image already has the rest. Then it installs
+both packages of the latest release and apk pulls the dependencies. Nothing is switched on
+and no subscription is written.
+
+An image built by hand is the one case that usually fails, and the script says so instead of
+letting apk abort halfway: kernel modules come from the feed of one exact kernel build, and
+downloads.openwrt.org has no modules for a kernel it did not build. Add
+`kmod-nft-tproxy jq curl ca-bundle unzip ip-full` to the image and run the script again.
 
 `install.sh --version v20260918.1851` takes that release instead of the latest, and
 `install.sh gatygo-*.apk luci-app-gatygo-*.apk` installs local files without downloading
