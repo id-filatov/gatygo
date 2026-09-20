@@ -49,8 +49,9 @@ this OpenWrt is 25.12, that no other transparent-proxy package owns the same rul
 feeds can actually serve what gatygo needs (`jq`, `curl`, `ca-bundle`, `unzip`, `ip-full`,
 `kmod-nft-tproxy`), that there is room on the overlay, that dnsmasq runs, and that XTLS
 builds an xray for this architecture. A stock image already has the rest. Then it installs
-both packages of the latest release and apk pulls the dependencies. Nothing is switched on
-and no subscription is written.
+both packages of the latest release, apk pulls the dependencies, and the pinned xray core
+is downloaded and checked, so nothing is left to fetch but the subscription itself. Nothing
+is switched on and no subscription is written.
 
 An image built by hand is the one case that usually fails, and the script says so instead of
 letting apk abort halfway: kernel modules come from the feed of one exact kernel build, and
@@ -71,7 +72,8 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/gatygo-*.apk /tmp/luci-app-
 ```
 
 Then open **Services → gatygo** in LuCI, paste the subscription link and press **Connect**.
-The first start downloads the xray core (35 MB, from GitHub) and the list of countries.
+The subscription brings the config, the list of countries and the geo files; the xray core
+is already there when the script installed it, and is downloaded on the first start otherwise.
 
 To update, run the script again (it keeps `/etc/config/gatygo`). To remove:
 `apk del luci-app-gatygo gatygo` (the router's DNS and firewall are put back, the core is

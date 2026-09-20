@@ -298,6 +298,15 @@ if ! ADD_OUT=$(apk add --allow-untrusted "$@" "$GATYGO_APK" "$LUCI_APK" 2>&1); t
 fi
 printf '%s\n' "$ADD_OUT" | sed -n 's/^(\([0-9/]*\)) \(Installing.*\)$/  \2/p'
 
+# The xray core is not a package: every gatygo release pins one XTLS release and the SHA256 of
+# its archive per architecture. gatygo downloads it itself when it first starts; doing it here
+# means everything it needs is in place when the subscription is entered. Its own core.sh does
+# the work, so the pin, the hash check and the list of architectures stay in one place.
+say ""
+say "installing the xray core (35 MB)"
+CORE_STATE=$(sh -c '. /usr/lib/gatygo/core.sh; gatygo_core_ensure') || CORE_STATE=none
+[ -n "$CORE" ] || CORE=$(sh -c '. /usr/lib/gatygo/core.sh; gatygo_core_version' 2>/dev/null || true)
+
 # --- 3. what the router looks like now ------------------------------------------------------------
 
 say ""
@@ -308,13 +317,12 @@ else
     note "gatygo $(cat /usr/lib/gatygo/version 2>/dev/null || echo '?') installed, not started"
 fi
 
-if [ -z "$CORE" ]; then
-    if CORE=$(sh -c '. /usr/lib/gatygo/core.sh; gatygo_core_pinned >/dev/null && gatygo_core_version' 2>/dev/null) && [ -n "$CORE" ]; then
-        note "xray core $CORE is pinned for ${ARCH:-this architecture}"
-    else
-        warn "no xray core is pinned for ${ARCH:-this architecture}: gatygo cannot run here (apk del luci-app-gatygo gatygo)"
-    fi
-fi
+case ${CORE_STATE:-none} in
+    installed) note "xray core ${CORE:-?} downloaded, its SHA256 checked, and it runs here" ;;
+    ready) note "xray core ${CORE:-?} was already in place" ;;
+    kept) warn "the pinned xray core could not be installed; the one in place is kept" ;;
+    *) warn "no xray core: gatygo downloads it again when it starts (logread -e gatygo)" ;;
+esac
 
 if printf 'table inet gatygo_probe {\n chain c {\n  type filter hook prerouting priority mangle;\n  meta l4proto tcp tproxy ip to 127.0.0.1:12345 accept\n }\n}\n' | nft -c -f - >/dev/null 2>&1; then
     note "nftables takes the tproxy rules"
@@ -326,7 +334,8 @@ say ""
 if /etc/init.d/gatygo running >/dev/null 2>&1; then
     say "Nothing else to do: the tunnel is up (gatygo status)."
 else
-    say "Next: LuCI -> Services -> gatygo -> paste the subscription URL -> Save & Apply."
+    say "Next: LuCI -> Services -> gatygo -> paste the subscription URL -> Connect."
+    say "The subscription brings the config and the geo files; everything else is in place."
     say "From the shell instead:"
     note "uci set gatygo.main.sub_url='<url>'; uci commit gatygo; /etc/init.d/gatygo start"
 fi
