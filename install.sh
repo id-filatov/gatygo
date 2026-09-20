@@ -127,11 +127,16 @@ explain_apk_failure() {
     _kmods=$(grep -h kmods /etc/apk/repositories.d/* 2>/dev/null | head -n 1)
     case " $_missing " in
         *" kmod-"*)
-            if [ -n "${KMODS_X:-}" ]; then
+            if [ -n "${KMODS_X_ERR:-}" ]; then
                 _why="the feed of this release, target and kernel version,
     $KMODS_X
-  does not serve it either: this image runs a kernel of its own build, and a module
-  built against another one does not load."
+  could not be read by apk:
+$(printf '%s' "$KMODS_X_ERR" | grep -iE 'error|warning' | sed 's/^/    /' | head -n 5)"
+            elif [ -n "${KMODS_X:-}" ]; then
+                _why="the feed of this release, target and kernel version,
+    $KMODS_X
+  carries no such module. (A module built for another kernel would be refused by name and
+  version instead, so this is not a kernel mismatch.)"
             elif [ -z "$_kmods" ]; then
                 _why="this image carries no kmods feed, nor does downloads.openwrt.org
   have one for this release, target and kernel version: no kernel module can be
@@ -186,8 +191,10 @@ APK_X=''
 # shellcheck disable=SC2086
 if ! SIM_OUT=$(apk add --simulate $DEPS 2>&1); then
     KMODS_X=$(official_kmods_url || true)
-    # -X alone only looks in the cache: the index has to be fetched first
-    [ -z "$KMODS_X" ] || apk update -X "$KMODS_X" >/dev/null 2>&1 || true
+    # -X alone only looks in the cache: the index has to be fetched first, and when that fails
+    # apk says why (a signature this router does not trust, a 404, a name it cannot resolve)
+    KMODS_X_ERR=''
+    if [ -n "$KMODS_X" ] && ! _x=$(apk update -X "$KMODS_X" 2>&1); then KMODS_X_ERR=$_x; fi
     # shellcheck disable=SC2086
     if [ -n "$KMODS_X" ] && SIM_OUT=$(apk add --simulate -X "$KMODS_X" $DEPS 2>&1); then
         APK_X=$KMODS_X
