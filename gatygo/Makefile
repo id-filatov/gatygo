@@ -15,7 +15,7 @@ define Package/gatygo
   SUBMENU:=VPN
   TITLE:=Xray-JSON subscription VPN client with transparent proxy
   URL:=https://github.com/id-filatov/gatygo
-  DEPENDS:=+unzip +jq +curl +ca-bundle +kmod-nft-tproxy +ip-full
+  DEPENDS:=+unzip +jq +curl +ca-bundle +kmod-nft-tproxy +kmod-nft-connlimit +ip-full
   CONFLICTS:=luci-app-passwall luci-app-passwall2
   PKGARCH:=all
 endef

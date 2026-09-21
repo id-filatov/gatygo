@@ -41,4 +41,15 @@ assert_eq "1" "$GATYGO_SEND_HWID" "send_hwid defaults to 1"
 uci set gatygo.main.send_hwid=0; gatygo_load_config
 assert_eq "0" "$GATYGO_SEND_HWID" "send_hwid from UCI"
 
+# --- connection caps: numbers from UCI, anything else falls back to the default (they go into the nft ruleset)
+: > "$UCI_STUB_FILE"; gatygo_load_config
+assert_eq "600" "$GATYGO_CONN_PER_DEVICE" "conn_per_device default"
+assert_eq "1000" "$GATYGO_CONN_TOTAL" "conn_total default"
+uci set gatygo.main.conn_per_device=300; uci set gatygo.main.conn_total=2500; gatygo_load_config
+assert_eq "300 2500" "$GATYGO_CONN_PER_DEVICE $GATYGO_CONN_TOTAL" "caps from UCI"
+uci set gatygo.main.conn_per_device=0; uci set gatygo.main.conn_total="1000; drop"; gatygo_load_config
+assert_eq "600 1000" "$GATYGO_CONN_PER_DEVICE $GATYGO_CONN_TOTAL" "zero and non-numbers fall back to the defaults"
+uci set gatygo.main.conn_per_device=0600; uci set gatygo.main.conn_total=-5; gatygo_load_config
+assert_eq "600 1000" "$GATYGO_CONN_PER_DEVICE $GATYGO_CONN_TOTAL" "a leading zero and a sign fall back to the defaults"
+
 report

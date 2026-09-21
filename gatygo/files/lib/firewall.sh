@@ -7,6 +7,12 @@
 # port 53 is excluded from the tproxy chain. tproxy hands the packets to xray's inbound on
 # 127.0.0.1: nothing on the LAN can connect to that port by itself. `redirect` rewrites the
 # destination to the router's LAN address, so the DNS inbound listens on every address.
+#
+# Every connection xray holds costs it 50-70 KB of memory, and a router that runs out of it kills
+# xray, the whole home's VPN with it. So new connections over the caps are refused before tproxy:
+# over conn_per_device of one device (a torrent client stays within its own share), or over
+# conn_total of the whole LAN. TCP gets a reset, so the app gives up at once; UDP is dropped.
+# The count is of live connections (nft ct count, kmod-nft-connlimit); the ones already open stay.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
@@ -25,6 +31,11 @@ table inet gatygo {
 		flags interval
 		elements = { 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }
 	}
+	set conn_dev {
+		type ipv4_addr
+		size 4096
+		flags dynamic
+	}
 	chain prerouting {
 		type filter hook prerouting priority mangle; policy accept;
 		iifname != @lan_ifaces return
@@ -32,7 +43,13 @@ table inet gatygo {
 		fib daddr type local return
 		ip daddr @reserved4 return
 		meta l4proto { tcp, udp } th dport 53 return
+		meta l4proto { tcp, udp } ct state new add @conn_dev { ip saddr ct count over $GATYGO_CONN_PER_DEVICE } counter jump conn_refuse
+		meta nfproto ipv4 meta l4proto { tcp, udp } ct state new ct count over $GATYGO_CONN_TOTAL counter jump conn_refuse
 		meta l4proto { tcp, udp } tproxy ip to 127.0.0.1:$GATYGO_TPROXY_PORT meta mark set 0x1 counter accept
+	}
+	chain conn_refuse {
+		meta l4proto tcp reject with tcp reset
+		drop
 	}
 	chain dns_redirect {
 		type nat hook prerouting priority dstnat - 1; policy accept;

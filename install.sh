@@ -1,8 +1,8 @@
 #!/bin/sh
 # Install gatygo on an OpenWrt 25.12 router: the two packages and, through apk, everything they
-# need (jq, curl, ca-bundle, unzip, ip-full, kmod-nft-tproxy). A stock image has the rest:
-# dnsmasq, firewall4 with nftables, rpcd and LuCI. The xray core is not a package: gatygo
-# downloads the release pinned in it when it first starts, about 35 MB on the overlay.
+# need (jq, curl, ca-bundle, unzip, ip-full, kmod-nft-tproxy, kmod-nft-connlimit). A stock image
+# has the rest: dnsmasq, firewall4 with nftables, rpcd and LuCI. The xray core is not a package:
+# gatygo downloads the release pinned in it when it first starts, about 35 MB on the overlay.
 #
 # Everything that can refuse a router is checked before anything is installed. Nothing is
 # switched on and no subscription is written: that is done in LuCI afterwards.
@@ -25,7 +25,7 @@ NEED_KB_WITH_CORE=20480
 CONFLICTS="luci-app-passwall luci-app-passwall2 luci-app-openclash luci-app-homeproxy"
 # what gatygo's Makefile asks apk for. apk resolves the real list when the package is installed;
 # this one is here to find out early whether this router's feeds can serve it at all.
-DEPS="unzip jq curl ca-bundle ip-full kmod-nft-tproxy"
+DEPS="unzip jq curl ca-bundle ip-full kmod-nft-tproxy kmod-nft-connlimit"
 
 say() { printf '%s\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
@@ -123,7 +123,8 @@ explain_apk_failure() {
     $KMODS_X
   They are built for the kernel of the official image, and this router runs a kernel of its
   own build. Put them in the image itself ($DEPS),
-  or build kmod-nft-tproxy in the same buildroot and install its .apk here."
+  or build kmod-nft-tproxy and kmod-nft-connlimit in the same buildroot and install their .apk
+  here."
         die "apk refused the packages"
     fi
     _kmods=$(grep -h kmods /etc/apk/repositories.d/* 2>/dev/null | head -n 1)

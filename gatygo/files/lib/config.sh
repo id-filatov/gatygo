@@ -18,6 +18,14 @@ gatygo_cfg() {
     printf '%s\n' "${_gatygo_v:-$2}"
 }
 
+# gatygo_cfg_count KEY DEFAULT — option gatygo.main.KEY when it is a whole number above zero,
+# DEFAULT otherwise (the value goes into the nft ruleset as it is)
+gatygo_cfg_count() {
+    _gatygo_v=$(gatygo_cfg "$1" "$2")
+    case $_gatygo_v in 0* | *[!0-9]*) _gatygo_v=$2 ;; esac
+    printf '%s\n' "$_gatygo_v"
+}
+
 # _gatygo_env_get FILE VAR — value of VAR from a *.env file we wrote ourselves (one
 # VAR='value' line per variable, quoted by gatygo_shquote). Parsed with sed: no eval, no sourcing.
 _gatygo_env_get() {
@@ -56,8 +64,13 @@ gatygo_load_config() {
     GATYGO_LOGLEVEL=$(gatygo_cfg loglevel warning)
     # xray quit by itself: block = the home network stays closed, direct = it goes back to the regular internet
     [ "$(gatygo_cfg on_crash block)" = direct ] && GATYGO_ON_CRASH=direct || GATYGO_ON_CRASH=block
+    # connections xray takes at a time, per device and in all (firewall.sh): xray needs 50-70 KB of
+    # memory for each, and running out of it kills xray for the whole home
+    GATYGO_CONN_PER_DEVICE=$(gatygo_cfg_count conn_per_device 600)
+    GATYGO_CONN_TOTAL=$(gatygo_cfg_count conn_total 1000)
     export GATYGO_VERSION GATYGO_ENABLED GATYGO_SUB_URL GATYGO_USER_AGENT GATYGO_HWID GATYGO_SEND_HWID GATYGO_PROFILE \
         GATYGO_UPDATE_INTERVAL GATYGO_TPROXY_PORT GATYGO_DNS_PORT GATYGO_CHECK_PORT GATYGO_MARK GATYGO_MARK_DEC \
         GATYGO_IPV6_BLOCK GATYGO_LAN_IFACES GATYGO_DIRECT_DNS GATYGO_LOGLEVEL GATYGO_ON_CRASH \
+        GATYGO_CONN_PER_DEVICE GATYGO_CONN_TOTAL \
         GATYGO_STATE GATYGO_RUN GATYGO_ASSETS GATYGO_SYSROOT GATYGO_CORE_DIR GATYGO_XRAY
 }

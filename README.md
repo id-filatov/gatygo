@@ -22,6 +22,10 @@ tproxy. Everything is driven from one LuCI page; settings and the log live behin
   routing rules or server lists of its own.
 - Says what went wrong in plain words: expired subscription, device limit, a server that did
   not recognise the client, and so on.
+- Keeps xray from running the router out of memory: every open connection costs it 50–70 KB,
+  so a device (a torrent client, say) gets at most 600 connections through the VPN at a time and
+  the whole home 1000; new ones over that are refused, the ones already open stay. Both numbers
+  are settings (Advanced → Settings).
 - If xray quits for good (the router ran out of memory, say), the page says when and why. What
   the home network gets meanwhile is a setting: no internet until the VPN is back, so nothing
   goes around it (the default), or the regular internet.
@@ -30,7 +34,8 @@ tproxy. Everything is driven from one LuCI page; settings and the log live behin
 
 - OpenWrt 25.12 (apk packages, firewall4/nftables).
 - About 40 MB free on the overlay: gatygo's scripts are small, the xray core is 35 MB.
-- 128 MB of RAM at the very least; xray takes 45–60 MB with a large subscription.
+- 256 MB of RAM: xray takes 40–60 MB idle, depending on the subscription, and about 70 MB more
+  when the home uses all the connections the caps allow.
 - A subscription that answers with Xray-JSON. Some provider panels send it only to clients they
   know by User-Agent: the name gatygo introduces itself with is a setting (Advanced → Settings).
 
@@ -47,16 +52,16 @@ wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | 
 The script first checks the router and installs nothing until every check has passed: that
 this OpenWrt is 25.12, that no other transparent-proxy package owns the same rules, that the
 feeds can actually serve what gatygo needs (`jq`, `curl`, `ca-bundle`, `unzip`, `ip-full`,
-`kmod-nft-tproxy`), that there is room on the overlay, that dnsmasq runs, and that XTLS
-builds an xray for this architecture. A stock image already has the rest. Then it installs
-both packages of the latest release, apk pulls the dependencies, and the pinned xray core
-is downloaded and checked, so nothing is left to fetch but the subscription itself. Nothing
+`kmod-nft-tproxy`, `kmod-nft-connlimit`), that there is room on the overlay, that dnsmasq runs,
+and that XTLS builds an xray for this architecture. A stock image already has the rest. Then it
+installs both packages of the latest release, apk pulls the dependencies, and the pinned xray
+core is downloaded and checked, so nothing is left to fetch but the subscription itself. Nothing
 is switched on and no subscription is written.
 
 An image built by hand is the one case that usually fails, and the script says so instead of
 letting apk abort halfway: kernel modules come from the feed of one exact kernel build, and
-downloads.openwrt.org has no modules for a kernel it did not build. Add
-`kmod-nft-tproxy jq curl ca-bundle unzip ip-full` to the image and run the script again.
+downloads.openwrt.org has no modules for a kernel it did not build. Add `kmod-nft-tproxy
+kmod-nft-connlimit jq curl ca-bundle unzip ip-full` to the image and run the script again.
 
 `install.sh --version v20260918.1851` takes that release instead of the latest, and
 `install.sh gatygo-*.apk luci-app-gatygo-*.apk` installs local files without downloading

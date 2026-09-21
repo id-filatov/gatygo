@@ -144,6 +144,17 @@ return view.extend({
 		o.value('direct', _('Let devices use the regular internet'));
 		o.default = 'block';
 
+		// empty = the default the daemon uses (lib/config.sh)
+		o = s.option(form.Value, 'conn_per_device', _('Connections per device'),
+			_('At most this many connections of one device go through the VPN at a time; new ones over it are refused. A busy device, a torrent client say, cannot take the memory xray needs for the whole home.'));
+		o.datatype = 'range(1,65535)';
+		o.placeholder = '600';
+
+		o = s.option(form.Value, 'conn_total', _('Connections in all'),
+			_('At most this many connections of all devices together. Each one costs xray 50–70 KB of memory: 1000 suits a router with 256 MB.'));
+		o.datatype = 'range(1,65535)';
+		o.placeholder = '1000';
+
 		o = s.option(form.Value, 'direct_dns', _('Resolver for server names'), _("Used only to resolve the VPN servers' own host names, outside the tunnel. Empty: the WAN DNS."));
 		o.datatype = 'ip4addr';
 		o.placeholder = _('WAN DNS');

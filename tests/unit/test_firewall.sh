@@ -12,7 +12,9 @@ uci set gatygo.main.mark=0x10
 uci set gatygo.main.tproxy_port=7777
 uci set gatygo.main.dns_port=5300
 uci set gatygo.main.ipv6_block=0
+uci set gatygo.main.conn_per_device=50
+uci set gatygo.main.conn_total=80
 gatygo_load_config
-assert_eq "$(cat "$FIXTURES/nft-custom.txt")" "$(gatygo_nft_ruleset)" "custom ports, two interfaces, no IPv6 block"
+assert_eq "$(cat "$FIXTURES/nft-custom.txt")" "$(gatygo_nft_ruleset)" "custom ports and caps, two interfaces, no IPv6 block"
 
 report

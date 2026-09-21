@@ -105,6 +105,7 @@ vm 'uci delete gatygo.main.user_agent; uci commit gatygo; /etc/init.d/gatygo rel
 echo "== 3. firewall"
 check "nft table inet gatygo present" 'nft list table inet gatygo >/dev/null'
 check "policy rule present" 'ip rule | grep -q "fwmark 0x1 lookup 100"'
+expect "caps: 600 per device, 1000 in all" "600 1000" 'echo $(nft list chain inet gatygo prerouting | sed -n "s/.*ct count over \([0-9]*\).*/\1/p")'
 check "local route in table 100" 'ip route show table 100 | grep -q "^local default dev lo"'
 check "fw4 table untouched" 'nft list table inet fw4 >/dev/null'
 
@@ -149,6 +150,12 @@ T0=$(tp_counter); vm 'ip netns exec c1 /tmp/tmo 3 nc 1.1.1.1 443 </dev/null >/de
 # 192.0.2.1 answers nobody: a connection means xray's local-only inbound took the packet from the nft rule
 check "TCP from the LAN is accepted by xray" 'ip netns exec c1 curl -s -o /dev/null -m 4 -w "%{time_connect}" http://192.0.2.1/ | awk "{ exit !(\$1 > 0) }"'
 check "the tproxy inbound cannot be reached directly from the LAN" '! ip netns exec c1 /tmp/tmo 3 nc 192.168.1.1 12345 </dev/null'
+# a cap set in the settings reaches the rules with Save & Apply; over it the device's next connection
+# is refused at once (curl 7) instead of being taken by xray (192.0.2.1 answers nobody: curl 28)
+vm 'uci set gatygo.main.conn_per_device=2; uci commit gatygo; reload_config; sleep 5'
+expect "caps: Save & Apply puts a new cap in place" "2 1000" 'echo $(nft list chain inet gatygo prerouting | sed -n "s/.*ct count over \([0-9]*\).*/\1/p")'
+expect "caps: over the device's cap a new connection is refused at once" "7" 'ip netns exec c1 sh -c "(sleep 6 | nc 192.0.2.1 80 >/dev/null 2>&1 &); (sleep 6 | nc 192.0.2.1 80 >/dev/null 2>&1 &); sleep 1; curl -s -o /dev/null -m 3 http://192.0.2.1/; echo \$?"'
+vm 'uci set gatygo.main.conn_per_device=600; uci commit gatygo; reload_config; sleep 12'
 
 echo "== 8b. xray quits by itself"
 # procd restarts it 5 times, 5 s apart, then gives up: the instance stays, not running
