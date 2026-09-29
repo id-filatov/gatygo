@@ -16,12 +16,12 @@ gatygo_forget() {
     _gatygo_geo=0
     [ -f "$GATYGO_STATE/geo-source.env" ] && _gatygo_geo=1
     # the usual stop, running or not: dnsmasq gets its DNS back (from dnsmasq.backup, hence before
-    # the wipe), the nft table goes (with an on_crash=block block), the cron line goes
+    # the wipe), the nft table goes (with an on_crash=block block), the cron line goes. The boot
+    # link stays, as after an install: enabled=0 keeps the service off, and Enable brings it back.
     if ! "$GATYGO_INIT" stop >/dev/null 2>&1; then
         gatygo_update_unlock
         return 1
     fi
-    "$GATYGO_INIT" disable >/dev/null 2>&1
     # everything the subscription brought; the directories stay (/etc/gatygo is in the keep list).
     # The state goes before the run dir: see gatygo_check_store.
     case $GATYGO_STATE:$GATYGO_RUN in /?*:/?*) ;; *) gatygo_update_unlock; return 1 ;; esac

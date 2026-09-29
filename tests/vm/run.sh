@@ -214,7 +214,7 @@ check "dnsmasq restored" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && !
 check "LAN client resolves via the router" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
 check "gatygo's geo files gone" '! test -e /usr/share/xray/geosite.dat && ! test -e /usr/share/xray/geoip.dat'
 check "the xray core stays" 'test -x /usr/lib/gatygo/core/xray'
-check "init script disabled" '! test -e /etc/rc.d/S95gatygo'
+check "the boot link stays, as after an install" 'test -e /etc/rc.d/S95gatygo'
 expect "settings are the defaults" "0 - - 12345" 'echo "$(uci -q get gatygo.main.enabled) $(uci -q get gatygo.main.sub_url || echo -) $(uci -q get gatygo.main.profile || echo -) $(uci -q get gatygo.main.tproxy_port)"'
 check "the device ID kept" 'test "$(uci -q get gatygo.main.hwid)" = "$(cat /tmp/hwid.pre)"'
 # and a new link connects at once (section 10 goes on from a running VPN)

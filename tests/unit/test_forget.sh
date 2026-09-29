@@ -35,7 +35,7 @@ _defaults() { sed -n "s/^[[:space:]]*option \([a-z0-9_]*\) '\(.*\)'\$/gatygo.mai
 # --- a connected router
 _populate
 assert_exit 0 "forget succeeds" sh "$CLI" forget
-assert_eq "stop disable" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "the service is stopped (dnsmasq, firewall, cron put back) and disabled"
+assert_eq "stop" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "the service is stopped (dnsmasq, firewall, cron put back); the boot link stays, as after an install (enabled=0 keeps it off)"
 assert_eq "" "$(ls -A "$GATYGO_STATE")" "nothing of the subscription left in the state dir"
 assert_exit 0 "the state dir itself stays (sysupgrade keep list)" test -d "$GATYGO_STATE"
 assert_eq "" "$(ls -A "$GATYGO_RUN")" "the run dir is empty, the update lock released too"
@@ -68,7 +68,6 @@ assert_exit 1 "a failed stop fails" env GATYGO_INIT_STOP_RC=1 sh "$CLI" forget
 assert_eq "the VPN could not be stopped" "$(GATYGO_INIT_STOP_RC=1 sh "$CLI" forget 2>&1 >/dev/null)" "and says so"
 assert_exit 0 "the subscription stays" test -s "$GATYGO_STATE/subscription.json"
 assert_exit 1 "the lock is released" test -d "$GATYGO_RUN/update.lock"
-assert_exit 1 "not disabled" grep -q '^disable$' "$GATYGO_INIT_LOG"
 
 # --- nothing to delete (never connected, or deleted already, e.g. from a second tab): exit 0
 rm -rf "$GATYGO_STATE" "$GATYGO_RUN"; : > "$UCI_STUB_FILE"
