@@ -11,6 +11,9 @@
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callLog = rpc.declare({ object: 'gatygo', method: 'log', params: [ 'lines' ], expect: { log: '' } });
+var callForget = rpc.declare({ object: 'gatygo', method: 'forget', expect: { } });
+// pending gatygo changes of this session (Save without Apply) would put the old link back
+var callUciRevert = rpc.declare({ object: 'uci', method: 'revert', params: [ 'config' ] });
 
 var CSS = [
 	'.gg-adv { --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-warn-ink:hsl(32 90% 26%); --gg-bad-ink:hsl(0 70% 38%); --gg-accent-ink:hsl(212 80% 36%); }',
@@ -39,6 +42,53 @@ function maskUrl(u) {
 	var m = /^(https?:\/\/[^\/]+\/(?:.*\/)?)([^\/]*)$/.exec(u);
 	if (!m) return u.slice(0, 8) + '***';
 	return m[1] + (m[2].length > 10 ? m[2].slice(0, 4) + '***' + m[2].slice(-4) : '***');
+}
+
+// Delete the subscription. A fresh status picks the words: the VPN may have started or stopped
+// since the page opened, and a crashed xray with on_crash=block keeps the LAN closed until the
+// stop. Afterwards the router is as after a fresh install: the main page shows the setup screen.
+function confirmForget() {
+	var main = L.url('admin/services/gatygo');
+	return callStatus().then(function(st) {
+		var live = st.running === true || st.crashed != null;
+		var label = live ? _('Stop and delete') : _('Delete');
+		var note = E('p', {});
+		var cancel = E('button', { 'class': 'btn cbi-button cbi-button-neutral', 'click': ui.hideModal }, _('Cancel'));
+		var go = E('button', { 'class': 'btn cbi-button cbi-button-negative important' }, label);
+		var back = function(text) {
+			dom.content(note, text);
+			go.disabled = cancel.disabled = false;
+			go.textContent = label;
+		};
+		// rpcd may give up (30 s) on a slow stop that still completes: trust the status, not the error
+		var afterError = function(text) {
+			return L.resolveDefault(callStatus(), {}).then(function(now) {
+				if (now.configured === false) window.location.href = main;
+				else back(text);
+			});
+		};
+		go.addEventListener('click', function() {
+			go.disabled = cancel.disabled = true;
+			go.textContent = _('Deleting…');
+			dom.content(note, '');
+			L.resolveDefault(callUciRevert('gatygo'), null).then(function() {
+				return callForget();
+			}).then(function(r) {
+				if (r && r.result == 'ok') window.location.href = main;
+				else if (r && r.result == 'busy') back(_('An update is running. Try again in a minute.'));
+				else return afterError([ _('The subscription could not be deleted.'), E('br'), (r && r.message) || '' ]);
+			}).catch(function(e) {
+				return afterError([ _('The subscription could not be deleted.'), E('br'), String((e && e.message) || e) ]);
+			});
+		});
+		ui.showModal(_('Delete the subscription?'), [
+			live ? E('p', {}, _('The VPN stops and your devices go online directly, without the VPN.')) : '',
+			E('p', {}, _('The link, the list of countries and everything downloaded for them are erased, and the settings return to their defaults. The xray core and the device ID stay.')),
+			st.send_hwid ? E('p', {}, _('Your provider still counts this router as a device: remove it in your account if you need the slot back.')) : '',
+			note,
+			E('div', { 'class': 'right' }, [ cancel, ' ', go ])
+		]);
+	});
 }
 
 // "xray: 2026/09/17 16:14:17.599658 [Warning] core: …" and "gatygo: 2026-09-17T16:14:50 [info] …":
@@ -103,7 +153,8 @@ return view.extend({
 			};
 			var shown = E('div', { 'class': 'gg-url-row' }, [
 				E('input', { 'class': 'cbi-input-text', 'type': 'text', 'readonly': '', 'value': maskUrl(cfgvalue), 'aria-label': _('Subscription URL, masked') }),
-				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': function(ev) { ev.preventDefault(); swap(true); } }, _('Change'))
+				E('button', { 'class': 'cbi-button cbi-button-neutral', 'click': function(ev) { ev.preventDefault(); swap(true); } }, _('Change')),
+				E('button', { 'class': 'cbi-button cbi-button-negative', 'click': function(ev) { ev.preventDefault(); confirmForget(); } }, _('Delete'))
 			]);
 			var editing = E('div', { 'class': 'gg-url-row', 'style': 'display:none' }, [
 				field,

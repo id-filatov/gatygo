@@ -80,9 +80,11 @@ Then open **Services → gatygo** in LuCI, paste the subscription link and press
 The subscription brings the config, the list of countries and the geo files; the xray core
 is already there when the script installed it, and is downloaded on the first start otherwise.
 
-To update, run the script again (it keeps `/etc/config/gatygo`). To remove:
-`apk del luci-app-gatygo gatygo` (the router's DNS and firewall are put back, the core is
-deleted; `/etc/gatygo` and `/etc/config/gatygo` stay until you delete them).
+To update, run the script again (it keeps `/etc/config/gatygo`). To drop the subscription and
+keep gatygo: **Delete** next to the link in Advanced → Settings (or `gatygo forget`) stops the
+VPN, erases everything the subscription brought and puts the settings back to their defaults.
+To remove gatygo: `apk del luci-app-gatygo gatygo` (the router's DNS and firewall are put back,
+the core is deleted; `/etc/gatygo` and `/etc/config/gatygo` stay until you delete them).
 
 ## The xray core
 
