@@ -314,6 +314,8 @@ say ""
 say "result:"
 if /etc/init.d/gatygo running >/dev/null 2>&1; then
     note "gatygo $(cat /usr/lib/gatygo/version 2>/dev/null || echo '?') is running"
+elif [ -f /var/run/gatygo/stopped ]; then
+    note "gatygo $(cat /usr/lib/gatygo/version 2>/dev/null || echo '?') installed; the VPN stays stopped, as it was"
 else
     note "gatygo $(cat /usr/lib/gatygo/version 2>/dev/null || echo '?') installed, not started"
 fi
@@ -334,6 +336,9 @@ fi
 say ""
 if /etc/init.d/gatygo running >/dev/null 2>&1; then
     say "Nothing else to do: the tunnel is up (gatygo status)."
+elif [ -f /var/run/gatygo/stopped ]; then
+    say "The VPN was stopped by hand before the update and stays stopped."
+    say "Press Start on the page (Services -> gatygo), or: /etc/init.d/gatygo start"
 else
     say "Next: LuCI -> Services -> gatygo -> paste the subscription URL -> Connect."
     say "The subscription brings the config and the geo files; everything else is in place."
