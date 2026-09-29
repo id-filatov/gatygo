@@ -25,6 +25,7 @@ assert_eq "applied" "$(printf '%s' "$_sel" | jq -r .code)" "select reports the r
 assert_eq "🌐 Auto" "$(printf '%s' "$_sel" | jq -r .profile)" "select reports the profile in use"
 assert_eq "1" "$(grep -c '^select 📍 Bravo$' "$GATYGO_CLI_LOG")" "select passed the profile verbatim"
 assert_eq "profile required" "$(call select '{}' | jq -r .error)" "select without a profile"
+assert_eq '{"result":"busy"}' "$(GATYGO_CLI_SELECT_RC=2 call select '{"profile":"📍 Bravo"}')" "select while an update or a delete runs: busy"
 
 # --- check: the cached result by default, a new run on request
 assert_eq "true" "$(call check | jq .available)" "check passes the CLI JSON through"

@@ -6,7 +6,7 @@ case $1 in
     log) _i=0; while [ "$_i" -lt "${2:-200}" ]; do _i=$((_i + 1)); echo "line $_i"; done ;;
     updating) exit "${GATYGO_CLI_UPDATING_RC:-1}" ;;
     update) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}" ;;
-    select) exit 0 ;;
+    select) exit "${GATYGO_CLI_SELECT_RC:-0}" ;;
     check) echo '{"available":true,"tunnel":"🌐 Auto:4242","time":1,"services":[{"name":"Alpha","ms":12}]}' ;;
     ping)
         if [ "$2" = kept ]; then

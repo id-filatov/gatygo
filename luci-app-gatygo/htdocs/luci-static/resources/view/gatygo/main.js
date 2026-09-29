@@ -318,7 +318,10 @@ return view.extend({
 	handleSelect: function(profile, ev) {
 		if (profile == this.status.profile_used && this.status.last_update.code != 'profile_missing') return;
 		this.busyProfile = profile;
-		return this.run('select', callSelect(profile));
+		return this.run('select', callSelect(profile).then(function(r) {
+			if (r && r.result == 'busy')
+				ui.addNotification(null, E('p', _('An update is running. Try again in a minute.')), 'warning');
+		}));
 	},
 
 	handleUpdate: function(ev) {

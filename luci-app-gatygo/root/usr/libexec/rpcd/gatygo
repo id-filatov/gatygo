@@ -32,6 +32,11 @@ case $1 in
 					exit 0
 				}
 				"$GATYGO" select "$_p" >/dev/null 2>&1
+				# 2: an update or a delete holds the lock, nothing was switched
+				[ $? -eq 2 ] && {
+					echo '{"result":"busy"}'
+					exit 0
+				}
 				"$GATYGO" status | jq -c '{result: .last_update.result, code: .last_update.code, profile: .profile_used, message: .last_update.message}'
 				;;
 			check)

@@ -171,5 +171,23 @@ gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a core that cannot be re
 assert_eq "ok 0" "$(_last RESULT) $(_last RESTARTED)" "the one in place goes on working"
 GATYGO_XRAY=xray
 
+# --- gatygo select waits its turn behind an update or a delete, and writes nothing without a link
+CLI=/src/gatygo/files/gatygo
+_prof=$(uci -q get gatygo.main.profile)
+mkdir -p "$GATYGO_RUN/update.lock"; sleep 30 & _upd=$!; echo "$_upd" > "$GATYGO_RUN/update.lock/pid"
+: > "$GATYGO_INIT_LOG"
+assert_exit 2 "select while an update or a delete runs: busy" sh "$CLI" select "📍 Bravo"
+assert_eq "an update is running; try again when it finishes" "$(sh "$CLI" select "📍 Bravo" 2>&1 >/dev/null)" "busy says why"
+assert_eq "$_prof" "$(uci -q get gatygo.main.profile)" "the profile is left alone"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "and xray too"
+kill "$_upd" 2>/dev/null; wait "$_upd" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
+# after a delete (a stale page still offers the countries): nothing written
+_sub=$(uci get gatygo.main.sub_url); uci delete gatygo.main.sub_url
+mv "$GATYGO_STATE/last-update.env" "$tmp/lu.keep"
+assert_exit 1 "select without a subscription fails" sh "$CLI" select "📍 Bravo"
+assert_eq "$_prof" "$(uci -q get gatygo.main.profile)" "no profile written over the defaults"
+assert_exit 1 "no result written into the wiped state" test -e "$GATYGO_STATE/last-update.env"
+uci set gatygo.main.sub_url="$_sub"; mv "$tmp/lu.keep" "$GATYGO_STATE/last-update.env"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

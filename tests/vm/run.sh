@@ -126,6 +126,8 @@ expect "PID unchanged after an unchanged update" "$P1" 'gatygo status | jq -r .p
 expect "result ok" "ok" 'gatygo status | jq -r .last_update.result'
 
 echo "== 7. profile switch"
+# select waits its turn behind an update: let a background one (after a start or a reload) end first
+vm 'i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
 vm 'gatygo select "📍 Bravo" >/dev/null 2>&1; sleep 5'
 P2=$(vm 'gatygo status | jq -r .pid')
 [ -n "$P2" ] && [ "$P2" != "$P1" ] && ok "xray restarted on profile switch ($P1 -> $P2)" || bad "xray restarted on profile switch"

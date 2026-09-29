@@ -104,11 +104,24 @@ cmd_update() {
 	return $_rc
 }
 
+# Switch the profile. Waits its turn behind an update or `gatygo forget` (the update lock, exit 2):
+# either could otherwise see its files change under it. Without a link (deleted, or a page from
+# before the delete) nothing is written, not even a result.
 cmd_select() {
 	[ -n "$1" ] || usage
 	. "$GATYGO_LIB/update.sh"
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/dns.sh"
+	gatygo_load_config
+	[ -n "$GATYGO_SUB_URL" ] || {
+		echo "no subscription; connect one first" >&2
+		return 1
+	}
+	gatygo_update_lock || {
+		echo "an update is running; try again when it finishes" >&2
+		return 2
+	}
+	trap gatygo_update_unlock EXIT
 	uci set gatygo.main.profile="$1" && uci commit gatygo
 	gatygo_load_config
 	[ -s "$GATYGO_STATE/subscription.json" ] || {
