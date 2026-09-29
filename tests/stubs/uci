@@ -1,8 +1,8 @@
 #!/bin/sh
 # Minimal `uci` emulation for unit tests. State file: $UCI_STUB_FILE, one "key=value" per line;
 # list options are repeated keys. Supported: [-q] get KEY | set KEY=VAL | add_list KEY=VAL |
-# delete KEY (a section goes with its options) | commit [pkg] | show PREFIX. Real uci prints a
-# list as space-separated values.
+# delete KEY (a section goes with its options) | commit [pkg] (fails with UCI_STUB_COMMIT_RC) |
+# show PREFIX. Real uci prints a list as space-separated values.
 # Keys are matched literally: they contain '.', '@' and '[0]', which are regex metacharacters.
 f=${UCI_STUB_FILE:?UCI_STUB_FILE not set}
 touch "$f"
@@ -20,7 +20,7 @@ case $1 in
         { _others "$k"; echo "$k=$v"; } > "$f.tmp"; mv "$f.tmp" "$f" ;;
     add_list) echo "$2" >> "$f" ;;
     delete) awk -v k="$2" 'index($0, k "=") != 1 && index($0, k ".") != 1' "$f" > "$f.tmp"; mv "$f.tmp" "$f" ;;
-    commit) ;;
+    commit) exit "${UCI_STUB_COMMIT_RC:-0}" ;;
     show) awk -v p="$2" 'index($0, p) == 1' "$f" ;;
     *) echo "uci stub: unsupported: $*" >&2; exit 1 ;;
 esac

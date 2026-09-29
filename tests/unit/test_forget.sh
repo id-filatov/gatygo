@@ -69,6 +69,14 @@ assert_eq "the VPN could not be stopped" "$(GATYGO_INIT_STOP_RC=1 sh "$CLI" forg
 assert_exit 0 "the subscription stays" test -s "$GATYGO_STATE/subscription.json"
 assert_exit 1 "the lock is released" test -d "$GATYGO_RUN/update.lock"
 
+# --- the settings could not be written (a full overlay): the link may still be in the config,
+# so no claim that the subscription is gone
+_populate
+assert_exit 1 "a failed commit fails" env UCI_STUB_COMMIT_RC=1 sh "$CLI" forget
+assert_eq "the settings could not be written" "$(UCI_STUB_COMMIT_RC=1 sh "$CLI" forget 2>&1 >/dev/null)" "and says so"
+assert_exit 1 "no log line claims it was removed" grep -q 'subscription removed' "$SYSLOG_STUB_FILE"
+assert_exit 1 "the lock is released" test -d "$GATYGO_RUN/update.lock"
+
 # --- nothing to delete (never connected, or deleted already, e.g. from a second tab): exit 0
 rm -rf "$GATYGO_STATE" "$GATYGO_RUN"; : > "$UCI_STUB_FILE"
 assert_exit 0 "forget on a clean router" sh "$CLI" forget

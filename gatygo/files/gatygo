@@ -42,6 +42,7 @@ cmd_forget() {
 	case $? in
 	0) return 0 ;;
 	2) echo "an update is running; try again when it finishes" >&2; return 2 ;;
+	3) echo "the settings could not be written" >&2; return 1 ;;
 	*) echo "the VPN could not be stopped" >&2; return 1 ;;
 	esac
 }

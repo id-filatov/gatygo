@@ -8,7 +8,8 @@ GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 GATYGO_DEFAULTS=${GATYGO_DEFAULTS:-${GATYGO_LIB:-/usr/lib/gatygo}/defaults.config}
 
 # gatygo_forget — exit 0 done, 2 an update is running (nothing touched), 1 the VPN could not be
-# stopped (nothing erased)
+# stopped (nothing erased), 3 the settings could not be written (a full overlay: the link may
+# still be in the config)
 gatygo_forget() {
     # an update is never cut off halfway through writing its files
     gatygo_update_lock || return 2
@@ -39,7 +40,10 @@ gatygo_forget() {
         uci set "gatygo.main.$_gatygo_o"
     done
     [ -n "$_gatygo_hwid" ] && uci set gatygo.main.hwid="$_gatygo_hwid"
-    uci commit gatygo
+    if ! uci commit gatygo; then
+        gatygo_update_unlock
+        return 3
+    fi
     gatygo_log info "subscription removed"
     gatygo_update_unlock
     return 0
