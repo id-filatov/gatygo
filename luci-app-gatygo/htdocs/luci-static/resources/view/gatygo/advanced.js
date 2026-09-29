@@ -60,10 +60,14 @@ function confirmForget() {
 			go.disabled = cancel.disabled = false;
 			go.textContent = label;
 		};
-		// rpcd may give up (30 s) on a slow stop that still completes: trust the status, not the error
-		var afterError = function(text) {
+		// The request may give up (LuCI after 20 s, rpcd after 30 s) on a slow stop that still
+		// completes: trust the status, not the error. forget holds the update lock while it works, so
+		// `updating` says it is not over yet: ask again every 2 s, for up to 90 s.
+		var afterError = function(text, left) {
 			return L.resolveDefault(callStatus(), {}).then(function(now) {
 				if (now.configured === false) window.location.href = main;
+				else if (now.updating === true && left > 0)
+					return new Promise(function(resolve) { window.setTimeout(resolve, 2000); }).then(function() { return afterError(text, left - 1); });
 				else back(text);
 			});
 		};
@@ -76,9 +80,9 @@ function confirmForget() {
 			}).then(function(r) {
 				if (r && r.result == 'ok') window.location.href = main;
 				else if (r && r.result == 'busy') back(_('An update is running. Try again in a minute.'));
-				else return afterError([ _('The subscription could not be deleted.'), E('br'), (r && r.message) || '' ]);
+				else return afterError([ _('The subscription could not be deleted.'), E('br'), (r && r.message) || '' ], 45);
 			}).catch(function(e) {
-				return afterError([ _('The subscription could not be deleted.'), E('br'), String((e && e.message) || e) ]);
+				return afterError([ _('The subscription could not be deleted.'), E('br'), String((e && e.message) || e) ], 45);
 			});
 		});
 		ui.showModal(_('Delete the subscription?'), [
