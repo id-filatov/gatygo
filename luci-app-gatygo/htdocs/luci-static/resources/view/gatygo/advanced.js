@@ -60,26 +60,43 @@ function confirmForget() {
 			go.disabled = cancel.disabled = false;
 			go.textContent = label;
 		};
+		// Deleted: only now drop this session's pending gatygo changes (Save without Apply), which
+		// would put the old link back; a delete that did not happen leaves them as they were.
+		var done = function() {
+			return L.resolveDefault(callUciRevert('gatygo'), null).then(function() { window.location.href = main; });
+		};
 		// The request may give up (LuCI after 20 s, rpcd after 30 s) on a slow stop that still
 		// completes: trust the status, not the error. forget holds the update lock while it works, so
 		// `updating` says it is not over yet: ask again every 2 s, for up to 90 s.
 		var afterError = function(text, left) {
 			return L.resolveDefault(callStatus(), {}).then(function(now) {
-				if (now.configured === false) window.location.href = main;
+				if (now.configured === false) return done();
 				else if (now.updating === true && left > 0)
 					return new Promise(function(resolve) { window.setTimeout(resolve, 2000); }).then(function() { return afterError(text, left - 1); });
 				else back(text);
 			});
 		};
+		// Busy: an update, or a delete pressed in another tab. While the modal stays open and idle,
+		// follow the status for up to 90 s and go along when the subscription is gone.
+		var watch = function(left) {
+			window.setTimeout(function() {
+				if (left <= 0 || !document.body.contains(note) || go.disabled) return;
+				L.resolveDefault(callStatus(), {}).then(function(now) {
+					if (now.configured === false && !go.disabled) done();
+					else watch(left - 1);
+				});
+			}, 2000);
+		};
 		go.addEventListener('click', function() {
 			go.disabled = cancel.disabled = true;
 			go.textContent = _('Deleting…');
 			dom.content(note, '');
-			L.resolveDefault(callUciRevert('gatygo'), null).then(function() {
-				return callForget();
-			}).then(function(r) {
-				if (r && r.result == 'ok') window.location.href = main;
-				else if (r && r.result == 'busy') back(_('An update is running. Try again in a minute.'));
+			callForget().then(function(r) {
+				if (r && r.result == 'ok') return done();
+				else if (r && r.result == 'busy') {
+					back(_('An update is running. Try again in a minute.'));
+					watch(45);
+				}
 				else return afterError([ _('The subscription could not be deleted.'), E('br'), (r && r.message) || '' ], 45);
 			}).catch(function(e) {
 				return afterError([ _('The subscription could not be deleted.'), E('br'), String((e && e.message) || e) ], 45);
@@ -92,6 +109,8 @@ function confirmForget() {
 			note,
 			E('div', { 'class': 'right' }, [ cancel, ' ', go ])
 		]);
+	}).catch(function(e) {
+		ui.addNotification(null, E('p', _('The router did not answer: %s').format((e && e.message) || e)), 'error');
 	});
 }
 
