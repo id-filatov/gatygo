@@ -1,6 +1,7 @@
 #!/bin/sh
 # gatygo command line. The service itself is /etc/init.d/gatygo (procd).
 #   gatygo start|stop|restart        service control
+#   gatygo forget                    drop the subscription: stop, erase what it brought, default settings
 #   gatygo update                    run the subscription update cycle now
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
 #   gatygo check [fresh]             JSON: do the usual services open through the tunnel
@@ -16,7 +17,7 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|update|select <profile>|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
 	exit 1
 }
 
@@ -29,6 +30,20 @@ cmd_connect() {
 	uci set gatygo.main.sub_url="$1" && uci set gatygo.main.enabled=1 && uci commit gatygo || return 1
 	"$_init" enable
 	"$_init" start
+}
+
+# Drop the subscription (lib/forget.sh): the VPN stops, everything the subscription brought is
+# erased, the settings return to their defaults. Exit 2: an update is running, try again later.
+cmd_forget() {
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/forget.sh"
+	gatygo_load_config
+	gatygo_forget
+	case $? in
+	0) return 0 ;;
+	2) echo "an update is running; try again when it finishes" >&2; return 2 ;;
+	*) echo "the VPN could not be stopped" >&2; return 1 ;;
+	esac
 }
 
 # Do the listed services open through the tunnel? Prints {available, tunnel, time, services:
@@ -181,6 +196,7 @@ cmd_status() {
 case ${1:-} in
 start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
 connect) cmd_connect "$2" ;;
+forget) cmd_forget ;;
 update) cmd_update ;;
 select) cmd_select "$2" ;;
 check) cmd_check "$2" ;;

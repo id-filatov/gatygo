@@ -101,6 +101,7 @@ place keeps working.
 ```
 gatygo start|stop|restart        service control
 gatygo connect <url>             first run: store the link, enable and start
+gatygo forget                    drop the subscription: stop, erase what it brought, default settings
 gatygo update                    run the subscription update cycle now
 gatygo select <profile>          switch to a profile and apply it
 gatygo status                    JSON: state, profile, subscription facts, last result

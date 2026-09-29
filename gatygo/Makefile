@@ -42,6 +42,8 @@ define Package/gatygo/install
 	echo "$(PKG_VERSION)" > $(1)/usr/lib/gatygo/version
 	$(INSTALL_BIN) ./files/gatygo.init $(1)/etc/init.d/gatygo
 	$(INSTALL_CONF) ./files/gatygo.config $(1)/etc/config/gatygo
+	# the same file once more, read by `gatygo forget` to put the settings back
+	$(INSTALL_DATA) ./files/gatygo.config $(1)/usr/lib/gatygo/defaults.config
 	$(INSTALL_DATA) ./files/gatygo.keep $(1)/lib/upgrade/keep.d/gatygo
 endef
 
