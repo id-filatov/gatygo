@@ -80,7 +80,9 @@ cmd_ping() {
 		return 0
 	fi
 	trap 'gatygo_unlock ping' EXIT
-	gatygo_ping_store "$(gatygo_ping_run "$GATYGO_STATE/subscription.json")"
+	# a result for another subscription (updated or replaced meanwhile) is not kept
+	_sum=$(sha256sum < "$GATYGO_STATE/subscription.json")
+	gatygo_ping_store "$(gatygo_ping_run "$GATYGO_STATE/subscription.json")" "$_sum"
 }
 
 cmd_update() {

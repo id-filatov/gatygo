@@ -65,14 +65,19 @@ gatygo_ping_run() {
     rm -rf "$_gatygo_w"
 }
 
-# gatygo_ping_store PROFILES_JSON — keep the result in the run dir (tmpfs) and print it: the
-# run that made it is over. Nothing is kept once the subscription is gone (see gatygo_check_store).
+# gatygo_ping_store PROFILES_JSON [SUBSCRIPTION_SUM] — keep the result in the run dir (tmpfs) and
+# print it: the run that made it is over. Nothing is kept once the subscription is gone (see
+# gatygo_check_store), nor when it changed while the run went on: SUBSCRIPTION_SUM is the
+# sha256sum of the subscription.json the run started from.
 gatygo_ping_store() {
     mkdir -p "$GATYGO_RUN"
     jq -nc --argjson profiles "$1" --argjson time "$(date +%s)" '{time: $time, profiles: $profiles}' > "$GATYGO_RUN/ping.json.tmp" \
         && mv "$GATYGO_RUN/ping.json.tmp" "$GATYGO_RUN/ping.json" \
         && jq -c '{time, measuring: false, profiles}' "$GATYGO_RUN/ping.json"
-    [ -s "$GATYGO_STATE/subscription.json" ] || rm -f "$GATYGO_RUN/ping.json"
+    if [ ! -s "$GATYGO_STATE/subscription.json" ] \
+        || { [ -n "${2:-}" ] && [ "$(sha256sum < "$GATYGO_STATE/subscription.json")" != "$2" ]; }; then
+        rm -f "$GATYGO_RUN/ping.json"
+    fi
 }
 
 # gatygo_ping_kept MAX_AGE — print {time, measuring, profiles}: the kept result (time null when

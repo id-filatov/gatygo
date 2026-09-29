@@ -72,7 +72,13 @@ mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
 assert_eq "12" "$(gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' | jq '.profiles[0].ms')" "without a subscription the result is still printed"
 assert_exit 1 "but not kept" test -e "$GATYGO_RUN/ping.json"
 mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
-gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' >/dev/null
+# --- the subscription changed while the run went on (an update, or a delete and a new link): the
+# result is for the countries it started from, so it is printed and not kept
+rm -f "$GATYGO_RUN/ping.json"
+assert_eq "12" "$(gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' "another subscription" | jq '.profiles[0].ms')" "a result for another subscription is still printed"
+assert_exit 1 "but not kept" test -e "$GATYGO_RUN/ping.json"
+gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' "$(sha256sum < "$GATYGO_STATE/subscription.json")" >/dev/null
+assert_exit 0 "the same subscription: kept" test -s "$GATYGO_RUN/ping.json"
 assert_eq "false" "$(gatygo_ping_kept 300 | jq .measuring)" "no run in progress"
 mkdir -p "$GATYGO_RUN/ping.lock"; echo $$ > "$GATYGO_RUN/ping.lock/pid"
 assert_eq "true" "$(gatygo_ping_kept 300 | jq .measuring)" "a run in progress is reported"
