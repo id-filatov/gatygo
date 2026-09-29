@@ -9,10 +9,15 @@ GATYGO_DEFAULTS=${GATYGO_DEFAULTS:-${GATYGO_LIB:-/usr/lib/gatygo}/defaults.confi
 
 # gatygo_forget — exit 0 done, 2 an update is running (nothing touched), 1 the VPN could not be
 # stopped (nothing erased), 3 the settings could not be written (a full overlay: the link may
-# still be in the config)
+# still be in the config), 4 a state path is not absolute (nothing touched)
 gatygo_forget() {
+    # the one guard between an empty or relative path and `rm -rf /*`; config.sh never gives one
+    case $GATYGO_STATE:$GATYGO_RUN in /?*:/?*) ;; *) return 4 ;; esac
     # an update is never cut off halfway through writing its files
     gatygo_update_lock || return 2
+    # a link or anything in the state dir: there is a subscription to remove (and to log)
+    _gatygo_had=0
+    [ -n "$GATYGO_SUB_URL" ] || [ -n "$(ls -A "$GATYGO_STATE" 2>/dev/null)" ] && _gatygo_had=1
     # the geo files are gatygo's when it recorded where it downloaded them from: read before the wipe
     _gatygo_geo=0
     [ -f "$GATYGO_STATE/geo-source.env" ] && _gatygo_geo=1
@@ -25,7 +30,6 @@ gatygo_forget() {
     fi
     # everything the subscription brought; the directories stay (/etc/gatygo is in the keep list).
     # The state goes before the run dir: see gatygo_check_store.
-    case $GATYGO_STATE:$GATYGO_RUN in /?*:/?*) ;; *) gatygo_update_unlock; return 1 ;; esac
     rm -rf "$GATYGO_STATE"/* "$GATYGO_STATE"/.[!.]*
     [ "$_gatygo_geo" = 1 ] && rm -f "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
     for _gatygo_f in "$GATYGO_RUN"/* "$GATYGO_RUN"/.[!.]*; do
@@ -44,7 +48,7 @@ gatygo_forget() {
         gatygo_update_unlock
         return 3
     fi
-    gatygo_log info "subscription removed"
+    [ "$_gatygo_had" = 1 ] && gatygo_log info "subscription removed"
     gatygo_update_unlock
     return 0
 }

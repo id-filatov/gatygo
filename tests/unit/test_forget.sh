@@ -77,11 +77,18 @@ assert_eq "the settings could not be written" "$(UCI_STUB_COMMIT_RC=1 sh "$CLI" 
 assert_exit 1 "no log line claims it was removed" grep -q 'subscription removed' "$SYSLOG_STUB_FILE"
 assert_exit 1 "the lock is released" test -d "$GATYGO_RUN/update.lock"
 
+# --- a relative state path (config.sh never gives one): refused before anything is stopped or erased
+_populate
+assert_exit 1 "a relative state path is refused" env GATYGO_STATE=state sh "$CLI" forget
+assert_eq "refusing to erase: the state paths are not absolute" "$(GATYGO_STATE=state sh "$CLI" forget 2>&1 >/dev/null)" "and says why"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "the service is left alone"
+
 # --- nothing to delete (never connected, or deleted already, e.g. from a second tab): exit 0
-rm -rf "$GATYGO_STATE" "$GATYGO_RUN"; : > "$UCI_STUB_FILE"
+rm -rf "$GATYGO_STATE" "$GATYGO_RUN"; : > "$UCI_STUB_FILE"; : > "$SYSLOG_STUB_FILE"
 assert_exit 0 "forget on a clean router" sh "$CLI" forget
 assert_eq "0" "$(uci get gatygo.main.enabled)" "the defaults are written"
 assert_exit 0 "and again" sh "$CLI" forget
+assert_eq "0" "$(grep -c 'subscription removed' "$SYSLOG_STUB_FILE")" "nothing was there: no line claims a removal"
 
 rm -rf "$tmp"
 report

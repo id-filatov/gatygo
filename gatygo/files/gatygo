@@ -43,6 +43,7 @@ cmd_forget() {
 	0) return 0 ;;
 	2) echo "an update is running; try again when it finishes" >&2; return 2 ;;
 	3) echo "the settings could not be written" >&2; return 1 ;;
+	4) echo "refusing to erase: the state paths are not absolute" >&2; return 1 ;;
 	*) echo "the VPN could not be stopped" >&2; return 1 ;;
 	esac
 }
