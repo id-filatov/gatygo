@@ -338,5 +338,5 @@ else
     say "Next: LuCI -> Services -> gatygo -> paste the subscription URL -> Connect."
     say "The subscription brings the config and the geo files; everything else is in place."
     say "From the shell instead:"
-    note "uci set gatygo.main.sub_url='<url>'; uci commit gatygo; /etc/init.d/gatygo start"
+    note "gatygo connect '<url>'"
 fi
