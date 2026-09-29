@@ -197,9 +197,24 @@ vm 'uci delete gatygo.main.user_agent; uci set gatygo.main.enabled=0; uci commit
 expect "enabling it in the settings starts it" "true" 'gatygo status | jq -r .running'
 vm '/etc/init.d/gatygo stop; sleep 2'
 
+echo "== 9a. a package upgrade keeps a VPN stopped by hand stopped"
+# what apk runs after an upgrade: the package's own post-upgrade script (PKG_UPGRADE=1, then
+# default_postinst, which skips `enable` but always calls `start`)
+UPGRADE='rm -rf /tmp/s; mkdir -p /tmp/s && tar -xzf /lib/apk/db/scripts.tar.gz -C /tmp/s && sh /tmp/s/gatygo-*.post-upgrade >/dev/null 2>&1; rm -rf /tmp/s; sleep 3'
+vm "$UPGRADE"
+expect "stopped by hand, still stopped after the upgrade" "false" 'gatygo status | jq -r .running'
+check "nothing of the tunnel back" '! nft list table inet gatygo >/dev/null 2>&1 && test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
+check "still marked as stopped by hand" 'test -e /var/run/gatygo/stopped'
+# the Start button (setInitAction start, no PKG_UPGRADE) starts it as always
+check "Start still starts it" '/etc/init.d/gatygo start && sleep 5 && gatygo status | jq -e .running >/dev/null'
+P3=$(vm 'gatygo status | jq -r .pid')
+vm "$UPGRADE"
+expect "a running VPN keeps its process over an upgrade" "$P3" 'gatygo status | jq -r .pid'
+vm '/etc/init.d/gatygo stop; sleep 2'
+
 echo "== 9b. delete the subscription"
 vm 'uci -q get gatygo.main.hwid > /tmp/hwid.pre'
-# on a stopped VPN (section 9 left it stopped): nothing of the tunnel to undo, the rest the same
+# on a stopped VPN (section 9a left it stopped): nothing of the tunnel to undo, the rest the same
 check "forget on a stopped VPN" 'gatygo forget'
 check "state gone, the dir kept" 'test -d /etc/gatygo && test -z "$(ls -A /etc/gatygo)"'
 expect "not configured, not enabled" "false false" 'gatygo status | jq -r "\"\(.configured) \(.enabled)\""'
