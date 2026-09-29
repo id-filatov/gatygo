@@ -195,6 +195,32 @@ vm 'uci delete gatygo.main.user_agent; uci set gatygo.main.enabled=0; uci commit
 expect "enabling it in the settings starts it" "true" 'gatygo status | jq -r .running'
 vm '/etc/init.d/gatygo stop; sleep 2'
 
+echo "== 9b. delete the subscription"
+vm 'uci -q get gatygo.main.hwid > /tmp/hwid.pre'
+# on a stopped VPN (section 9 left it stopped): nothing of the tunnel to undo, the rest the same
+check "forget on a stopped VPN" 'gatygo forget'
+check "state gone, the dir kept" 'test -d /etc/gatygo && test -z "$(ls -A /etc/gatygo)"'
+expect "not configured, not enabled" "false false" 'gatygo status | jq -r "\"\(.configured) \(.enabled)\""'
+check "forget again is a no-op" 'gatygo forget'
+# connect again, then delete while it runs
+check "connect again" 'gatygo connect http://10.0.2.2:8787/sub && sleep 5'
+expect "running again" "true" 'gatygo status | jq -r .running'
+check "forget on a running VPN" 'gatygo forget'
+check "state and run dir empty" 'test -z "$(ls -A /etc/gatygo)" && test -z "$(ls -A /var/run/gatygo)"'
+expect "xray stopped" "false" 'gatygo status | jq -r .running'
+check "table removed" '! nft list table inet gatygo >/dev/null 2>&1'
+check "cron line removed" '! grep -q "# gatygo$" /etc/crontabs/root'
+check "dnsmasq restored" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && ! uci -q get dhcp.@dnsmasq[0].server | grep -q "127.0.0.1#5353"'
+check "LAN client resolves via the router" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
+check "gatygo's geo files gone" '! test -e /usr/share/xray/geosite.dat && ! test -e /usr/share/xray/geoip.dat'
+check "the xray core stays" 'test -x /usr/lib/gatygo/core/xray'
+check "init script disabled" '! test -e /etc/rc.d/S95gatygo'
+expect "settings are the defaults" "0 - - 12345" 'echo "$(uci -q get gatygo.main.enabled) $(uci -q get gatygo.main.sub_url || echo -) $(uci -q get gatygo.main.profile || echo -) $(uci -q get gatygo.main.tproxy_port)"'
+check "the device ID kept" 'test "$(uci -q get gatygo.main.hwid)" = "$(cat /tmp/hwid.pre)"'
+# and a new link connects at once (section 10 goes on from a running VPN)
+check "connect after a delete" 'gatygo connect http://10.0.2.2:8787/sub && sleep 5'
+expect "running after the reconnect" "true" 'gatygo status | jq -r .running'
+
 echo "== 10. start again, reboot"
 # the cached config needs geo files that are gone (as after a sysupgrade): start gets them first
 vm 'rm -f /usr/share/xray/geosite.dat /usr/share/xray/geoip.dat; /etc/init.d/gatygo start; sleep 5'
