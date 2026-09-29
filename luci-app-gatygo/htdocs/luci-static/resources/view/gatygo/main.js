@@ -22,12 +22,12 @@ var CSS = [
 	'.gg { --gg-ink:var(--text-color-highest); --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-line:hsl(0 0% 86%); --gg-line-2:hsl(0 0% 92%);',
 	'  --gg-accent:var(--primary-color-high); --gg-accent-tint:hsl(210 80% 96%); --gg-on:var(--success-color-medium); --gg-off:hsl(0 0% 62%); --gg-bad:hsl(0 72% 50%); --gg-good:hsl(150 60% 27%); --gg-slow:hsl(30 85% 31%);',
 	'  --gg-warn-ink:hsl(32 90% 26%); --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%);',
-	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%);',
+	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%); --gg-heart:hsl(350 70% 45%); --gg-heart-tint:hsl(350 90% 95%);',
 	'  --gg-ease:cubic-bezier(.23,1,.32,1); font-variant-numeric:tabular-nums; min-width:0; overflow-wrap:anywhere; }',
 	'[data-darkmode="true"] .gg { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-line:hsl(0 0% 27%); --gg-line-2:hsl(0 0% 21%);',
 	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%); --gg-good:hsl(150 45% 62%); --gg-slow:hsl(38 75% 62%);',
 	'  --gg-warn-ink:hsl(40 85% 68%); --gg-warn-tint:hsl(38 45% 15%); --gg-warn-line:hsl(38 40% 28%);',
-	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); }',
+	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); --gg-heart:hsl(350 85% 74%); --gg-heart-tint:hsl(350 35% 19%); }',
 	'.gg-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }',
 	'.gg-card { margin-top:14px; padding:20px 24px 24px; border:1px solid var(--border-color-medium); border-radius:8px; background:var(--background-color-low); }',
 	'.gg-card-head { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto; grid-template-areas:"main facts gear"; gap:16px 40px; align-items:start; }',
@@ -50,9 +50,9 @@ var CSS = [
 	'.gg-facts dd.bad { color:var(--gg-bad-ink); font-weight:600; }',
 	'.gg-gear { grid-area:gear; justify-self:end; display:grid; place-items:center; width:36px; height:36px; margin:-6px -8px 0 0; border-radius:6px; color:var(--gg-ink-2); transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-gear svg { transition:transform 400ms var(--gg-ease); }',
-	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } }',
+	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-donate:hover { filter:brightness(.96) saturate(1.1); } }',
 	'.gg-gear:active { transform:scale(.94); }',
-	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg-icon-btn:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg-icon-btn:focus-visible, .gg-donate:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
 	'.gg-alert { display:flex; align-items:flex-start; gap:12px; margin-top:16px; padding:12px 14px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); }',
 	'.gg-alert.bad { border-color:var(--gg-bad-line); background:var(--gg-bad-tint); }',
 	'.gg-alert-icon { flex:none; margin-top:1px; color:var(--gg-warn-ink); }',
@@ -64,9 +64,11 @@ var CSS = [
 	'.gg-alert-actions { flex:none; align-self:center; }',
 	'.gg-alert-actions a { text-decoration:none; }',
 	'.gg-card-check { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--gg-line); }',
-	'.gg-checks { display:flex; flex-wrap:wrap; gap:6px 28px; margin:0; padding:0; list-style:none; }',
-	'.gg-check { display:inline-flex; align-items:center; gap:6px; font-size:13px; line-height:1.5; color:var(--gg-ink); }',
-	'.gg-check svg { flex:none; color:var(--gg-good); } .gg-check.is-none svg { color:var(--gg-bad-ink); } .gg-check.is-wait svg { color:var(--gg-ink-3); }',
+	'.gg-checks { display:flex; flex-wrap:wrap; gap:6px 8px; margin:0; padding:0; list-style:none; }',
+	'.gg-check { display:inline-flex; align-items:center; gap:7px; padding:3px 9px 3px 4px; border:1px solid var(--gg-line); border-radius:7px; background:var(--background-color-high); font-size:13px; line-height:1.5; color:var(--gg-ink); }',
+	'.gg-check.is-none { border-style:dashed; }',
+	'.gg-badge { display:grid; place-items:center; flex:none; width:20px; height:20px; border-radius:5px; background:color-mix(in srgb, var(--brand) 14%, transparent); color:var(--brand); }',
+	'.gg-check.is-none .gg-badge, .gg-check.is-wait .gg-badge { background:var(--gg-line-2); color:var(--gg-ink-3); }',
 	'.gg-check-name { font-weight:600; } .gg-check.is-none .gg-check-name { font-weight:500; color:var(--gg-ink-2); }',
 	'.gg-check-ms { display:inline-flex; align-items:center; min-width:44px; font-size:12px; color:var(--gg-ink-3); }',
 	'.gg-check-ms.good { color:var(--gg-good); } .gg-check-ms.slow { color:var(--gg-slow); } .gg-check-ms.bad, .gg-check-ms.none { color:var(--gg-bad-ink); }',
@@ -97,12 +99,14 @@ var CSS = [
 	'.gg-chip.is-busy .gg-chip-ms::after { content:""; position:absolute; right:0; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
 	'.gg-chips-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px 24px; margin-top:12px; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
 	'.gg-chips-foot p { margin:0; } .gg-measure { display:inline-flex; align-items:center; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
-	'.gg-card-foot { display:flex; margin-top:16px; }',
+	'.gg-card-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-top:18px; padding-top:12px; border-top:1px solid var(--gg-line); }',
 	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }',
 	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
 	'.gg .cbi-button:not(:disabled):active { transform:scale(.97); }',
 	'.gg-sign { margin:0 0 0 auto; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
 	'.gg-sign b { margin-right:6px; font-weight:700; letter-spacing:-.01em; color:var(--gg-ink); }',
+	'.gg-donate { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 9px 0 8px; border-radius:13px; background:var(--gg-heart-tint); color:var(--gg-heart); font-size:13px; font-weight:600; line-height:1; white-space:nowrap; text-decoration:none; transition:filter 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
+	'.gg-donate:hover { color:var(--gg-heart); text-decoration:none; } .gg-donate:active { transform:scale(.97); } .gg-donate .gg-ext { opacity:.7; }',
 	'.gg-field { display:flex; gap:8px; align-items:center; max-width:640px; margin:16px 0 0; }',
 	'.gg-field input { flex:1 1 0; width:0; min-width:0; height:40px; padding:0 12px; font-size:15px; }',
 	'.gg-field .cbi-button { font-size:15px; line-height:2.7em; padding:0 22px; }',
@@ -115,9 +119,10 @@ var CSS = [
 	'  .gg-gear { position:absolute; top:8px; right:8px; margin:0; grid-area:auto; }',
 	'  .gg-facts { margin-top:8px; }',
 	'  .gg-card-check { grid-template-columns:minmax(0,1fr); }',
-	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
+	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
+	'  .gg-checks { grid-template-columns:1fr; } .gg-check { padding-right:10px; } .gg-check-name, .gg-check-ms { white-space:nowrap; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
 	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; } .gg-chip-name { flex:1 1 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }',
 	'  .gg-gear { width:44px; height:44px; }',
@@ -132,11 +137,25 @@ var ICONS = {
 	gear: [ 18, 1.8, 'M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065', 'M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0' ],
 	warn: [ 20, 2, 'M12 9v4', 'M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0', 'M12 16h.01' ],
 	bad: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 8v4', 'M12 16h.01' ],
-	ok: [ 14, 2.4, 'M5 12l5 5l10 -10' ],
-	none: [ 14, 2.4, 'M18 6l-12 12', 'M6 6l12 12' ],
-	wait: [ 14, 2.4, 'M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0' ],
-	refresh: [ 15, 2, 'M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4', 'M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4' ]
+	refresh: [ 15, 2, 'M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4', 'M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4' ],
+	youtube: [ 13, 1.9, 'M2 8a4 4 0 0 1 4 -4h12a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-12a4 4 0 0 1 -4 -4v-8', 'M10 9l5 3l-5 3l0 -6' ],
+	instagram: [ 13, 1.9, 'M4 8a4 4 0 0 1 4 -4h8a4 4 0 0 1 4 4v8a4 4 0 0 1 -4 4h-8a4 4 0 0 1 -4 -4l0 -8', 'M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0', 'M16.5 7.5v.01' ],
+	telegram: [ 13, 1.9, 'M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4' ],
+	whatsapp: [ 13, 1.9, 'M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9', 'M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1' ],
+	world: [ 13, 1.9, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M3.6 9h16.8', 'M3.6 15h16.8', 'M11.5 3a17 17 0 0 0 0 18', 'M12.5 3a17 17 0 0 1 0 18' ],
+	heart: [ 13, 2.2, 'M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572' ],
+	arrow: [ 12, 2.2, 'M17 7l-10 10', 'M8 7l9 0l0 9' ]
 };
+
+// The services check shows each service with its brand icon on a tint of its colour; a service
+// gatygo does not know gets the world.
+var BRANDS = {
+	youtube: [ 'youtube', '#ff0000' ], instagram: [ 'instagram', '#e4405f' ], telegram: [ 'telegram', '#26a5e4' ], whatsapp: [ 'whatsapp', '#25d366' ]
+};
+
+function brand(name) {
+	return BRANDS[String(name).toLowerCase().replace(/\s+/g, '')] || [ 'world', 'var(--gg-ink-2)' ];
+}
 
 function icon(name, cls) {
 	var i = ICONS[name], ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
@@ -435,14 +454,15 @@ return view.extend({
 		]);
 	},
 
-	// Do the usual services open through the tunnel? The mark says whether, the colour of the
-	// number how fast (the time to the end of the TLS handshake). Plain items: only ↻ is a button.
+	// Do the usual services open through the tunnel? A tile per service with its brand icon; the
+	// number says how fast (the time to the end of the TLS handshake) and its colour how good,
+	// a dashed tile with a grey icon did not answer. Plain items: only ↻ is a button.
 	renderCheck: function() {
 		var c = this.check, busy = this.checking;
 		if (!c || !c.available || !Array.isArray(c.services) || !c.services.length) return '';
 		var items = c.services.map(function(sv) {
-			var ms = sv.ms, st = busy ? 'wait' : (ms == null) ? 'none' : 'ok';
-			return E('li', { 'class': 'gg-check is-' + st }, [ icon(st), E('span', { 'class': 'gg-check-name' }, sv.name),
+			var ms = sv.ms, st = busy ? 'wait' : (ms == null) ? 'none' : 'ok', b = brand(sv.name);
+			return E('li', { 'class': 'gg-check is-' + st, 'style': '--brand:' + b[1] }, [ E('span', { 'class': 'gg-badge' }, icon(b[0])), E('span', { 'class': 'gg-check-name' }, sv.name),
 				E('span', { 'class': 'gg-check-ms ' + (busy ? 'wait' : ms == null ? 'none' : ms < 1000 ? 'good' : ms < 2000 ? 'slow' : 'bad') },
 					busy ? '' : (ms == null) ? _('no reply') : (ms < 1000) ? _('%d ms').format(ms) : _('%s s').format((ms / 1000).toFixed(1))) ]);
 		});
@@ -584,7 +604,10 @@ return view.extend({
 					E('p', {}, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.')),
 					measure ])
 			]) : '',
-			E('div', { 'class': 'gg-card-foot' }, E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ]))
+			E('div', { 'class': 'gg-card-foot' }, [
+				E('a', { 'class': 'gg-donate', 'href': 'https://filatov.page', 'target': '_blank', 'rel': 'noopener', 'data-key': 'donate' }, [ icon('heart'), _('Donate'), icon('arrow', 'gg-ext') ]),
+				E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ])
+			])
 		]);
 	},
 
