@@ -31,6 +31,10 @@ _populate() {
 }
 # the package defaults as `uci show gatygo.main.` prints them
 _defaults() { sed -n "s/^[[:space:]]*option \([a-z0-9_]*\) '\(.*\)'\$/gatygo.main.\1=\2/p" "$GATYGO_DEFAULTS"; }
+# forget reads the defaults with the same pattern: a line it cannot carry (a list, another quoting)
+# would be dropped by both unnoticed, so the shipped file is held to what the pattern reads
+assert_eq "$(grep -c '^[[:space:]]*option ' "$GATYGO_DEFAULTS")" "$(_defaults | wc -l | tr -d ' ')" "every default option is read: single-quoted values only"
+assert_eq "0" "$(grep -c '^[[:space:]]*list ' "$GATYGO_DEFAULTS")" "no list options in the defaults: the reset does not carry lists"
 
 # --- a connected router
 _populate
