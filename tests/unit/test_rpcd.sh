@@ -6,7 +6,7 @@ export GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_CLI_LOG="$tmp/calls" GATYGO
 : > "$GATYGO_CLI_LOG"
 call() { _m=$1; shift; printf '%s' "${1:-{\}}" | sh "$RPCD" call "$_m"; }
 
-assert_eq '["check","connect","log","ping","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the seven methods"
+assert_eq '["check","connect","forget","log","ping","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the eight methods"
 assert_eq "32" "$(sh "$RPCD" list | jq '.log.lines')" "log declares a numeric argument"
 assert_eq "true" "$(call status | jq .running)" "status passes the CLI JSON through"
 assert_eq "unknown method" "$(call nodes | jq -r .error)" "the page has no node list: no nodes method"
@@ -52,6 +52,15 @@ sleep 1.5
 assert_exit 0 "the backgrounded connect did run" test -e "$GATYGO_CLI_UPDATE_MARK.connect"
 assert_eq "1" "$(grep -c '^connect https://panel.example.com/sub/a b&c$' "$GATYGO_CLI_LOG")" "connect passed the link verbatim"
 assert_eq "link required" "$(call connect '{"url":"ftp://x"}' | jq -r .error)" "connect wants an http(s) link"
+# --- forget: waits for the CLI (seconds), its exit code becomes the result
+assert_eq '{"result":"ok"}' "$(call forget)" "forget done"
+assert_eq '{"result":"busy"}' "$(GATYGO_CLI_FORGET_RC=2 call forget)" "an update is running"
+assert_eq '{"result":"error","message":"the VPN could not be stopped"}' "$(GATYGO_CLI_FORGET_RC=1 call forget | jq -c .)" "any other failure carries the CLI's words"
+assert_eq "3" "$(grep -c '^forget$' "$GATYGO_CLI_LOG")" "every call reached the CLI"
+# the page may call it, and revert its own pending gatygo changes first
+ACL=/src/luci-app-gatygo/root/usr/share/rpcd/acl.d/luci-app-gatygo.json
+assert_exit 0 "ACL: forget is a write method" jq -e '.["luci-app-gatygo"].write.ubus.gatygo | index("forget")' "$ACL"
+assert_exit 0 "ACL: uci revert, nothing more of uci over ubus" jq -e '.["luci-app-gatygo"].write.ubus.uci == ["revert"]' "$ACL"
 assert_eq "unknown method" "$(call bogus | jq -r .error)" "unknown method"
 
 rm -rf "$tmp"

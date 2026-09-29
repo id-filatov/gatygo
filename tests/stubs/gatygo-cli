@@ -16,5 +16,9 @@ case $1 in
         sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.ping"
         ;;
     connect) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.connect" ;;
+    forget)
+        [ "${GATYGO_CLI_FORGET_RC:-0}" = 1 ] && echo "the VPN could not be stopped" >&2
+        exit "${GATYGO_CLI_FORGET_RC:-0}"
+        ;;
     *) exit 1 ;;
 esac

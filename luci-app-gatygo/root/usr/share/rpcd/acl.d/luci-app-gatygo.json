@@ -9,8 +9,9 @@
 		},
 		"write": {
 			"ubus": {
-				"gatygo": [ "update", "select", "connect" ],
-				"luci": [ "setInitAction" ]
+				"gatygo": [ "update", "select", "connect", "forget" ],
+				"luci": [ "setInitAction" ],
+				"uci": [ "revert" ]
 			},
 			"uci": [ "gatygo" ]
 		}
