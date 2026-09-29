@@ -66,12 +66,13 @@ gatygo_ping_run() {
 }
 
 # gatygo_ping_store PROFILES_JSON — keep the result in the run dir (tmpfs) and print it: the
-# run that made it is over
+# run that made it is over. Nothing is kept once the subscription is gone (see gatygo_check_store).
 gatygo_ping_store() {
     mkdir -p "$GATYGO_RUN"
     jq -nc --argjson profiles "$1" --argjson time "$(date +%s)" '{time: $time, profiles: $profiles}' > "$GATYGO_RUN/ping.json.tmp" \
         && mv "$GATYGO_RUN/ping.json.tmp" "$GATYGO_RUN/ping.json" \
         && jq -c '{time, measuring: false, profiles}' "$GATYGO_RUN/ping.json"
+    [ -s "$GATYGO_STATE/subscription.json" ] || rm -f "$GATYGO_RUN/ping.json"
 }
 
 # gatygo_ping_kept MAX_AGE — print {time, measuring, profiles}: the kept result (time null when

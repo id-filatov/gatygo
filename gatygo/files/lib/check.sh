@@ -47,11 +47,14 @@ gatygo_check_run() {
 
 # gatygo_check_store TUNNEL SERVICES_JSON — keep the result in the run dir (tmpfs) and print it.
 # TUNNEL names what was measured: the profile and the xray process ("<profile>:<pid>").
+# Nothing is kept once the subscription is gone: gatygo forget wipes the state before the run
+# dir, so either the wipe removes the file or this sees no subscription.
 gatygo_check_store() {
     mkdir -p "$GATYGO_RUN"
     jq -nc --arg tunnel "$1" --argjson services "$2" --argjson time "$(date +%s)" \
         '{available: true, tunnel: $tunnel, time: $time, services: $services}' > "$GATYGO_RUN/check.json.tmp" \
         && mv "$GATYGO_RUN/check.json.tmp" "$GATYGO_RUN/check.json" && cat "$GATYGO_RUN/check.json"
+    [ -s "$GATYGO_STATE/subscription.json" ] || rm -f "$GATYGO_RUN/check.json"
 }
 
 # gatygo_check_cached TUNNEL MAX_AGE — print the kept result when it is for TUNNEL and younger

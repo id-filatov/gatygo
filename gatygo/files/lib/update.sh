@@ -114,7 +114,10 @@ _gatygo_reload() {
 # gatygo_update — exit 0 on ok/warning, 1 on error (the current config is never touched then)
 gatygo_update() {
     gatygo_load_config
-    if [ -z "$GATYGO_SUB_URL" ]; then gatygo_result error no_url "subscription URL is not configured"; return 1; fi
+    # no link (never connected, or deleted by `gatygo forget`): nothing to update and nothing to
+    # record — an update scheduled before a delete must not leave a result behind. 1: nothing was
+    # updated, so start_service still refuses to start without a config.
+    if [ -z "$GATYGO_SUB_URL" ]; then gatygo_log info "update skipped: no subscription link"; return 1; fi
     mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
     # 0. the xray core: the pinned one, or at least the one in place (the config test needs it)
     _gatygo_core=$(gatygo_core_ensure) || {

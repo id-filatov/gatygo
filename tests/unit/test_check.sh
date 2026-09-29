@@ -58,6 +58,8 @@ _s2=$(gatygo_check_secret)
 assert_exit 0 "an empty file -> a new password" sh -c "printf '%s' '$_s2' | grep -Eq '^[0-9a-f]{32}\$'"
 
 # --- the cache: per tunnel (the profile and the xray process), with an age limit
+# a result is kept only for a subscription that is there
+echo '[]' > "$GATYGO_STATE/subscription.json"
 gatygo_check_store "📍 Bravo:4242" '[{"name":"Alpha","ms":12}]' > "$tmp/stored.json"
 assert_eq '{"available":true,"tunnel":"📍 Bravo:4242","services":[{"name":"Alpha","ms":12}]}' "$(jq -c 'del(.time)' "$tmp/stored.json")" "store prints what it keeps"
 assert_exit 0 "the result has its time" jq -e '.time > 1700000000' "$tmp/stored.json"
@@ -68,6 +70,11 @@ assert_exit 1 "the same profile after an xray restart -> not reused" gatygo_chec
 assert_exit 1 "too old -> not reused" gatygo_check_cached "📍 Bravo:4242" 0
 rm -f "$GATYGO_RUN/check.json"
 assert_exit 1 "no cache -> not reused" gatygo_check_cached "📍 Bravo:4242" 300
+# --- deleted meanwhile (gatygo forget wipes the state before the run dir): printed, not kept
+rm -f "$GATYGO_STATE/subscription.json"
+assert_eq "12" "$(gatygo_check_store "📍 Bravo:4242" '[{"name":"Alpha","ms":12}]' | jq '.services[0].ms')" "without a subscription the result is still printed"
+assert_exit 1 "but not kept" test -e "$GATYGO_RUN/check.json"
+echo '[]' > "$GATYGO_STATE/subscription.json"
 
 # --- CLI: available only with a running xray whose config has the inbound; fresh really runs
 CLI=/src/gatygo/files/gatygo

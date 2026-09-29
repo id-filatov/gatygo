@@ -17,12 +17,12 @@ _geo_requests() { curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path |
 _last() { ( . "$GATYGO_STATE/last-update.env"; eval "printf '%s' \"\$$1\"" ); }
 # stderr goes to its own file so the leak check below covers both it and the system log
 
-# --- no URL configured
-gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "no sub_url -> error"
-assert_eq "error" "$(_last RESULT)" "result recorded"
-assert_eq "no_url" "$(_last CODE)" "the code names the cause for the UI"
-assert_exit 0 "result lives in the state dir, not in tmpfs (the UI shows it after a reboot)" test -f "$GATYGO_STATE/last-update.env"
-assert_exit 1 "nothing in the run dir" test -f "$GATYGO_RUN/last-update.env"
+# --- no URL configured (never connected, or deleted by gatygo forget): nothing to update and
+# nothing recorded — an update scheduled before a delete leaves no trace behind
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "no sub_url -> nothing updated"
+assert_exit 1 "no result recorded" test -e "$GATYGO_STATE/last-update.env"
+assert_exit 1 "nor in the run dir" test -e "$GATYGO_RUN/last-update.env"
+assert_eq "1" "$(grep -c '\[info\] update skipped: no subscription link$' "$SYSLOG_STUB_FILE")" "one info line says why"
 
 # --- first update from an empty state
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub

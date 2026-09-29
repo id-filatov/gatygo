@@ -67,6 +67,12 @@ assert_eq "12" "$(gatygo_ping_kept 300 | jq '.profiles[0].ms')" "a recent result
 assert_exit 0 "a recent result -> no run is due" gatygo_ping_kept 300
 assert_eq "12" "$(gatygo_ping_kept 0 | jq '.profiles[0].ms')" "an old result is still given back"
 assert_exit 1 "an old result -> a run is due" gatygo_ping_kept 0
+# --- deleted meanwhile (gatygo forget wipes the state before the run dir): printed, not kept
+mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
+assert_eq "12" "$(gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' | jq '.profiles[0].ms')" "without a subscription the result is still printed"
+assert_exit 1 "but not kept" test -e "$GATYGO_RUN/ping.json"
+mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
+gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' >/dev/null
 assert_eq "false" "$(gatygo_ping_kept 300 | jq .measuring)" "no run in progress"
 mkdir -p "$GATYGO_RUN/ping.lock"; echo $$ > "$GATYGO_RUN/ping.lock/pid"
 assert_eq "true" "$(gatygo_ping_kept 300 | jq .measuring)" "a run in progress is reported"
