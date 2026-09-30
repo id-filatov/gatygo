@@ -3,6 +3,7 @@
 'require dom';
 'require poll';
 'require rpc';
+'require uci';
 'require ui';
 
 // The main page: one block. The connection state with the country in it and the on/off and
@@ -211,6 +212,7 @@ return view.extend({
 	busy: null,            // 'select' | 'update' | 'init' | 'connect' while an action runs
 	busyProfile: null,     // the profile being switched to
 	urlError: null,        // the first-run link did not look like a link
+	link: null,            // the stored subscription link, shown again in the first-run form after a failed try
 	painted: null,         // what the panel was last painted from
 	check: null,           // the last services check: {available, tunnel, time, services}
 	checking: false,       // a check is running
@@ -225,7 +227,7 @@ return view.extend({
 	handleReset: null,
 
 	load: function() {
-		return callStatus();
+		return Promise.all([ callStatus(), L.resolveDefault(uci.load('gatygo'), null) ]);
 	},
 
 	// Repaint only when something visible changed (times are shown to the minute), and keep what
@@ -350,6 +352,7 @@ return view.extend({
 			return;
 		}
 		this.urlError = null;
+		this.link = url;
 		return this.run('connect', callConnect(url).then(function(r) {
 			if (r.error) throw new Error(r.error);
 			// the download shows up in the status a moment after the start
@@ -479,10 +482,11 @@ return view.extend({
 		]);
 	},
 
-	// the first-run form: paste the link, press Connect
+	// the first-run form: paste the link, press Connect. After a failed try the stored link stays
+	// in the field and the button says Update: fix the link or the settings and try again
 	renderSetup: function(st, dis) {
-		var lu = st.last_update || {}, error = this.urlError, detail = null;
-		if (!error && st.configured && lu.result == 'error') {
+		var lu = st.last_update || {}, failed = st.configured && lu.result == 'error', error = this.urlError, detail = null;
+		if (!error && failed) {
 			detail = lu.message;
 			error = (lu.code == 'fetch_failed') ? _('This link did not work. Check that you copied the whole link from your provider.')
 				: (lu.code == 'not_recognised') ? _('The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear).')
@@ -494,8 +498,8 @@ return view.extend({
 			E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot' }), _('Not set up yet') ]),
 			E('p', { 'class': 'gg-meta' }, _('Paste the subscription link from your VPN provider. gatygo downloads the list of countries and connects your whole home network.')),
 			E('form', { 'class': 'gg-field' + (error ? ' is-bad' : ''), 'novalidate': '', 'submit': ui.createHandlerFn(this, 'handleConnect') }, [
-				E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url' }),
-				E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, _('Connect'))
+				E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url', 'value': failed ? this.link : null }),
+				E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, failed ? _('Update') : _('Connect'))
 			]),
 			error ? E('p', { 'class': 'gg-field-error' }, error) : '',
 			detail ? E('p', { 'class': 'gg-detail' }, detail) : ''
@@ -614,8 +618,10 @@ return view.extend({
 		]);
 	},
 
-	render: function(st) {
+	render: function(data) {
+		var st = data[0];
 		this.status = st;
+		this.link = uci.get('gatygo', 'main', 'sub_url') || null;
 		this.panel = E('div', {});
 		this.syncCheck();
 		this.syncPing();
