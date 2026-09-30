@@ -104,7 +104,6 @@ function confirmForget() {
 		});
 		ui.showModal(_('Delete the subscription?'), [
 			live ? E('p', {}, _('The VPN stops and your devices go online directly, without the VPN.')) : '',
-			E('p', {}, _('The link, the list of countries and everything downloaded for them are erased, and the settings return to their defaults. The xray core and the device ID stay.')),
 			st.send_hwid ? E('p', {}, _('Your provider still counts this router as a device: remove it in your account if you need the slot back.')) : '',
 			note,
 			E('div', { 'class': 'right' }, [ cancel, ' ', go ])
