@@ -2,146 +2,97 @@
 
 **English** · [Русский](README.ru.md)
 
-A VPN client for OpenWrt routers. Paste the subscription link from your VPN provider, pick a
-country, and the whole home network goes through the tunnel. No per-device setup.
+VPN client for OpenWrt 25.12. Takes an Xray-JSON subscription, runs xray with the chosen
+profile and routes the whole LAN through it (nftables tproxy). Managed from one LuCI page.
 
-gatygo takes an **Xray-JSON subscription** (a list of ready xray configs, one per country or
-profile), runs xray with the one you picked and proxies the LAN transparently with nftables
-tproxy. Everything is driven from one LuCI page; settings and the log live behind the gear.
+## Features
 
-## What it does
-
-- Downloads the subscription on a schedule and tests every new config with `xray run -test`
-  before using it. A failed update never touches the working config.
-- Shows every profile of the subscription as a button with its response time (TCP connect from
-  the router to the profile's fastest server).
-- Checks that the usual services open through the tunnel (the probes go through xray the same
-  way the LAN does).
-- Redirects the LAN's DNS into xray, leaves the router's own traffic alone, drops the LAN's
-  IPv6 traffic to the internet while the tunnel is up (it would go around the tunnel), and puts
-  everything back on stop.
-- Uses the routing, balancer and geo files the subscription names. gatygo has no built-in
-  routing rules or server lists of its own.
-- Says what went wrong in plain words: expired subscription, device limit, a server that did
-  not recognise the client, and so on.
-- Keeps xray from running the router out of memory: every open connection costs it 50–70 KB,
-  so a device (a torrent client, say) gets at most 600 connections through the VPN at a time and
-  the whole home 1000; new ones over that are refused, the ones already open stay. Both numbers
-  are settings (Advanced → Settings).
-- If xray quits for good (the router ran out of memory, say), the page says when and why. What
-  the home network gets meanwhile is a setting: no internet until the VPN is back, so nothing
-  goes around it (the default), or the regular internet.
+- Scheduled subscription updates. Every config is checked with `xray run -test`; a failed update
+  keeps the working one.
+- Profiles as buttons with response times (TCP connect to the fastest server).
+- Checks whether common services open through the tunnel.
+- LAN DNS goes through xray, the router's own traffic is untouched, LAN IPv6 to the internet is
+  blocked. Everything is restored on stop.
+- Routing, balancer and geo files come from the subscription only; no built-in rules.
+- Connection caps against OOM: 600 per device, 1000 total (Advanced → Settings).
+- If xray dies: no internet (default) or direct.
+- Plain error messages: expired subscription, device limit, client not recognised.
 
 ## Requirements
 
-- OpenWrt 25.12 (apk packages, firewall4/nftables).
-- About 40 MB free on the overlay: gatygo's scripts are small, the xray core is 35 MB.
-- 256 MB of RAM: xray takes 40–60 MB idle, depending on the subscription, and about 70 MB more
-  when the home uses all the connections the caps allow.
-- A subscription that answers with Xray-JSON. Some provider panels send it only to clients they
-  know by User-Agent: the name gatygo introduces itself with is a setting (Advanced → Settings).
+- OpenWrt 25.12 (apk, firewall4).
+- ~40 MB free on overlay (the xray core is 35 MB).
+- 256 MB RAM.
+- A subscription that returns Xray-JSON. If the panel filters by User-Agent, set it in
+  Advanced → Settings.
 
 ## Install
-
-On the router:
 
 ```sh
 wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | sh
 ```
 
-(`wget` is the stock image's uclient-fetch; `curl` is not in it yet.)
+The script checks the router (OpenWrt version, conflicting proxy packages, dependencies in the
+feeds, free space, dnsmasq, an xray build for the architecture) and installs nothing if a check
+fails. Then it installs the latest release and the xray core. The service is not enabled.
 
-The script first checks the router and installs nothing until every check has passed: that
-this OpenWrt is 25.12, that no other transparent-proxy package owns the same rules, that the
-feeds can actually serve what gatygo needs (`jq`, `curl`, `ca-bundle`, `unzip`, `ip-full`,
-`kmod-nft-tproxy`, `kmod-nft-connlimit`), that there is room on the overlay, that dnsmasq runs,
-and that XTLS builds an xray for this architecture. A stock image already has the rest. Then it
-installs both packages of the latest release, apk pulls the dependencies, and the pinned xray
-core is downloaded and checked, so nothing is left to fetch but the subscription itself. Nothing
-is switched on and no subscription is written.
+- `--version <tag>` for a specific release; `install.sh gatygo-*.apk luci-app-gatygo-*.apk` for
+  local files.
+- A custom-built image usually has no kmods feed: add
+  `kmod-nft-tproxy kmod-nft-connlimit jq curl ca-bundle unzip ip-full` to the image.
+- By hand: both `.apk` from [releases](https://github.com/id-filatov/gatygo/releases/latest), then
+  `apk add --allow-untrusted gatygo-*.apk luci-app-gatygo-*.apk`.
 
-An image built by hand is the one case that usually fails, and the script says so instead of
-letting apk abort halfway: kernel modules come from the feed of one exact kernel build, and
-downloads.openwrt.org has no modules for a kernel it did not build. Add `kmod-nft-tproxy
-kmod-nft-connlimit jq curl ca-bundle unzip ip-full` to the image and run the script again.
+Then: LuCI → **Services → gatygo**, paste the link, **Connect**.
 
-`install.sh --version v20260918.1851` takes that release instead of the latest, and
-`install.sh gatygo-*.apk luci-app-gatygo-*.apk` installs local files without downloading
-anything.
-
-By hand instead: download `gatygo-<version>.apk` and `luci-app-gatygo-<version>.apk` from the
-[latest release](https://github.com/id-filatov/gatygo/releases/latest), copy them to the
-router and install:
-
-```sh
-scp -O gatygo-*.apk luci-app-gatygo-*.apk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/gatygo-*.apk /tmp/luci-app-gatygo-*.apk'
-```
-
-Then open **Services → gatygo** in LuCI, paste the subscription link and press **Connect**.
-The subscription brings the config, the list of countries and the geo files; the xray core
-is already there when the script installed it, and is downloaded on the first start otherwise.
-
-To update, run the script again (it keeps `/etc/config/gatygo`). To drop the subscription and
-keep gatygo: **Delete** next to the link in Advanced → Settings (or `gatygo forget`) stops the
-VPN, erases everything the subscription brought and puts the settings back to their defaults.
-To remove gatygo: `apk del luci-app-gatygo gatygo` (the router's DNS and firewall are put back,
-the core is deleted; `/etc/gatygo` and `/etc/config/gatygo` stay until you delete them).
+- Update: run the script again, settings are kept.
+- Drop the subscription: **Delete** in Advanced → Settings or `gatygo forget`.
+- Remove: `apk del luci-app-gatygo gatygo`; `/etc/gatygo` and `/etc/config/gatygo` stay.
 
 ## The xray core
 
-gatygo does not use the feed's `xray-core` package. Every gatygo release pins one
-[XTLS/Xray-core](https://github.com/XTLS/Xray-core) release together with the SHA256 of its
-archive for each architecture (`gatygo/files/lib/core.pin`). The router downloads the archive
-for its architecture, checks the SHA256, unpacks only the binary into `/usr/lib/gatygo/core`
-and tries it before it replaces the one in place. Nothing is unpacked or run before the hash
-matched. A new core arrives only with a new gatygo release; there is no separate core update.
-
-Without access to GitHub the first start fails with a message on the page; a core already in
-place keeps working.
+Not the feed's `xray-core`. Each gatygo release pins an
+[Xray-core](https://github.com/XTLS/Xray-core) version and the SHA256 of its archives
+(`gatygo/files/lib/core.pin`). The router downloads the archive for its architecture, checks
+the hash, and only then unpacks and runs it. The core is updated only with gatygo.
 
 ## Command line
 
 ```
 gatygo start|stop|restart        service control
-gatygo connect <url>             first run: store the link, enable and start
-gatygo forget                    drop the subscription: stop, erase what it brought, default settings
-gatygo update                    run the subscription update cycle now
-gatygo select <profile>          switch to a profile and apply it
-gatygo status                    JSON: state, profile, subscription facts, last result
-gatygo check [fresh]             JSON: do the usual services open through the tunnel
-gatygo ping [kept]               JSON: the response time of every profile
-gatygo nodes                     JSON: outbounds with the balancer's choice and traffic
-gatygo log [N]                   the last N lines of xray and gatygo from the system log
+gatygo connect <url>             store the link, enable and start
+gatygo forget                    delete the subscription, reset settings
+gatygo update                    update the subscription
+gatygo select <profile>          switch profile
+gatygo status                    JSON: state, profile, subscription, last result
+gatygo check [fresh]             JSON: services reachable through the tunnel
+gatygo ping [kept]               JSON: profile response times
+gatygo nodes                     JSON: outbounds, balancer choice, traffic
+gatygo log [N]                   last N lines of the xray and gatygo log
 ```
 
-Settings are in `/etc/config/gatygo`, state in `/etc/gatygo` (kept over sysupgrade), logs in
-the system log (`logread -e gatygo`, `logread -e xray`).
+Settings in `/etc/config/gatygo`, state in `/etc/gatygo`, logs via `logread -e gatygo`,
+`logread -e xray`.
 
-## What listens where
+## Ports
 
-- tproxy (12345) and DNS (5353) inbounds take the LAN's redirected traffic.
-- The xray API (10085) and a SOCKS inbound for the services check (10808) listen on
-  `127.0.0.1` only. The SOCKS inbound asks for a password that is made on the router and kept
-  in `/etc/gatygo` (mode 0600); the API exposes statistics and the balancer's state, not the
-  outbounds.
-- The subscription, the config and the secrets are readable by root only. The subscription
-  link, user id and hardware id never go to the log.
+- 12345 tproxy, 5353 DNS: LAN traffic.
+- 10085 xray API, 10808 SOCKS for the services check: `127.0.0.1` only, SOCKS is
+  password-protected (`/etc/gatygo`, 0600).
+- The subscription link, user id and HWID never go to the log.
 
 ## Development
 
 ```sh
-tests/run.sh                     # unit tests (POSIX sh, in Docker: busybox ash, jq, the pinned xray)
+tests/run.sh                     # unit tests in Docker (busybox ash, jq, the pinned xray)
 tests/run.sh test_core.sh        # one file
-tools/build-apk.sh               # build both .apk with the OpenWrt SDK container
-tests/vm/run.sh [gatygo.apk]     # end-to-end on an OpenWrt VM (see the header of the script)
-tools/pin-core.sh v26.9.9        # pin another xray release: core.pin + the test image
-tools/release.sh                 # tag a release from main; CI builds and attaches the packages
+tools/build-apk.sh               # build both .apk with the OpenWrt SDK
+tests/vm/run.sh [gatygo.apk]     # e2e on an OpenWrt VM
+tools/pin-core.sh v26.9.9        # pin another xray version
+tools/release.sh                 # release from main; CI builds the packages
 ```
 
-The scripts are POSIX sh for busybox ash; OpenWrt's `jq` has no regular expressions and its
-`curl` is a small build, and the unit test image is trimmed the same way. The test fixtures
-are synthetic (`tools/gen-fixture.py`, `tools/gen-geodat.py`).
+POSIX sh for busybox ash. Test fixtures are synthetic.
 
 ## License
 
