@@ -150,7 +150,7 @@ msgstr "Это редкость, но xray может завершиться, н
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Block the internet until the VPN is back"
-msgstr "Блокировать интернет, пока VPN не заработает"
+msgstr "Без интернета, пока VPN не вернётся"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Let devices use the regular internet"
