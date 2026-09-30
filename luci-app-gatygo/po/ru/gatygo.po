@@ -162,7 +162,7 @@ msgstr "Соединений на устройство"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "At most this many connections of one device go through the VPN at a time; new ones over it are refused. A busy device, a torrent client say, cannot take the memory xray needs for the whole home."
-msgstr "Не больше стольких соединений одного устройства одновременно идут через VPN, новые сверх лимита отклоняются. Так занятое устройство, например торрент-клиент, не заберёт память, которая нужна xray для всего дома."
+msgstr "Сколько соединений одного устройства может одновременно идти через VPN; новые сверх этого числа отклоняются. Так занятое устройство, например торрент-клиент, не заберёт память, которая нужна xray для всего дома."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Connections in all"
@@ -170,7 +170,7 @@ msgstr "Соединений всего"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "At most this many connections of all devices together. Each one costs xray 50–70 KB of memory: 1000 suits a router with 256 MB."
-msgstr "Не больше стольких соединений всех устройств вместе. Каждое стоит xray 50–70 КБ памяти: 1000 подходит роутеру с 256 МБ."
+msgstr "Сколько соединений всех устройств вместе может быть одновременно. Каждое стоит xray 50–70 КБ памяти: 1000 подходит роутеру с 256 МБ."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Resolver for server names"
@@ -367,7 +367,7 @@ msgstr "Новые настройки от провайдера не прошл�
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "gatygo tests every update before using it, and this one failed."
-msgstr "gatygo проверяет каждое обновление перед применением, и это его не прошло."
+msgstr "gatygo проверяет каждое обновление перед применением, и это обновление проверку не прошло."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "%s is no longer in your subscription"
@@ -375,7 +375,7 @@ msgstr "%s больше нет в вашей подписке"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "gatygo uses %s instead. Tap another country if you prefer."
-msgstr "Вместо неё gatygo использует %s. Если хотите, нажмите другую страну."
+msgstr "Вместо этого gatygo использует %s. Если хотите, выберите другую страну."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "OK"
