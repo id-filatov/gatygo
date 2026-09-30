@@ -1,0 +1,21 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: tests/fixtures/i18n/js/view.js
+msgid "Connect"
+msgstr ""
+
+#: tests/fixtures/i18n/js/view.js
+msgid "Your provider's server"
+msgstr ""
+
+#: tests/fixtures/i18n/js/view.js
+msgid "%d day ago"
+msgid_plural "%d days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: tests/fixtures/i18n/js/view.js
+msgid "Updated %s."
+msgstr ""
