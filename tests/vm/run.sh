@@ -95,6 +95,12 @@ for v in main advanced; do
     expect "the package brings the $v page's script" "$(wc -c < "$ROOT/luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/$v.js" | tr -d ' ')" "curl -s http://127.0.0.1/luci-static/resources/view/gatygo/$v.js | wc -c"
 done
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'
+check "i18n: the Russian catalog is installed" 'test -s /usr/lib/lua/luci/i18n/gatygo.ru.lmo'
+expect "i18n: LuCI offers Russian" "Русский (Russian)" 'uci -q get luci.languages.ru'
+# the key LuCI looks "Connect" up by, so the command sent to the VM stays ASCII
+key=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from po2lmo import sfh_hash; print("%08x" % sfh_hash(b"Connect"))' "$ROOT/luci-app-gatygo/po")
+check "i18n: LuCI serves the Russian strings" "curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/ru | grep -q '\"$key\":'"
+check "i18n: and not for English" "! curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/en | grep -q '\"$key\":'"
 
 echo "== 2c. settings reload"
 vm 'uci set gatygo.main.user_agent="gatygo/e2e"; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
@@ -251,6 +257,7 @@ check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 
 echo "== 11. removal"
 vm '/etc/init.d/gatygo stop; apk del luci-app-gatygo gatygo >/dev/null 2>&1; true'
+check "i18n: Russian is no longer offered once the package is gone" '! uci -q get luci.languages.ru'
 check "core removed with the package" '! test -e /usr/lib/gatygo/core'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
