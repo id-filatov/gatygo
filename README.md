@@ -1,4 +1,7 @@
-# gatygo
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo/gatygo-horizontal-on-dark.svg">
+  <img alt="gatygo" src="docs/logo/gatygo-horizontal.svg" height="64">
+</picture>
 
 **English** · [Русский](README.ru.md)
 
