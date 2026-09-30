@@ -50,6 +50,9 @@ define Package/luci-app-gatygo/postinst
 		uci -q get luci.languages.$$l >/dev/null && continue
 		case $$l in ru) n='Русский (Russian)' ;; *) n=$$l ;; esac
 		uci -q get luci.languages >/dev/null || uci set luci.languages=internal
+		# "auto" takes the first browser language registered here and LuCI never registers
+		# English itself: without it a browser listing English first, then this one, would switch
+		uci -q get luci.languages.en >/dev/null || uci set luci.languages.en='English'
 		uci set luci.languages.$$l="$$n" && uci commit luci
 	done
 }
@@ -65,6 +68,8 @@ define Package/luci-app-gatygo/postrm
 		ls /usr/lib/lua/luci/i18n/*.$$l.lmo >/dev/null 2>&1 && continue
 		uci -q delete luci.languages.$$l && uci commit luci
 	done
+	# the English entry postinst added goes once no other language needs it
+	[ "$$(uci -q show luci.languages | grep -c '^luci\.languages\.')" = 1 ] && [ "$$(uci -q get luci.languages.en)" = English ] && { uci -q delete luci.languages.en; uci commit luci; }
 }
 exit 0
 endef

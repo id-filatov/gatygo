@@ -97,6 +97,11 @@ done
 check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo/advanced | grep -q "gatygo/advanced"'
 check "i18n: the Russian catalog is installed" 'test -s /usr/lib/lua/luci/i18n/gatygo.ru.lmo'
 expect "i18n: LuCI offers Russian" "Русский (Russian)" 'uci -q get luci.languages.ru'
+# "auto" takes the first Accept-Language tag registered in luci.languages: English must stay registered
+vm 'uci -q get luci.main.lang > /tmp/lang0; uci set luci.main.lang=auto; uci commit luci'
+check "i18n: an English-first browser that also lists Russian stays English" "curl -s -b /tmp/ck -H 'Accept-Language: en-US,en;q=0.9,ru;q=0.8' http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q 'translations/en'"
+check "i18n: a Russian-first browser gets Russian" "curl -s -b /tmp/ck -H 'Accept-Language: ru-RU,ru;q=0.9,en;q=0.8' http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q 'translations/ru'"
+vm 'if [ -s /tmp/lang0 ]; then uci set luci.main.lang="$(cat /tmp/lang0)"; else uci -q delete luci.main.lang; fi; uci commit luci; rm -f /tmp/lang0'
 # the key LuCI looks "Connect" up by, so the command sent to the VM stays ASCII
 key=$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); from po2lmo import sfh_hash; print("%08x" % sfh_hash(b"Connect"))' "$ROOT/luci-app-gatygo/po")
 check "i18n: LuCI serves the Russian strings" "curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/ru | grep -q '\"$key\":'"
@@ -258,6 +263,7 @@ check "table present after reboot" 'nft list table inet gatygo >/dev/null'
 echo "== 11. removal"
 vm '/etc/init.d/gatygo stop; apk del luci-app-gatygo gatygo >/dev/null 2>&1; true'
 check "i18n: Russian is no longer offered once the package is gone" '! uci -q get luci.languages.ru'
+check "i18n: the English entry added for it goes too" '! uci -q get luci.languages.en'
 check "core removed with the package" '! test -e /usr/lib/gatygo/core'
 check "table gone after removal" '! nft list table inet gatygo >/dev/null 2>&1'
 check "dnsmasq restored after removal" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
