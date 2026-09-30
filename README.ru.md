@@ -85,4 +85,4 @@ tools/release.sh                 # релиз из main, пакеты собир
 
 ## Лицензия
 
-MIT
+[MIT](LICENSE)

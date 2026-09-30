@@ -85,4 +85,4 @@ tools/release.sh                 # release from main; CI builds the packages
 
 ## License
 
-MIT
+[MIT](LICENSE)
