@@ -1,5 +1,7 @@
 # gatygo
 
+**English** · [Русский](README.ru.md)
+
 A VPN client for OpenWrt routers. Paste the subscription link from your VPN provider, pick a
 country, and the whole home network goes through the tunnel. No per-device setup.
 
