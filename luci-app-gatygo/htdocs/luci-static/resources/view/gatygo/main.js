@@ -105,6 +105,7 @@ var CSS = [
 	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
 	'.gg .cbi-button:not(:disabled):active { transform:scale(.97); }',
 	'.gg-sign { margin:0 0 0 auto; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-mark { margin-right:7px; vertical-align:middle; }',
 	'.gg-sign b { margin-right:6px; font-weight:700; letter-spacing:-.01em; color:var(--gg-ink); }',
 	'.gg-donate { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 9px 0 8px; border-radius:13px; background:var(--gg-heart-tint); color:var(--gg-heart); font-size:13px; font-weight:600; line-height:1; white-space:nowrap; text-decoration:none; transition:filter 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-donate:hover { color:var(--gg-heart); text-decoration:none; } .gg-donate:active { transform:scale(.97); } .gg-donate .gg-ext { opacity:.7; }',
@@ -165,6 +166,26 @@ function icon(name, cls) {
 	for (var k in attrs) svg.setAttribute(k, attrs[k]);
 	if (cls) svg.setAttribute('class', cls);
 	i.slice(2).forEach(function(d) { var p = document.createElementNS(ns, 'path'); p.setAttribute('d', d); svg.appendChild(p); });
+	return svg;
+}
+
+// The gatygo mark (docs/logo), drawn as the small-size cut: an amber tile, three routes that start
+// at different points, merge and leave through the right wall. Centred on the x-height, as in the logo.
+function mark() {
+	var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+	var el = function(tag, attrs) {
+		var n = document.createElementNS(ns, tag);
+		for (var k in attrs) n.setAttribute(k, attrs[k]);
+		return svg.appendChild(n);
+	};
+	[ [ 'width', 16 ], [ 'height', 16 ], [ 'viewBox', '20 20 216 216' ], [ 'class', 'gg-mark' ], [ 'aria-hidden', 'true' ] ]
+		.forEach(function(a) { svg.setAttribute(a[0], a[1]); });
+	el('rect', { 'x': 20, 'y': 20, 'width': 216, 'height': 216, 'rx': 52, 'fill': '#ffb020' });
+	var line = { 'fill': 'none', 'stroke': '#16181d', 'stroke-width': 32, 'stroke-linecap': 'round' };
+	[ 'M104 72H114C143 72 143 128 172 128', 'M54 184H114C143 184 143 128 172 128', 'M78 128H176' ]
+		.forEach(function(d) { line.d = d; el('path', line); });
+	line.d = 'M172 128H236'; line['stroke-linecap'] = 'butt';
+	el('path', line);
 	return svg;
 }
 
@@ -613,7 +634,7 @@ return view.extend({
 			]) : '',
 			E('div', { 'class': 'gg-card-foot' }, [
 				E('a', { 'class': 'gg-donate', 'href': 'https://filatov.page', 'target': '_blank', 'rel': 'noopener', 'data-key': 'donate' }, [ icon('heart'), _('Donate'), icon('arrow', 'gg-ext') ]),
-				E('p', { 'class': 'gg-sign' }, [ E('b', {}, 'gatygo'), st.version || '' ])
+				E('p', { 'class': 'gg-sign' }, [ mark(), E('b', {}, 'gatygo'), st.version || '' ])
 			])
 		]);
 	},
