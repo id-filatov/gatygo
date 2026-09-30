@@ -1,0 +1,607 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Stop and delete"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Delete"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Cancel"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Deleting…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "An update is running. Try again in a minute."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The subscription could not be deleted."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Delete the subscription?"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The VPN stops and your devices go online directly, without the VPN."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Your provider still counts this router as a device: remove it in your account if you need the slot back."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The router did not answer: %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The log is empty."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Changes take effect after Save & Apply: the subscription is downloaded again with the new settings."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Enable"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Start the tunnel at boot and keep it running."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Subscription URL"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Stored on the router only. The log never shows it."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Expecting an http:// or https:// URL"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Subscription URL, masked"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Change"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "User agent"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Your provider's server picks the format of the list by this name, and gatygo needs Xray JSON. If the default is not recognised, choose the app your provider supports."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "default"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Send device ID"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Sent as the x-hwid header. Panels with a device limit count this router as one device."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Device ID"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "generated on the first update"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Update every"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "How often the list of countries is downloaded again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "As the subscription suggests"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "As the subscription suggests (%d h)"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Every hour"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Every %d hours"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Block LAN IPv6"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "IPv6 is not proxied. Blocking it keeps devices with IPv6 addresses from bypassing the tunnel."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "If the VPN stops by itself"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "It is rare, but xray can quit, for example when the router runs out of memory. Blocking keeps everything inside the VPN at the price of no internet at home until someone presses Start. Either way the main page says what happened and when."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Block the internet until the VPN is back"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Let devices use the regular internet"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Connections per device"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "At most this many connections of one device go through the VPN at a time; new ones over it are refused. A busy device, a torrent client say, cannot take the memory xray needs for the whole home."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Connections in all"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "At most this many connections of all devices together. Each one costs xray 50–70 KB of memory: 1000 suits a router with 256 MB."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Resolver for server names"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Used only to resolve the VPN servers' own host names, outside the tunnel. Empty: the WAN DNS."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "WAN DNS"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Log level"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Loading…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Log"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Refresh"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Last 200 xray and gatygo lines of the system log"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Settings"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Your account cannot read the gatygo settings."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Back to gatygo"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Advanced"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d d %d h"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d h %d min"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d min"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "just now"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d minute ago"
+msgid_plural "%d minutes ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d hour ago"
+msgid_plural "%d hours ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d day ago"
+msgid_plural "%d days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "An update is already running."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "This does not look like a link. It starts with https://"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "You stay connected with the previous settings."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Try again"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Stopped by itself"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The VPN stopped by itself %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The VPN stopped by itself"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Devices at home use the regular internet since then: what needs the VPN does not open. Press Start to try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Devices at home have no internet now. Press Start to try again, or turn the VPN off to use the regular internet."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "xray was killed (exit code 137), most often because the router ran out of memory"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "xray exit code %d"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Turn off"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Subscription expired"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your subscription ended on %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The VPN servers no longer accept this router, so sites may not open. Renew the subscription with your provider, then press Update now."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Traffic used up"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "You have used all %s of this period"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The VPN servers stop serving this router until your provider resets the counter or you buy more traffic. After that press Update now."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Couldn’t update the list of countries"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your provider’s server did not answer %s."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo tries again in %s."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Too many devices on this subscription"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your provider limits the number of devices and the limit is reached. Remove a device in your provider’s account, then try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your provider’s server did not recognise this router"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "It answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Open settings"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The new settings from your provider did not pass the check"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo tests every update before using it, and this one failed."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%s is no longer in your subscription"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo uses %s instead. Tap another country if you prefer."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "OK"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Couldn’t switch to %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The country in use is still %s."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Couldn’t download the VPN engine"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo downloads it from GitHub once after it is installed or updated. Check the router’s internet connection, then try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "There is no list of countries yet"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Press Try again to download it."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The last update failed"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The last update finished with a warning"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "no reply"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%d ms"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%s s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Checked through the VPN"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Checking…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Checked %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Check again"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Nothing opens through this country. Try another one."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "This link did not work. Check that you copied the whole link from your provider."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear)."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Too many devices on this subscription. Remove a device in your provider’s account and try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo could not download the VPN engine from GitHub. Check the router’s internet connection and try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo could not set up the connection."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Not set up yet"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Paste the subscription link from your VPN provider. gatygo downloads the list of countries and connects your whole home network."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Subscription link"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Connect"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Setting up"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Downloading the list of countries…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Switching"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Connections drop for a few seconds."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Connected"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updating the list of countries…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updated %s."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Next update in %s."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Disconnected"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your home network is using the regular internet. Start connects to the selected country right away."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Subscription"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Traffic"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%s of %s used"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%s used, no limit"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Expires"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "in %d day"
+msgid_plural "in %d days"
+msgstr[0] ""
+msgstr[1] ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "expired %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "No reply from this server"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Response time from your router to this server"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Measuring response time…"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "No server answered. Check the router’s internet connection."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Response time measured %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Measure again"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Stop"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Start"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update now"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Advanced: settings, nodes, log"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Country"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Tap a country to switch. Connections drop for a few seconds."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Tap a country to choose where Start connects."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Donate"
+msgstr ""

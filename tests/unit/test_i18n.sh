@@ -81,5 +81,40 @@ echo "var j = _(label);" > "$J/view.js"
 _err=$(python3 /src/tools/i18n-scan.py --js-dir "$J" --po-dir "$P" --check 2>&1); assert_eq 1 "$?" "a non-literal _() is refused"
 case $_err in *literal*) _t_ok ;; *) _t_bad "the scanner names the non-literal call: $_err" ;; esac
 
+# --- the real pages: template current, Russian complete, every string found by LuCI's rules
+assert_exit 0 "the pages' translations are complete and current" python3 /src/tools/i18n-scan.py --check
+_out=$(python3 - <<'EOF'
+import importlib.util, sys
+sys.path.insert(0, '/src/luci-app-gatygo/po')
+from po2lmo import compile_po, sfh_hash
+spec = importlib.util.spec_from_file_location('scan', '/src/tools/i18n-scan.py')
+scan = importlib.util.module_from_spec(spec); spec.loader.exec_module(scan)
+import struct
+text = open('/src/luci-app-gatygo/po/ru/gatygo.po', encoding='utf-8').read()
+header, entries = scan.parse_po(text)
+lmo = compile_po(text.encode())
+at = struct.unpack('>I', lmo[-4:])[0]
+table = {}
+for i in range(at, len(lmo) - 4, 16):
+    k, _, off, ln = struct.unpack('>IIII', lmo[i:i + 16])
+    table[k] = lmo[off:off + ln].decode()
+def ru_form(n):
+    return 0 if n % 10 == 1 and n % 100 != 11 else 1 if 2 <= n % 10 <= 4 and not 10 <= n % 100 < 20 else 2
+bad = []
+for (msgid, plural), strs in entries.items():
+    if plural is None:
+        got = table.get(sfh_hash(scan.canonical(msgid).encode()), msgid)
+        if got != strs[0] and strs[0] != msgid:
+            bad.append(msgid)
+    else:
+        for n in (1, 2, 5, 11, 12, 21, 22, 25, 111):
+            k = ru_form(n)
+            if table.get(sfh_hash((scan.canonical(msgid) + '\2' + str(k)).encode())) != strs[k]:
+                bad.append(f'{msgid} n={n}')
+print('ok' if not bad else 'missing: ' + '; '.join(bad))
+EOF
+)
+assert_eq ok "$_out" "every Russian string is found the way LuCI looks it up, plurals for 1 2 5 11 12 21 22 25 111"
+
 rm -rf "$T"
 report
