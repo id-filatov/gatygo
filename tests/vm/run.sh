@@ -98,7 +98,7 @@ check "LuCI serves the Advanced page" 'curl -s -b /tmp/ck http://127.0.0.1/cgi-b
 check "i18n: the Russian catalog is installed" 'test -s /usr/lib/lua/luci/i18n/gatygo.ru.lmo'
 expect "i18n: LuCI offers Russian" "Русский (Russian)" 'uci -q get luci.languages.ru'
 # the key LuCI looks "Connect" up by, so the command sent to the VM stays ASCII
-key=$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from po2lmo import sfh_hash; print("%08x" % sfh_hash(b"Connect"))' "$ROOT/luci-app-gatygo/po")
+key=$(python3 -B -c 'import sys; sys.path.insert(0, sys.argv[1]); from po2lmo import sfh_hash; print("%08x" % sfh_hash(b"Connect"))' "$ROOT/luci-app-gatygo/po")
 check "i18n: LuCI serves the Russian strings" "curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/ru | grep -q '\"$key\":'"
 check "i18n: and not for English" "! curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/en | grep -q '\"$key\":'"
 
