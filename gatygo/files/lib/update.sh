@@ -11,6 +11,7 @@
 . "${GATYGO_LIB:-/usr/lib/gatygo}/fetch.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/geo.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/core.sh"
+. "${GATYGO_LIB:-/usr/lib/gatygo}/relay.sh"
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
@@ -174,7 +175,10 @@ gatygo_update() {
     rm -rf "$_gatygo_w"
     _gatygo_restarted=0
     # a replaced core restarts xray too: the init script makes the core a part of the instance
-    if [ "$GATYGO_SWAP_RESULT" = changed ] || [ "$_gatygo_core" = installed ]; then _gatygo_restarted=1; _gatygo_reload; fi
+    if [ "$GATYGO_SWAP_RESULT" = changed ] || [ "$_gatygo_core" = installed ]; then _gatygo_restarted=1; _gatygo_reload
+    # so does a relay that moved while xray stays on its old address (lib/relay.sh)
+    elif gatygo_relay_moved "$GATYGO_STATE/xray.json"; then gatygo_relay_reconnect; _gatygo_restarted=1; _gatygo_reload
+    fi
     if [ "$_gatygo_apply" -eq 3 ]; then
         gatygo_result warning profile_missing "profile '$GATYGO_PROFILE' is not in the subscription; using '$_gatygo_prof'" "$_gatygo_prof" "$_gatygo_restarted"
     else

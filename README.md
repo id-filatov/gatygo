@@ -18,6 +18,7 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 
 - Scheduled subscription updates. Every config is checked with `xray run -test`; a failed update
   keeps the working one.
+- A server moved to a new IP under the same name: the next update reconnects xray.
 - LAN DNS goes through xray, the router's own traffic is untouched.
 - Routing, balancer and geo files come from the subscription only; no built-in rules.
 - Connection caps against OOM.

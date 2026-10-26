@@ -1,0 +1,6 @@
+#!/bin/sh
+# netstat stand-in for unit tests: busybox's `netstat -tnpW` with the connections listed in
+# NETSTAT_STUB_FILE (lines in the same layout).
+printf 'Active Internet connections (w/o servers)\n'
+printf 'Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name    \n'
+cat "${NETSTAT_STUB_FILE:?}" 2>/dev/null

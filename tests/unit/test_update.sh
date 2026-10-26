@@ -104,6 +104,26 @@ GATYGO_INIT_RUNNING_RC=1 gatygo_update 2>>"$tmp/stderr.log"
 assert_eq "running" "$(cat "$GATYGO_INIT_LOG")" "reload skipped when the service is not running"
 assert_eq "1" "$(_last RESTARTED)" "but the change is recorded"
 
+# --- a relay moved: the config is the same, but xray still holds the address the relay's name had
+#     (lib/relay.sh; DNS answers and xray's connections come from the nslookup and netstat stubs)
+export UBUS_STUB_RUNNING=1 NSLOOKUP_STUB_FILE="$tmp/dns" NETSTAT_STUB_FILE="$tmp/tcp"
+_relay=$(jq -r '[.outbounds[].settings.vnext[]?.address] | first' "$GATYGO_STATE/xray.json")
+printf '%s 198.51.100.1\n' "$_relay" > "$NSLOOKUP_STUB_FILE"
+printf 'tcp 0 0 192.168.1.1:40000 198.51.100.1:443 ESTABLISHED 4242/xray\n' > "$NETSTAT_STUB_FILE"
+: > "$GATYGO_INIT_LOG"
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "0 " "$(_last RESTARTED) $(cat "$GATYGO_INIT_LOG")" "xray on the address the relay has: no restart"
+printf '%s 198.51.100.2\n' "$_relay" > "$NSLOOKUP_STUB_FILE"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "an update that finds a moved relay succeeds"
+assert_eq "1 running start" "$(_last RESTARTED) $(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "the relay moved: xray restarted though the config is the same"
+assert_exit 0 "with a new value for the instance" test -s "$GATYGO_RUN/reconnect"
+assert_eq "1" "$(grep -c "\[info\] relay $_relay moved; " "$SYSLOG_STUB_FILE")" "the log says why"
+printf 'tcp 0 0 192.168.1.1:40000 198.51.100.2:443 ESTABLISHED 4242/xray\n' > "$NETSTAT_STUB_FILE"
+: > "$GATYGO_INIT_LOG"
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "0 " "$(_last RESTARTED) $(cat "$GATYGO_INIT_LOG")" "xray on the new address: no restart"
+unset UBUS_STUB_RUNNING NSLOOKUP_STUB_FILE NETSTAT_STUB_FILE
+
 # --- no geo URLs in the subscription, no geo files yet: nothing downloaded, the error says why
 GATYGO_STATE="$tmp/state-norouting" GATYGO_ASSETS="$tmp/assets-norouting"
 mkdir -p "$GATYGO_ASSETS"; uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-norouting; uci set gatygo.main.profile=""

@@ -1,0 +1,8 @@
+#!/bin/sh
+# nslookup stand-in for unit tests: answers NAME (the first argument that is not an option) from
+# NSLOOKUP_STUB_FILE, lines "NAME ADDRESS", in busybox's layout; a name without a line has no answer.
+for _a; do case $_a in -*) ;; *) _n=$_a; break ;; esac; done
+printf 'Server:\t\t127.0.0.1\nAddress:\t127.0.0.1:53\n\n'
+_addrs=$(awk -v n="$_n" '$1 == n { print $2 }' "${NSLOOKUP_STUB_FILE:?}" 2>/dev/null)
+if [ -z "$_addrs" ]; then printf "** server can't find %s: NXDOMAIN\n\n" "$_n"; exit 1; fi
+for _a in $_addrs; do printf 'Non-authoritative answer:\nName:\t%s\nAddress: %s\n\n' "$_n" "$_a"; done
