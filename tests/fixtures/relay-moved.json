@@ -1,0 +1,17 @@
+[
+  {
+    "remarks": "📍 Relay",
+    "inbounds": [
+      { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" } }
+    ],
+    "outbounds": [
+      { "tag": "proxy", "protocol": "vless",
+        "settings": { "vnext": [ { "address": "relay.e2e.test", "port": 8443,
+                                   "users": [ { "id": "00000000-0000-4000-8000-000000000001", "encryption": "none" } ] } ] },
+        "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "gg" }, "security": "none" } },
+      { "tag": "direct", "protocol": "freedom" },
+      { "tag": "block", "protocol": "blackhole" }
+    ],
+    "routing": { "rules": [ { "type": "field", "network": "tcp,udp", "outboundTag": "proxy" } ] }
+  }
+]

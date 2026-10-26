@@ -188,6 +188,51 @@ check "direct: the home network is back on the regular internet" '! nft list tab
 vm 'uci delete gatygo.main.on_crash; uci commit gatygo; /etc/init.d/gatygo start; sleep 5'
 check "start puts the tunnel back" 'gatygo status | jq -e ".running == true and .crash == null" >/dev/null && nft list table inet gatygo >/dev/null'
 
+echo "== 8c. a relay that moved"
+# Two relay servers in the VM under one name, VLESS over gRPC; the name moves from the first to the
+# second. xray keeps its gRPC connection to the first for as long as it answers; the next update
+# has to notice and restart xray. The name lives in dnsmasq's /tmp/hosts: /etc/hosts reaches its
+# jail as a single file, and a rewritten one goes unseen until dnsmasq restarts. The servers'
+# freedom allows private addresses (blocked by default for what comes in over VLESS).
+scp -q "$ROOT/tests/fixtures/relay-moved.json" "$LAB_HOST:$LAB_DIR/relay-moved.json"
+ssh "$LAB_HOST" "cd $LAB_DIR && nohup python3 sub_server.py 8788 relay-moved.json geo http://10.0.2.2:8788 > mock-relay.log 2>&1 &
+             i=0; until curl -fs -o /dev/null localhost:8788/log; do i=\$((i + 1)); [ \$i -lt 20 ] || exit 1; sleep 0.5; done" \
+    && ok "mock panel with the relay profile up" || bad "mock panel with the relay profile"
+vm 'for n in 1 2; do
+        ip addr add 10.99.0.$n/32 dev lo
+        jq -nc --arg a 10.99.0.$n "{inbounds: [{listen: \$a, port: 8443, protocol: \"vless\", settings: {clients: [{id: \"00000000-0000-4000-8000-000000000001\"}], decryption: \"none\"},
+            streamSettings: {network: \"grpc\", grpcSettings: {serviceName: \"gg\"}}}],
+            outbounds: [{protocol: \"freedom\", settings: {finalRules: [{action: \"allow\"}]}}]}" > /tmp/relay$n.json
+        /usr/lib/gatygo/core/xray run -c /tmp/relay$n.json </dev/null >/tmp/relay$n.log 2>&1 &
+        echo $! > /tmp/relay$n.pid
+    done
+    echo "10.99.0.1 relay.e2e.test" > /tmp/hosts/e2e-relay; killall -HUP dnsmasq'
+# a request through the tunnel (the check inbound, routed to the relay); the relay servers xray holds
+THROUGH='curl -fs -o /dev/null -m 5 --socks5-hostname 127.0.0.1:10808 --proxy-user "gatygo:$(cat /etc/gatygo/check.secret)" http://10.0.2.2:8787/log'
+HELD='p=$(gatygo status | jq -r .pid); netstat -tnpW | awk -v p="$p/" "\$6 == \"ESTABLISHED\" && index(\$7, p) == 1 { print \$5 }" | grep "^10\.99\.0\." | sort -u | tr "\n" " " | sed "s/ $//"'
+check "both relay servers run" 'kill -0 $(cat /tmp/relay1.pid) && kill -0 $(cat /tmp/relay2.pid)'
+vm 'uci set gatygo.main.sub_url=http://10.0.2.2:8788/sub; uci commit gatygo; gatygo update >/dev/null 2>&1; sleep 5'
+expect "the relay profile runs" "📍 Relay" 'gatygo status | jq -r .profile_used'
+check "traffic goes through the relay" "$THROUGH"
+expect "xray is on the first server" "10.99.0.1:8443" "$HELD"
+R1=$(vm 'gatygo status | jq -r .pid')
+vm 'echo "10.99.0.2 relay.e2e.test" > /tmp/hosts/e2e-relay; killall -HUP dnsmasq; sleep 6'
+check "the name points to the second server now" 'nslookup relay.e2e.test | grep -q "^Address: 10\.99\.0\.2$"'
+vm "$THROUGH"
+expect "without an update xray stays on the first server (the gRPC connection is reused)" "10.99.0.1:8443" "$HELD"
+vm 'gatygo update >/dev/null 2>&1; sleep 5'
+R2=$(vm 'gatygo status | jq -r .pid')
+[ -n "$R2" ] && [ "$R2" != "$R1" ] && ok "the update restarted xray ($R1 -> $R2)" || bad "the update restarted xray ($R1 -> $R2)"
+check "the log says why" 'gatygo log 30 | grep -q "relay relay.e2e.test moved; xray is still connected to its old address 10.99.0.1:8443"'
+check "traffic goes through the relay" "$THROUGH"
+expect "xray is on the second server" "10.99.0.2:8443" "$HELD"
+vm 'gatygo update >/dev/null 2>&1'
+expect "the next update leaves it alone" "$R2" 'gatygo status | jq -r .pid'
+vm 'kill $(cat /tmp/relay1.pid) $(cat /tmp/relay2.pid); ip addr del 10.99.0.1/32 dev lo; ip addr del 10.99.0.2/32 dev lo
+    rm -f /tmp/hosts/e2e-relay /tmp/relay*; killall -HUP dnsmasq
+    uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo; gatygo update >/dev/null 2>&1; sleep 5'
+expect "back on the main fixture" "📍 Bravo" 'gatygo status | jq -r .profile_used'
+
 echo "== 9. stop cleans up"
 vm '/etc/init.d/gatygo stop; sleep 2'
 expect "the watcher goes with the service" "0 0" 'echo $(pgrep -f "[g]atygo watch" | wc -l) $(pgrep -f "[u]bus subscribe service" | wc -l)'
