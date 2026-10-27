@@ -89,7 +89,7 @@ cmd_ping() {
 }
 
 # Where DOMAIN goes now: {available, to: proxy|direct|block|null}. available=false: xray is not
-# running or its config has no API; to=null: xray did not answer. Not a domain: {error}, exit 1.
+# running; to=null: xray did not answer (or its config has no API). Not a domain: {error}, exit 1.
 cmd_route() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/rules.sh"
@@ -99,18 +99,20 @@ cmd_route() {
 		echo '{"error":"not a domain"}'
 		return 1
 	}
-	gatygo_route_available || {
+	gatygo_xray_running || {
 		echo '{"available":false,"to":null}'
 		return 0
 	}
-	# shellcheck disable=SC2046
-	_to=$(gatygo_route_to "$GATYGO_STATE/xray.json" tproxy "$1" $(_gatygo_route_addresses "$GATYGO_STATE/xray.json" "$1")) || _to=''
+	_to=''
+	if jq -e '.inbounds[]? | select(.tag == "api")' "$GATYGO_STATE/xray.json" >/dev/null 2>&1; then
+		_to=$(gatygo_route_where "$GATYGO_STATE/xray.json" "$1") || _to=''
+	fi
 	jq -nc --arg to "$_to" '{available: true, to: (if $to == "" then null else $to end)}'
 }
 
 # The user's rules as saved and what each does in the country in use: {available, api, pending,
 # profile, rules: [{domain, to, status}]} (statuses: lib/route.sh). No statuses (null) while xray
-# is not running (available) or its API does not answer (api), and while the installed config
+# is not running (available) or its API does not answer or is not in its config (api), and while the installed config
 # does not carry the saved rules yet (pending: an update or Save & Apply is on its way).
 cmd_rules() {
 	. "$GATYGO_LIB/service.sh"
@@ -119,10 +121,9 @@ cmd_rules() {
 	gatygo_load_config
 	_rules=$(gatygo_rules_json quiet)
 	_available=false _api=false _pending=false
-	if gatygo_route_available; then
+	if gatygo_xray_running; then
 		_available=true
-		# from the API's own inbound: its rule comes second in every config, no DNS behind it
-		gatygo_route_ask api example.com >/dev/null && _api=true
+		gatygo_route_api "$GATYGO_STATE/xray.json" && _api=true
 		# a dead API (curl without HTTP/2, say) leaves the page without statuses: one line in the
 		# log says why, not one per visit
 		if [ "$_api" = true ]; then

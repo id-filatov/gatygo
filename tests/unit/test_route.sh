@@ -42,7 +42,33 @@ assert_eq "proxy" "$(gatygo_route_to "$tmp/c0.json" gatygo-probe rare.example)" 
 ( GATYGO_API=127.0.0.1:1; gatygo_route_ask tproxy rare.example ); assert_eq "1" "$?" "no API: the call fails"
 assert_eq "null null null null null" "$(GATYGO_API=127.0.0.1:1 _st "$tmp/c0.json" "$UR")" "no API: no statuses"
 ( gatygo_route_ask tproxy rare.example 999.1.1.1 ); assert_eq "1" "$?" "a bad address is not sent"
+# the cost does not grow with the rules: one curl for all the calls, a fixed handful of jq
+mkdir -p "$tmp/count"
+for c in curl jq; do
+    printf '#!/bin/sh\necho x >> %s/%s.n\nexec %s "$@"\n' "$tmp/count" "$c" "$(command -v "$c")" > "$tmp/count/$c"
+    chmod +x "$tmp/count/$c"
+done
+( PATH="$tmp/count:$PATH"; gatygo_rules_status "$tmp/c0.json" "$UR" > "$tmp/count/out" )
+assert_eq "works nochange provider_direct provider_proxy provider_block" "$(jq -r '[.[].status] | join(" ")' "$tmp/count/out")" "the same statuses, counted"
+assert_eq "1" "$(wc -l < "$tmp/count/curl.n" | tr -d ' ')" "one curl for five rules"
+assert_exit 0 "at most three jq for five rules" test "$(wc -l < "$tmp/count/jq.n")" -le 3
 _down
+
+# --- the provider's inbound does not sniff (or not TLS): the LAN's connections carry no domain,
+#     no domain rule takes them, and the status says what their address gets
+UR4='[{"domain":"rare.example","to":"direct"},{"domain":"other.example","to":"proxy"}]'
+printf 'rare.example 1.2.3.4\nother.example 1.2.3.5\n' > "$NSLOOKUP_STUB_FILE"
+_conf "$tmp/p0.json" "$tmp/ns.json" "$UR4" '.inbounds[0].sniffing.enabled = false'
+_up "$tmp/ns.json"
+assert_eq "provider_proxy nochange" "$(_st "$tmp/ns.json" "$UR4")" "no sniffing: no rule can work"
+assert_eq "proxy" "$(gatygo_route_where "$tmp/ns.json" rare.example)" "the site check asks as the LAN's connection would: by address"
+assert_eq "direct" "$(gatygo_route_where "$tmp/c0.json" rare.example)" "with sniffing, by domain"
+_down
+_conf "$tmp/p0.json" "$tmp/nt.json" "$UR4" '.inbounds[0].sniffing.destOverride = ["http"]'
+_up "$tmp/nt.json"
+assert_eq "provider_proxy nochange" "$(_st "$tmp/nt.json" "$UR4")" "no TLS sniffing: HTTPS sites carry no domain"
+_down
+: > "$NSLOOKUP_STUB_FILE"
 
 # --- no catch-all under IPIfNonMatch: the provider's address rule still wins over a user's domain
 jq 'del(.routing.rules[-1]) | .dns.hosts += {"rare.example": "9.9.9.9", "far.example": "1.2.3.4"}' "$tmp/p0.json" > "$tmp/nc-in.json"
@@ -121,7 +147,8 @@ assert_eq "true fast" "$_api $([ $((_t1 - _t0)) -le 2 ] && echo fast || echo "sl
 _down
 cp "$tmp/uci.keep" "$UCI_STUB_FILE"; printf '%s\n' "$UR" > "$GATYGO_STATE/rules.json"
 jq '.inbounds |= map(select(.tag != "api"))' "$tmp/c0.json" > "$GATYGO_STATE/xray.json"
-assert_eq '{"available":false,"to":null}' "$(sh "$CLI" route rare.example)" "route: a config without the API"
+assert_eq '{"available":true,"to":null}' "$(sh "$CLI" route rare.example)" "route: a config without the API: xray runs, cannot tell"
+assert_eq "true false" "$(sh "$CLI" rules | jq -r '"\(.available) \(.api)"')" "rules: a config without the API: xray runs, cannot tell"
 unset UBUS_STUB_RUNNING
 
 rm -rf "$tmp"
