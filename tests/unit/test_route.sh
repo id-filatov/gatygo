@@ -1,0 +1,113 @@
+#!/bin/sh
+# Where a domain goes, as the running xray answers it (RoutingService.TestRoute over h2c): a real
+# xray with the router's config, minus the inbounds only the router can open (tproxy needs
+# CAP_NET_ADMIN). The rules' inbound tags still count: TestRoute names the inbound itself.
+. "$(dirname "$0")/../lib.sh"
+tmp=$(mktemp -d)
+export GATYGO_STATE="$tmp/state" GATYGO_RUN="$tmp/run" NSLOOKUP_STUB_FILE="$tmp/hosts"
+mkdir -p "$GATYGO_STATE" "$GATYGO_RUN"; : > "$NSLOOKUP_STUB_FILE"
+. "$GATYGO_LIB/config.sh"
+. "$GATYGO_LIB/transform.sh"
+. "$GATYGO_LIB/route.sh"
+CLI=/src/gatygo/files/gatygo
+jq '.[0]' "$FIXTURES/subscription.json" > "$tmp/p0.json"
+# the fixture's lists (tools/gen-geodat.py): ads.example.com is an ad, example.org local (direct),
+# video.example.com streaming (balancer); anything else takes the catch-all (balancer)
+UR='[{"domain":"rare.example","to":"direct"},{"domain":"other.example","to":"proxy"},{"domain":"example.org","to":"proxy"},{"domain":"video.example.com","to":"direct"},{"domain":"ads.example.com","to":"direct"}]'
+
+# _conf IN OUT RULES [FILTER] — the router's config for IN with RULES, then FILTER; OUT.run.json is what runs here
+_conf() {
+    gatygo_transform "$1" "$2.tmp" 12345 5353 255 none 10808 s3cret "$3" && jq "${4:-.}" "$2.tmp" > "$2" && rm -f "$2.tmp"
+    jq '.inbounds |= map(select(.tag == "api"))' "$2" > "$2.run.json"
+}
+_up() {
+    /usr/local/bin/xray run -c "$1.run.json" > "$tmp/xray.log" 2>&1 &
+    _xray=$!
+    for _ in $(seq 1 50); do nc -z 127.0.0.1 10085 2>/dev/null && return 0; sleep 0.1; done
+    return 1
+}
+_down() { kill "$_xray" 2>/dev/null; wait "$_xray" 2>/dev/null; }
+_st() { gatygo_rules_status "$1" "$2" | jq -r '[.[].status | tostring] | join(" ")'; }
+
+# --- the provider has a catch-all: each kind of status
+_conf "$tmp/p0.json" "$tmp/c0.json" "$UR"
+assert_exit 0 "xray answers on the API port" _up "$tmp/c0.json"
+assert_eq "direct" "$(gatygo_route_ask tproxy rare.example)" "the outbound tag xray picks"
+assert_eq "works nochange provider_direct provider_proxy provider_block" "$(_st "$tmp/c0.json" "$UR")" \
+    "statuses: works, changes nothing, beaten by the provider's direct, tunnel and block"
+assert_eq '{"domain":"rare.example","to":"direct","status":"works"}' "$(gatygo_rules_status "$tmp/c0.json" "$UR" | jq -c '.[0]')" "a status line keeps the rule"
+assert_eq "block" "$(gatygo_route_to "$tmp/c0.json" tproxy ads.example.com)" "route: a domain the provider blocks"
+assert_eq "direct" "$(gatygo_route_to "$tmp/c0.json" tproxy rare.example)" "route: the user's direct rule"
+assert_eq "proxy" "$(gatygo_route_to "$tmp/c0.json" gatygo-probe rare.example)" "route: the provider's alone from another inbound"
+( GATYGO_API=127.0.0.1:1; gatygo_route_ask tproxy rare.example ); assert_eq "1" "$?" "no API: the call fails"
+assert_eq "null null null null null" "$(GATYGO_API=127.0.0.1:1 _st "$tmp/c0.json" "$UR")" "no API: no statuses"
+( gatygo_route_ask tproxy rare.example 999.1.1.1 ); assert_eq "1" "$?" "a bad address is not sent"
+_down
+
+# --- no catch-all under IPIfNonMatch: the provider's address rule still wins over a user's domain
+jq 'del(.routing.rules[-1]) | .dns.hosts += {"rare.example": "9.9.9.9", "far.example": "1.2.3.4"}' "$tmp/p0.json" > "$tmp/nc-in.json"
+UR2='[{"domain":"rare.example","to":"proxy"},{"domain":"far.example","to":"direct"}]'
+_conf "$tmp/nc-in.json" "$tmp/nc.json" "$UR2"
+_up "$tmp/nc.json"
+assert_eq "provider_direct works" "$(_st "$tmp/nc.json" "$UR2")" \
+    "9.9.9.9 is the provider's direct address; far.example has no provider rule (no route = the first outbound)"
+_down
+
+# --- no route at all: the traffic takes the first outbound, and so does the answer
+jq 'del(.routing.rules[-1]) | .routing.domainStrategy = "AsIs"' "$tmp/p0.json" > "$tmp/na-in.json"
+_conf "$tmp/na-in.json" "$tmp/na.json" "$UR"
+_up "$tmp/na.json"
+( gatygo_route_ask gatygo-probe nowhere.example ); assert_eq "3" "$?" "xray finds no route"
+assert_eq "proxy" "$(gatygo_route_to "$tmp/na.json" gatygo-probe nowhere.example)" "the first outbound's direction"
+_down
+
+# --- a balancer without a fallback, before any measurement
+_conf "$tmp/p0.json" "$tmp/nf.json" "$UR" 'del(.routing.balancers[0].fallbackTag)'
+_up "$tmp/nf.json"
+assert_eq "proxy" "$(gatygo_route_to "$tmp/nf.json" tproxy other.example)" "a balancer that picks nothing still means the tunnel"
+_down
+
+# --- routeOnly: the traffic keeps its address, and the provider's address rules see it first
+UR3='[{"domain":"rare.example","to":"proxy"}]'
+_conf "$tmp/p0.json" "$tmp/ro.json" "$UR3" '.inbounds[0].sniffing.routeOnly = true'
+echo "rare.example 9.9.9.9" > "$NSLOOKUP_STUB_FILE"
+assert_eq "9.9.9.9" "$(gatygo_route_ips rare.example)" "addresses from the router's DNS"
+assert_eq "" "$(gatygo_route_ips nowhere.example)" "none for a name it cannot resolve"
+_up "$tmp/ro.json"
+assert_eq "direct" "$(gatygo_route_to "$tmp/ro.json" tproxy rare.example 9.9.9.9)" "with its address the provider's rule wins"
+assert_eq "proxy" "$(gatygo_route_to "$tmp/ro.json" tproxy rare.example)" "without it the user's rule would"
+assert_eq "provider_direct" "$(_st "$tmp/ro.json" "$UR3")" "so the status asks with the address"
+assert_eq "provider_proxy" "$(_st "$tmp/c0.json" '[{"domain":"video.example.com","to":"direct"}]')" "no routeOnly: the domain alone (and no DNS asked)"
+_down
+: > "$NSLOOKUP_STUB_FILE"
+
+# --- the commands
+assert_eq '{"error":"not a domain"}' "$(sh "$CLI" route bad..domain)" "route: not a domain"
+assert_exit 1 "route: not a domain fails" sh "$CLI" route bad..domain
+cp "$tmp/c0.json" "$GATYGO_STATE/xray.json"; echo "🌐 Auto" > "$GATYGO_STATE/profile"
+printf '%s' "$UR" | jq -r 'to_entries[] | "\(.key) \(.value.domain) \(.value.to)"' | while read -r i d to; do
+    uci set "gatygo.@rule[$i]=rule"; uci set "gatygo.@rule[$i].domain=$d"; uci set "gatygo.@rule[$i].to=$to"
+done
+printf '%s\n' "$UR" > "$GATYGO_STATE/rules.json"
+assert_eq '{"available":false,"to":null}' "$(sh "$CLI" route rare.example)" "route: no VPN"
+assert_eq "false false null" "$(sh "$CLI" rules | jq -r '"\(.available) \(.pending) \(.rules[0].status)"')" "rules: no VPN, no statuses"
+export UBUS_STUB_RUNNING=1
+_up "$tmp/c0.json"
+assert_eq '{"available":true,"to":"direct"}' "$(sh "$CLI" route rare.example)" "route: the answer"
+assert_eq '{"available":true,"api":true,"pending":false,"profile":"🌐 Auto"}' "$(sh "$CLI" rules | jq -c 'del(.rules)')" "rules: VPN on, all applied"
+assert_eq "works nochange provider_direct provider_proxy provider_block" "$(sh "$CLI" rules | jq -r '[.rules[].status] | join(" ")')" "rules: every status"
+uci set 'gatygo.@rule[0].to=proxy'
+assert_eq "true null" "$(sh "$CLI" rules | jq -r '"\(.pending) \(.rules[0].status)"')" "a saved change the config does not have yet: pending"
+uci set 'gatygo.@rule[0].to=direct'
+mkdir -p "$GATYGO_RUN/update.lock"; sleep 30 & _upd=$!; echo "$_upd" > "$GATYGO_RUN/update.lock/pid"
+assert_eq "true" "$(sh "$CLI" rules | jq -r .pending)" "an update running: pending"
+kill "$_upd" 2>/dev/null; wait "$_upd" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
+_down
+assert_eq '{"available":true,"to":null}' "$(sh "$CLI" route rare.example)" "route: the API does not answer"
+assert_eq "false null" "$(sh "$CLI" rules | jq -r '"\(.api) \(.rules[0].status)"')" "rules: the API does not answer"
+jq '.inbounds |= map(select(.tag != "api"))' "$tmp/c0.json" > "$GATYGO_STATE/xray.json"
+assert_eq '{"available":false,"to":null}' "$(sh "$CLI" route rare.example)" "route: a config without the API"
+unset UBUS_STUB_RUNNING
+
+rm -rf "$tmp"
+report

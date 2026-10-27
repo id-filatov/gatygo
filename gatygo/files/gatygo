@@ -7,6 +7,8 @@
 #   gatygo apply [wait]              rebuild the config from the cached subscription (Save & Apply)
 #   gatygo check [fresh]             JSON: do the usual services open through the tunnel
 #   gatygo ping [kept]               JSON: the response time of every country
+#   gatygo route <domain>            JSON: where the domain goes now (tunnel, direct, blocked)
+#   gatygo rules                     JSON: the user's rules and what each does in the current country
 #   gatygo status                    JSON for scripts and the LuCI page
 #   gatygo nodes                     JSON: outbounds with balancer selection and traffic
 #   gatygo log [N]                   last N xray/gatygo lines of the system log (default 200)
@@ -18,7 +20,7 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
 	exit 1
 }
 
@@ -84,6 +86,54 @@ cmd_ping() {
 	# a result for another subscription (updated or replaced meanwhile) is not kept
 	_sum=$(sha256sum < "$GATYGO_STATE/subscription.json")
 	gatygo_ping_store "$(gatygo_ping_run "$GATYGO_STATE/subscription.json")" "$_sum"
+}
+
+# Where DOMAIN goes now: {available, to: proxy|direct|block|null}. available=false: xray is not
+# running or its config has no API; to=null: xray did not answer. Not a domain: {error}, exit 1.
+cmd_route() {
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/rules.sh"
+	. "$GATYGO_LIB/route.sh"
+	gatygo_load_config
+	gatygo_rule_domain_ok "$1" || {
+		echo '{"error":"not a domain"}'
+		return 1
+	}
+	gatygo_route_available || {
+		echo '{"available":false,"to":null}'
+		return 0
+	}
+	# shellcheck disable=SC2046
+	_to=$(gatygo_route_to "$GATYGO_STATE/xray.json" tproxy "$1" $(_gatygo_route_addresses "$GATYGO_STATE/xray.json" "$1")) || _to=''
+	jq -nc --arg to "$_to" '{available: true, to: (if $to == "" then null else $to end)}'
+}
+
+# The user's rules as saved and what each does in the country in use: {available, api, pending,
+# profile, rules: [{domain, to, status}]} (statuses: lib/route.sh). No statuses (null) while xray
+# is not running (available) or its API does not answer (api), and while the installed config
+# does not carry the saved rules yet (pending: an update or Save & Apply is on its way).
+cmd_rules() {
+	. "$GATYGO_LIB/service.sh"
+	. "$GATYGO_LIB/rules.sh"
+	. "$GATYGO_LIB/route.sh"
+	gatygo_load_config
+	_rules=$(gatygo_rules_json quiet)
+	_available=false _api=false _pending=false
+	if gatygo_route_available; then
+		_available=true
+		gatygo_route_ask gatygo-probe example.com >/dev/null
+		[ $? -eq 1 ] || _api=true
+	fi
+	_applied=$(cat "$GATYGO_STATE/rules.json" 2>/dev/null)
+	if gatygo_updating || [ "${_applied:-[]}" != "$_rules" ]; then _pending=true; fi
+	if [ "$_available$_api$_pending" = truetruefalse ]; then
+		_status=$(gatygo_rules_status "$GATYGO_STATE/xray.json" "$_rules")
+	else
+		_status=$(printf '%s' "$_rules" | jq -c 'map(. + {status: null})')
+	fi
+	jq -nc --argjson available "$_available" --argjson api "$_api" --argjson pending "$_pending" \
+		--arg profile "$(cat "$GATYGO_STATE/profile" 2>/dev/null)" --argjson rules "$_status" \
+		'{available: $available, api: $api, pending: $pending, profile: $profile, rules: $rules}'
 }
 
 cmd_update() {
@@ -262,6 +312,8 @@ select) cmd_select "$2" ;;
 apply) cmd_apply "$2" ;;
 check) cmd_check "$2" ;;
 ping) cmd_ping "$2" ;;
+route) cmd_route "$2" ;;
+rules) cmd_rules ;;
 status) cmd_status ;;
 nodes)
 	. "$GATYGO_LIB/nodes.sh"
