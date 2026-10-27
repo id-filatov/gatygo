@@ -122,7 +122,7 @@ function confirmForget() {
 			E('div', { 'class': 'right' }, [ cancel, ' ', go ])
 		]);
 	}).catch(function(e) {
-		ui.addNotification(null, E('p', _('The router did not answer: %s').format((e && e.message) || e)), 'error');
+		ui.addNotification(null, E('p', {}, [ _('The router did not answer: %s').format((e && e.message) || e) ]), 'error');
 	});
 }
 
@@ -163,7 +163,7 @@ function statusText(code) {
 function logLine(line) {
 	// lines without a time and a level (xray's start banner) keep the columns
 	var m = /^(xray|gatygo): (?:(\d{4}[\/-]\d\d[\/-]\d\d[ T]\d\d:\d\d:\d\d)(?:\.\d+)? \[(\w+)\] )?(.*)$/.exec(line);
-	if (!m) return E('span', { 'class': 'gg-ll' }, line + '\n');
+	if (!m) return E('span', { 'class': 'gg-ll' }, [ line + '\n' ]);
 	var lvl = (m[3] || '').toLowerCase();
 	if (lvl == 'warning') lvl = 'warn';
 	return E('span', { 'class': 'gg-ll' + (lvl ? ' is-' + lvl : '') }, [
@@ -300,7 +300,7 @@ return view.extend({
 			var d = normDomain(input.value);
 			if (!d) return dom.content(res, E('span', { 'class': 'gg-err' }, _('A domain is needed, for example example.com')));
 			return callRoute(d).then(function(a) {
-				dom.content(res, (a && a.to) ? d + ' → ' + routeWord(a.to) : _('Could not check'));
+				dom.content(res, [ (a && a.to) ? d + ' → ' + routeWord(a.to) : _('Could not check') ]);
 			}).catch(function() { dom.content(res, _('Could not check')); });
 		};
 		var btn = this.checkBtn = E('button', { 'class': 'cbi-button cbi-button-action', 'click': ui.createHandlerFn(this, check) }, _('Check'));

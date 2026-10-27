@@ -334,7 +334,7 @@ return view.extend({
 	run: function(kind, promise) {
 		this.busy = kind;
 		this.repaint();
-		return promise.catch(function(e) { ui.addNotification(null, E('p', e.message), 'error'); })
+		return promise.catch(function(e) { ui.addNotification(null, E('p', {}, [ e.message ]), 'error'); })
 			.then(L.bind(function() { this.busy = null; this.busyProfile = null; return this.refresh(); }, this));
 	},
 
@@ -478,9 +478,10 @@ return view.extend({
 		return E('div', { 'class': 'gg-alert' + (p.bad ? ' bad' : ''), 'role': p.bad ? 'alert' : 'status' }, [
 			icon(p.bad ? 'bad' : 'warn', 'gg-alert-icon'),
 			E('div', { 'class': 'gg-alert-body' }, [
-				E('p', { 'class': 'gg-alert-title' }, p.title),
-				p.text ? E('p', { 'class': 'gg-alert-text' }, p.text) : '',
-				p.detail ? E('p', { 'class': 'gg-detail' }, p.detail) : ''
+				// as text, never as HTML: country names, messages and xray's log come from outside
+				E('p', { 'class': 'gg-alert-title' }, [ p.title ]),
+				p.text ? E('p', { 'class': 'gg-alert-text' }, [ p.text ]) : '',
+				p.detail ? E('p', { 'class': 'gg-detail' }, [ p.detail ]) : ''
 			]),
 			action ? E('div', { 'class': 'gg-alert-actions' }, action) : ''
 		]);
@@ -496,7 +497,7 @@ return view.extend({
 		if (!c || !c.available || !Array.isArray(c.services) || !c.services.length) return '';
 		var items = c.services.map(function(sv) {
 			var ms = sv.ms, st = busy ? 'wait' : (ms == null) ? 'none' : 'ok', b = brand(sv.name);
-			return E('li', { 'class': 'gg-check is-' + st, 'style': '--brand:' + b[1] }, [ E('span', { 'class': 'gg-badge' }, icon(b[0])), E('span', { 'class': 'gg-check-name' }, sv.name),
+			return E('li', { 'class': 'gg-check is-' + st, 'style': '--brand:' + b[1] }, [ E('span', { 'class': 'gg-badge' }, icon(b[0])), E('span', { 'class': 'gg-check-name' }, [ sv.name ]),
 				E('span', { 'class': 'gg-check-ms ' + (busy ? 'wait' : ms == null ? 'none' : ms < 1000 ? 'good' : ms < 2000 ? 'slow' : 'bad') },
 					busy ? '' : (ms == null) ? _('no reply') : (ms < 1000) ? _('%d ms').format(ms) : _('%s s').format((ms / 1000).toFixed(1))) ]);
 		});
@@ -530,8 +531,8 @@ return view.extend({
 				E('input', { 'class': 'cbi-input-text gg-url', 'type': 'url', 'placeholder': 'https://', 'aria-label': _('Subscription link'), 'autocomplete': 'off', 'data-key': 'url', 'value': failed ? this.link : null }),
 				E('button', { 'class': 'cbi-button cbi-button-action important', 'type': 'submit', 'disabled': dis, 'data-key': 'connect' }, failed ? _('Update') : _('Connect'))
 			]),
-			error ? E('p', { 'class': 'gg-field-error' }, error) : '',
-			detail ? E('p', { 'class': 'gg-detail' }, detail) : ''
+			error ? E('p', { 'class': 'gg-field-error' }, [ error ]) : '',
+			detail ? E('p', { 'class': 'gg-detail' }, [ detail ]) : ''
 		];
 	},
 
@@ -578,7 +579,7 @@ return view.extend({
 
 		if (hasConfig) {
 			var info = st.userinfo || {}, used = (+info.upload || 0) + (+info.download || 0), total = +info.total || 0, exp = +info.expire || 0;
-			if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, st.title) ]));
+			if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, [ st.title ]) ]));
 			if (used || total)
 				facts.push(E('div', {}, [ E('dt', {}, _('Traffic')), E('dd', { 'class': (total && used >= total) ? 'bad' : null },
 					total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))) ]));
@@ -599,7 +600,7 @@ return view.extend({
 			return E('button', { 'class': 'gg-chip' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : '') + (hasMs ? ' has-ms' : ''), 'type': 'button',
 				'aria-pressed': on ? 'true' : 'false', 'disabled': dis, 'title': p.description || null,
 				'data-key': 'chip:' + p.remarks, 'click': ui.createHandlerFn(this, 'handleSelect', p.remarks) },
-				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', { 'class': 'gg-chip-name' }, f.name),
+				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', { 'class': 'gg-chip-name' }, [ f.name ]),
 					hasMs ? E('span', { 'class': 'gg-chip-ms' + (measuring ? ' wait' : ms == null ? '' : ms <= 60 ? ' good' : ms >= 120 ? ' slow' : ''),
 						'title': measuring ? null : (ms == null) ? _('No reply from this server') : _('Response time from your router to this server') },
 						measuring ? '' : (ms == null) ? '—' : _('%d ms').format(ms)) : '' ]);
