@@ -3,7 +3,7 @@
 		"description": "Grant access to the gatygo page",
 		"read": {
 			"ubus": {
-				"gatygo": [ "status", "log", "check", "ping" ]
+				"gatygo": [ "status", "log", "check", "ping", "rules", "route" ]
 			},
 			"uci": [ "gatygo" ]
 		},

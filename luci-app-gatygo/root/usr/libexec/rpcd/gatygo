@@ -6,7 +6,7 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true},"rules":{},"route":{"domain":"domain"}}'
 		;;
 	call)
 		case $2 in
@@ -72,6 +72,16 @@ case $1 in
 					2) echo '{"result":"busy"}' ;;
 					*) jq -nc --arg m "$_e" '{result: "error", message: $m}' ;;
 				esac
+				;;
+			# the user's rules and what each does now: a call to xray per rule, about 10 ms each
+			rules) "$GATYGO" rules ;;
+			route)
+				_d=$(jq -r '.domain // empty' 2>/dev/null)
+				[ -n "$_d" ] || {
+					echo '{"error":"domain required"}'
+					exit 0
+				}
+				"$GATYGO" route "$_d"
 				;;
 			*) echo '{"error":"unknown method"}' ;;
 		esac

@@ -20,5 +20,7 @@ case $1 in
         [ "${GATYGO_CLI_FORGET_RC:-0}" = 1 ] && echo "the VPN could not be stopped" >&2
         exit "${GATYGO_CLI_FORGET_RC:-0}"
         ;;
+    rules) echo '{"available":true,"api":true,"pending":false,"profile":"🌐 Auto","rules":[{"domain":"rare.example","to":"direct","status":"works"}]}' ;;
+    route) echo '{"available":true,"to":"direct"}' ;;
     *) exit 1 ;;
 esac

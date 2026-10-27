@@ -6,7 +6,7 @@ export GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_CLI_LOG="$tmp/calls" GATYGO
 : > "$GATYGO_CLI_LOG"
 call() { _m=$1; shift; printf '%s' "${1:-{\}}" | sh "$RPCD" call "$_m"; }
 
-assert_eq '["check","connect","forget","log","ping","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the eight methods"
+assert_eq '["check","connect","forget","log","ping","route","rules","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the ten methods"
 assert_eq "32" "$(sh "$RPCD" list | jq '.log.lines')" "log declares a numeric argument"
 assert_eq "true" "$(call status | jq .running)" "status passes the CLI JSON through"
 assert_eq "unknown method" "$(call nodes | jq -r .error)" "the page has no node list: no nodes method"
@@ -62,6 +62,12 @@ assert_eq "3" "$(grep -c '^forget$' "$GATYGO_CLI_LOG")" "every call reached the 
 ACL=/src/luci-app-gatygo/root/usr/share/rpcd/acl.d/luci-app-gatygo.json
 assert_exit 0 "ACL: forget is a write method" jq -e '.["luci-app-gatygo"].write.ubus.gatygo | index("forget")' "$ACL"
 assert_exit 0 "ACL: uci revert, nothing more of uci over ubus" jq -e '.["luci-app-gatygo"].write.ubus.uci == ["revert"]' "$ACL"
+# --- the user's rules: statuses and the site check, both read-only
+assert_eq "works" "$(call rules | jq -r '.rules[0].status')" "rules passes the CLI JSON through"
+assert_eq "direct" "$(call route '{"domain":"rare.example"}' | jq -r .to)" "route passes the CLI JSON through"
+assert_eq "1" "$(grep -c '^route rare.example$' "$GATYGO_CLI_LOG")" "route passed the domain verbatim"
+assert_eq "domain required" "$(call route '{}' | jq -r .error)" "route without a domain"
+assert_exit 0 "ACL: rules and route are read methods" jq -e '.["luci-app-gatygo"].read.ubus.gatygo | index("rules") and index("route")' "$ACL"
 assert_eq "unknown method" "$(call bogus | jq -r .error)" "unknown method"
 
 rm -rf "$tmp"
