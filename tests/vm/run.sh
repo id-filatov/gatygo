@@ -151,6 +151,31 @@ expect "a switch after it keeps the failed update in sight" "error fetch_failed 
 vm 'gatygo update >/dev/null 2>&1'
 expect "the next update drops the switch's result" "ok null" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_select)\""'
 
+echo "== 7b. my rules"
+# the panel down: Save & Apply puts the rules in from the cached subscription. The fixture's lists
+# (tools/gen-geodat.py): ads.example.com an ad, example.org local (direct), video.example.com
+# streaming (balancer); anything else takes the catch-all (balancer).
+vm 'i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
+ssh "$LAB_HOST" 'pkill -f sub_server.py'
+vm 'r() { uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].domain=$1; uci set gatygo.@rule[-1].to=$2; }
+    r rare.example direct; r other.example proxy; r example.org proxy; r video.example.com direct; r ads.example.com direct
+    uci commit gatygo; /etc/init.d/gatygo reload'
+check "my rules: applied with the panel down" 'i=0; until gatygo rules | jq -e ".pending == false" >/dev/null; do i=$((i + 1)); [ $i -lt 90 ] || exit 1; sleep 1; done'
+expect "my rules: all five in the config" "5" 'jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json'
+expect "my rules: the provider's catch-all stays last" "tcp,udp" 'jq -r ".routing.rules[-1].network" /etc/gatygo/xray.json'
+expect "my rules: a status for each" "works nochange provider_direct provider_proxy provider_block" 'gatygo rules | jq -r "[.rules[].status] | join(\" \")"'
+expect "route: a domain the provider blocks" "block" 'ubus -S call gatygo route "{\"domain\":\"ads.example.com\"}" | jq -r .to'
+expect "route: the user's rule" "direct" 'ubus -S call gatygo route "{\"domain\":\"rare.example\"}" | jq -r .to'
+vm 'sleep 2; i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
+expect "the download behind it failed, the rules stayed" "error fetch_failed 5" 'echo "$(gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\"") $(jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json)"'
+# the panel back (as in section 0), the rules gone
+ssh "$LAB_HOST" "cd $LAB_DIR && nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
+             i=0; until curl -fs -o /dev/null localhost:8787/log; do i=\$((i + 1)); [ \$i -lt 20 ] || exit 1; sleep 0.5; done" \
+    && ok "mock panel back up" || bad "mock panel back up"
+vm 'while uci -q delete gatygo.@rule[0]; do :; done; uci commit gatygo; /etc/init.d/gatygo reload; sleep 2
+    i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done; gatygo update >/dev/null 2>&1'
+expect "no rules left, the update ok again" "0 ok" 'echo "$(jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json) $(gatygo status | jq -r .last_update.result)"'
+
 echo "== 8. LAN client (netns)"
 vm 'ip netns add c1 && ip link add veth-c1 type veth peer name veth-c1p && ip link set veth-c1p netns c1 && ip link set veth-c1 master br-lan up &&
     ip netns exec c1 sh -c "ip link set lo up; ip addr add 192.168.1.50/24 dev veth-c1p; ip link set veth-c1p up; ip route add default via 192.168.1.1"'

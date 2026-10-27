@@ -21,6 +21,8 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 - A server moved to a new IP under the same name: the next update reconnects xray.
 - LAN DNS goes through xray, the router's own traffic is untouched.
 - Routing, balancer and geo files come from the subscription only; no built-in rules.
+- Your own domain rules (tunnel or direct) in Advanced → My rules. They apply after the VPN
+  provider's rules; the page shows what each one does in the current country.
 - Connection caps against OOM.
 
 ## Requirements
@@ -61,10 +63,13 @@ gatygo connect <url>             store the link, enable and start
 gatygo forget                    delete the subscription, reset settings
 gatygo update                    update the subscription
 gatygo select <profile>          switch profile
+gatygo apply [wait]              rebuild the config from the cached subscription
 gatygo status                    JSON: state, profile, subscription, last result
 gatygo check [fresh]             JSON: services reachable through the tunnel
 gatygo ping [kept]               JSON: profile response times
 gatygo nodes                     JSON: outbounds, balancer choice, traffic
+gatygo rules                     JSON: your rules and what each does now
+gatygo route <domain>            JSON: where the domain goes now
 gatygo log [N]                   last N lines of the xray and gatygo log
 ```
 
