@@ -235,5 +235,29 @@ assert_eq "error device_limit" "$(sh "$CLI" status | jq -r '"\(.last_update.resu
 gatygo_update 2>>"$tmp/stderr.log"
 assert_eq "ok null" "$(_last RESULT) $(sh "$CLI" status | jq -c .last_select)" "the next update: the switch's result is done with"
 
+# --- gatygo apply: the settings and the user's rules on the cached subscription, no download
+mkdir -p "$GATYGO_RUN/update.lock"; sleep 30 & _upd=$!; echo "$_upd" > "$GATYGO_RUN/update.lock/pid"
+assert_exit 2 "apply while an update runs: busy" sh "$CLI" apply
+(sleep 2; kill "$_upd") &
+assert_exit 0 "apply wait goes through once the update is over" sh "$CLI" apply wait
+wait "$_upd" 2>/dev/null
+uci set 'gatygo.@rule[0]=rule'; uci set 'gatygo.@rule[0].domain=rare.example'; uci set 'gatygo.@rule[0].to=direct'
+_before=$(curl -fs http://127.0.0.1:8789/log | jq "[.[] | select(.path != \"/log\")] | length")
+_lu=$(sha256sum < "$GATYGO_STATE/last-update.env")
+assert_exit 0 "apply" sh "$CLI" apply
+assert_eq "$_before" "$(curl -fs http://127.0.0.1:8789/log | jq "[.[] | select(.path != \"/log\")] | length")" "apply downloads nothing"
+assert_eq "1" "$(jq '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))] | length' "$GATYGO_STATE/xray.json")" "the rule is in the installed config"
+assert_eq "$_lu" "$(sha256sum < "$GATYGO_STATE/last-update.env")" "apply records no result of its own"
+assert_exit 1 "nor a switch's" test -e "$GATYGO_RUN/last-select.env"
+mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
+assert_exit 1 "no cached subscription: apply fails" sh "$CLI" apply
+assert_eq "1" "$(grep -c 'settings could not be applied to the cached subscription' "$SYSLOG_STUB_FILE")" "and says so in the log"
+mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
+_x=$(sha256sum < "$GATYGO_STATE/xray.json")
+_sub=$(uci get gatygo.main.sub_url); uci delete gatygo.main.sub_url; uci delete 'gatygo.@rule[0]'
+assert_exit 0 "apply without a link: nothing to do" sh "$CLI" apply
+assert_eq "$_x" "$(sha256sum < "$GATYGO_STATE/xray.json")" "the config is left alone"
+uci set gatygo.main.sub_url="$_sub"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

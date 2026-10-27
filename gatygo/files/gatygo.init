@@ -118,9 +118,11 @@ service_stopped() {
 	procd_close_service
 }
 
-# reload = the UCI config changed (Save & Apply). A changed URL, user agent or hwid flag needs a
-# new download; the instance itself is re-submitted by `start`, which restarts xray only when
-# its files changed. The daemon's own post-update path calls `start` directly, not `reload`.
+# reload = the UCI config changed (Save & Apply). The cached subscription is rebuilt with the new
+# settings and the user's rules first (`gatygo apply`): they take effect even when the panel does
+# not answer. A changed URL, user agent or hwid flag needs a new download, which follows; the
+# instance itself is re-submitted by `start`, which restarts xray only when its files changed.
+# The daemon's own post-update path calls `start` directly, not `reload`.
 reload_service() {
 	_gatygo_env
 	if [ "$GATYGO_ENABLED" != 1 ]; then
@@ -128,15 +130,18 @@ reload_service() {
 		return 0
 	fi
 	if [ -f "$GATYGO_RUN/stopped" ]; then
-		(/usr/bin/gatygo update) >/dev/null 2>&1 &
+		(/usr/bin/gatygo apply wait; /usr/bin/gatygo update) >/dev/null 2>&1 &
 		return 0
 	fi
 	_gatygo_was_running=0
 	gatygo_xray_running && _gatygo_was_running=1
+	/usr/bin/gatygo apply >/dev/null 2>&1
+	_gatygo_applied=$?
 	start
 	if [ "$_gatygo_was_running" = 1 ]; then
 		gatygo_cron_sync "$(gatygo_update_interval_hours)"
-		(/usr/bin/gatygo update) >/dev/null 2>&1 &
+		# an update held the lock and read the old settings: apply once it is over
+		( [ "$_gatygo_applied" != 2 ] || /usr/bin/gatygo apply wait; /usr/bin/gatygo update ) >/dev/null 2>&1 &
 	fi
 }
 
