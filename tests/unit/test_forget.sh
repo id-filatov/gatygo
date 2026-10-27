@@ -27,6 +27,8 @@ _populate() {
     uci set gatygo.main.profile="📍 Bravo"
     uci set gatygo.main.tproxy_port=23456
     uci set gatygo.main.hwid=$HWID
+    uci set 'gatygo.@rule[0]=rule'; uci set 'gatygo.@rule[0].domain=rare.example'; uci set 'gatygo.@rule[0].to=direct'
+    uci set 'gatygo.@rule[1]=rule'; uci set 'gatygo.@rule[1].domain=example.org'; uci set 'gatygo.@rule[1].to=proxy'
     : > "$GATYGO_INIT_LOG"; : > "$SYSLOG_STUB_FILE"
 }
 # the package defaults as `uci show gatygo.main.` prints them
@@ -47,6 +49,8 @@ assert_eq "other.dat" "$(ls "$GATYGO_ASSETS")" "gatygo's geo files go, anything 
 assert_exit 0 "the xray core stays" test -s "$GATYGO_CORE_DIR/xray"
 assert_eq "$(_defaults | sed "s/^gatygo.main.hwid=\$/gatygo.main.hwid=$HWID/" | sort)" "$(uci show gatygo.main. | sort)" \
     "the settings are the package defaults, the device ID kept"
+assert_exit 1 "the user's rules go with the subscription" uci -q get 'gatygo.@rule[0]'
+assert_eq "" "$(uci show gatygo.@rule)" "every one of them"
 assert_eq "1" "$(grep -c '\[info\] subscription removed$' "$SYSLOG_STUB_FILE")" "one log line says so"
 assert_exit 1 "the link never reaches the log" grep -q SECRETTOKEN "$SYSLOG_STUB_FILE"
 

@@ -7,6 +7,8 @@
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 GATYGO_DEFAULTS=${GATYGO_DEFAULTS:-${GATYGO_LIB:-/usr/lib/gatygo}/defaults.config}
 
+. "${GATYGO_LIB:-/usr/lib/gatygo}/rules.sh"
+
 # gatygo_forget — exit 0 done, 2 an update is running (nothing touched), 1 the VPN could not be
 # stopped (nothing erased), 3 the settings could not be written (a full overlay: the link may
 # still be in the config), 4 a state path is not absolute (nothing touched)
@@ -44,6 +46,8 @@ gatygo_forget() {
         uci set "gatygo.main.$_gatygo_o"
     done
     [ -n "$_gatygo_hwid" ] && uci set gatygo.main.hwid="$_gatygo_hwid"
+    # the user's rules are settings too
+    gatygo_rules_clear
     if ! uci commit gatygo; then
         gatygo_update_unlock
         return 3
