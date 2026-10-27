@@ -339,7 +339,10 @@ return view.extend({
 	},
 
 	handleSelect: function(profile, ev) {
-		if (profile == this.status.profile_used && this.status.last_update.code != 'profile_missing') return;
+		// the country in use: nothing to switch, unless the saved one is another (gone from the
+		// subscription, or a switch to it failed)
+		var st = this.status;
+		if (profile == st.profile_used && (!st.profile || st.profile == st.profile_used)) return;
 		this.busyProfile = profile;
 		return this.run('select', callSelect(profile).then(function(r) {
 			if (r && r.result == 'busy')
@@ -383,7 +386,9 @@ return view.extend({
 
 	// What went wrong, in the user's words. The daemon's own message goes below as the detail.
 	problem: function(st, running) {
-		var lu = st.last_update || {}, info = st.userinfo || {};
+		var info = st.userinfo || {}, ls = st.last_select || {};
+		// a failed switch goes first: it is the latest thing done here; a failed update shows again after it
+		var lu = (ls.result == 'error' || ls.result == 'warning') ? ls : (st.last_update || {});
 		var exp = +info.expire || 0, total = +info.total || 0, used = (+info.upload || 0) + (+info.download || 0);
 		var kept = running ? ' ' + _('You stay connected with the previous settings.') : '';
 		var retry = { label: _('Try again'), handler: 'handleUpdate' };

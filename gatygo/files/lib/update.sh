@@ -15,12 +15,9 @@
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
-# gatygo_result RESULT CODE MESSAGE [PROFILE] [RESTARTED] — record the outcome for the UI and log it.
-# CODE is a stable name of the cause (the page picks its wording by it); MESSAGE is for the log.
-# One small file in the state dir, overwritten each time: the panel shows the last real result
-# right after a reboot instead of nothing until the boot-time update has run.
-gatygo_result() {
-    mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
+# _gatygo_record FILE RESULT CODE MESSAGE [PROFILE] [RESTARTED] — write an outcome file and log the message
+_gatygo_record() {
+    _gatygo_rf=$1; shift
     {
         echo "RESULT=$(gatygo_shquote "$1")"
         echo "CODE=$(gatygo_shquote "$2")"
@@ -28,12 +25,29 @@ gatygo_result() {
         echo "MESSAGE=$(gatygo_shquote "$3")"
         echo "PROFILE=$(gatygo_shquote "${4:-}")"
         echo "RESTARTED=$(gatygo_shquote "${5:-0}")"
-    } > "$GATYGO_STATE/last-update.env.tmp" && mv "$GATYGO_STATE/last-update.env.tmp" "$GATYGO_STATE/last-update.env"
+    } > "$_gatygo_rf.tmp" && mv "$_gatygo_rf.tmp" "$_gatygo_rf"
     case $1 in
         error) gatygo_log error "$3" ;;
         warning) gatygo_log warn "$3" ;;
         *) gatygo_log info "$3" ;;
     esac
+}
+
+# gatygo_result RESULT CODE MESSAGE [PROFILE] [RESTARTED] — record the outcome of an update for the UI
+# and log it. CODE is a stable name of the cause (the page picks its wording by it); MESSAGE is for
+# the log. One small file in the state dir, overwritten each time: the panel shows the last real
+# result right after a reboot instead of nothing until the boot-time update has run.
+gatygo_result() {
+    mkdir -p "$GATYGO_STATE" && chmod 700 "$GATYGO_STATE"
+    _gatygo_record "$GATYGO_STATE/last-update.env" "$@"
+}
+
+# gatygo_select_result RESULT CODE MESSAGE [PROFILE] [RESTARTED] — the same for a switch of the
+# profile, kept apart: a switch neither hides a failed update nor counts as one. In the run dir
+# (tmpfs); the next update applies the saved profile again and drops it.
+gatygo_select_result() {
+    mkdir -p "$GATYGO_RUN"
+    _gatygo_record "$GATYGO_RUN/last-select.env" "$@"
 }
 
 # gatygo_xray_test CONFIG ASSET_DIR — `xray run -test`; on failure log the tail of xray's output
@@ -179,6 +193,7 @@ gatygo_update() {
     # so does a relay that moved while xray stays on its old address (lib/relay.sh)
     elif gatygo_relay_moved "$GATYGO_STATE/xray.json"; then gatygo_relay_reconnect; _gatygo_restarted=1; _gatygo_reload
     fi
+    rm -f "$GATYGO_RUN/last-select.env"
     if [ "$_gatygo_apply" -eq 3 ]; then
         gatygo_result warning profile_missing "profile '$GATYGO_PROFILE' is not in the subscription; using '$_gatygo_prof'" "$_gatygo_prof" "$_gatygo_restarted"
     else

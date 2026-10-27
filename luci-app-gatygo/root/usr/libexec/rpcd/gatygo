@@ -37,7 +37,7 @@ case $1 in
 					echo '{"result":"busy"}'
 					exit 0
 				}
-				"$GATYGO" status | jq -c '{result: .last_update.result, code: .last_update.code, profile: .profile_used, message: .last_update.message}'
+				"$GATYGO" status | jq -c '{result: .last_select.result, code: .last_select.code, profile: .profile_used, message: .last_select.message}'
 				;;
 			check)
 				# the kept result unless a new run is asked for; a run takes up to 5 s

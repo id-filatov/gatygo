@@ -146,7 +146,10 @@ expect "profile_used updated" "📍 Bravo" 'gatygo status | jq -r .profile_used'
 expect "Bravo config installed" "11" 'jq ".outbounds | length" /etc/gatygo/xray.json'
 vm 'uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub-broken; uci commit gatygo; gatygo update >/dev/null 2>&1; uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo'
 expect "a failed update names its cause and keeps the profile in use" "error fetch_failed 📍 Bravo" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code) \(.profile_used)\""'
+vm 'gatygo select "📍 Bravo" >/dev/null 2>&1'
+expect "a switch after it keeps the failed update in sight" "error fetch_failed ok applied" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code) \(.last_select.result) \(.last_select.code)\""'
 vm 'gatygo update >/dev/null 2>&1'
+expect "the next update drops the switch's result" "ok null" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_select)\""'
 
 echo "== 8. LAN client (netns)"
 vm 'ip netns add c1 && ip link add veth-c1 type veth peer name veth-c1p && ip link set veth-c1p netns c1 && ip link set veth-c1 master br-lan up &&

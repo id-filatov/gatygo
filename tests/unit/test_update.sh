@@ -209,5 +209,20 @@ assert_eq "$_prof" "$(uci -q get gatygo.main.profile)" "no profile written over 
 assert_exit 1 "no result written into the wiped state" test -e "$GATYGO_STATE/last-update.env"
 uci set gatygo.main.sub_url="$_sub"; mv "$tmp/lu.keep" "$GATYGO_STATE/last-update.env"
 
+# --- a switch keeps the update's outcome: a failed update stays failed and its time stays its own;
+#     the switch has a record of its own until the next update applies the saved country again
+uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-maxdev
+gatygo_update 2>>"$tmp/stderr.log"
+uci set gatygo.main.sub_url="$_sub"
+_t0=$(_last TIME)
+assert_eq "null" "$(sh "$CLI" status | jq -c .last_select)" "no switch yet: nothing to show"
+sleep 1
+assert_exit 0 "a switch after a failed update goes through" sh "$CLI" select "📍 Bravo"
+assert_eq "error device_limit $_t0" "$(_last RESULT) $(_last CODE) $(_last TIME)" "the failed update stays as it was"
+assert_eq "ok applied" "$(sh "$CLI" status | jq -r '"\(.last_select.result) \(.last_select.code)"')" "the switch reports its own result"
+assert_eq "error device_limit" "$(sh "$CLI" status | jq -r '"\(.last_update.result) \(.last_update.code)"')" "status keeps the update's"
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "ok null" "$(_last RESULT) $(sh "$CLI" status | jq -c .last_select)" "the next update: the switch's result is done with"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report
