@@ -55,5 +55,12 @@ _req=$(curl -fs http://127.0.0.1:8787/log | jq -c '[.[] | select(.path == "/sub-
 assert_eq "false" "$(printf '%s' "$_req" | jq 'has("x-hwid")')" "empty hwid -> header omitted"
 assert_exit 0 "body still validates without hwid" gatygo_sub_validate "$tmp/b6"
 
+# a server that lies dead (no answer to the connection) is given up on in 10 s, not in --max-time:
+# four tries of 30 s kept the countries on the page locked for over two minutes
+mkdir -p "$tmp/bin"
+printf '#!/bin/sh\necho "$*" > "%s/curl.args"\nexec /usr/bin/curl "$@"\n' "$tmp" > "$tmp/bin/curl"; chmod +x "$tmp/bin/curl"
+PATH="$tmp/bin:$PATH" gatygo_fetch http://127.0.0.1:8787/sub gatygo/0.1.0 "" "$tmp/b7" "$tmp/h7" >/dev/null
+case " $(cat "$tmp/curl.args") " in *" --connect-timeout 10 "*) _t_ok ;; *) _t_bad "curl waits for the connection at most 10 s: $(cat "$tmp/curl.args")" ;; esac
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report
