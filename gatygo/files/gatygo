@@ -121,8 +121,16 @@ cmd_rules() {
 	_available=false _api=false _pending=false
 	if gatygo_route_available; then
 		_available=true
-		gatygo_route_ask gatygo-probe example.com >/dev/null
-		[ $? -eq 1 ] || _api=true
+		# from the API's own inbound: its rule comes second in every config, no DNS behind it
+		gatygo_route_ask api example.com >/dev/null && _api=true
+		# a dead API (curl without HTTP/2, say) leaves the page without statuses: one line in the
+		# log says why, not one per visit
+		if [ "$_api" = true ]; then
+			rm -f "$GATYGO_RUN/route-api-down"
+		elif [ ! -e "$GATYGO_RUN/route-api-down" ]; then
+			mkdir -p "$GATYGO_RUN" && : > "$GATYGO_RUN/route-api-down"
+			gatygo_log warn "the xray API does not answer: no rule statuses, no site check"
+		fi
 	fi
 	_applied=$(cat "$GATYGO_STATE/rules.json" 2>/dev/null)
 	if gatygo_updating || [ "${_applied:-[]}" != "$_rules" ]; then _pending=true; fi

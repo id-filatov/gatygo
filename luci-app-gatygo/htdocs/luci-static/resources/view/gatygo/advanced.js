@@ -201,9 +201,20 @@ return view.extend({
 		el.textContent = s ? s[1] : '';
 	},
 
-	// while the router is still applying the saved rules (Save & Apply, an update): ask again
+	// the Check row as the last answer allows: no answer at all, xray not running, its API silent
+	paintCheck: function() {
+		if (!this.checkBtn) return;
+		var r = this.rules;
+		var note = !r ? _('Could not check') : !r.available ? _('The check works while the VPN is on') : !r.api ? _('Could not check') : '';
+		this.checkBtn.disabled = !!note;
+		this.checkNote.textContent = note;
+	},
+
+	// ask again while the answer can still change by itself: the router is applying the saved
+	// rules (Save & Apply, an update), xray's API is not up yet after a restart, or the call failed
 	pollRules: function(left) {
-		if (!this.rules || !this.rules.pending || left <= 0) return;
+		var r = this.rules;
+		if (left <= 0 || (r && !r.pending && (!r.available || r.api))) return;
 		window.setTimeout(L.bind(function() {
 			L.resolveDefault(callRules(), null).then(L.bind(function(r) {
 				if (r) {
@@ -212,6 +223,7 @@ return view.extend({
 						this.paintStatus(el, el.getAttribute('data-gg-rule'));
 					}, this));
 				}
+				this.paintCheck();
 				this.pollRules(left - 1);
 			}, this));
 		}, this), 3000);
@@ -242,7 +254,8 @@ return view.extend({
 			if (el) self.paintStatus(el, sid, true);
 		};
 
-		o = s.option(form.DummyValue, '_status', r.profile ? _('Now, in %s').format(r.profile) : '');
+		// the title goes in as HTML: the country's name is the subscription's, not ours
+		o = s.option(form.DummyValue, '_status', r.profile ? _('Now, in %s').format('%h'.format(r.profile)) : '');
 		o.textvalue = function(sid) {
 			var el = E('span', { 'data-gg-rule': sid });
 			self.paintStatus(el, sid);
@@ -281,8 +294,6 @@ return view.extend({
 	},
 
 	renderCheck: function() {
-		var r = this.rules || {};
-		var note = !r.available ? _('The check works while the VPN is on') : (!r.api ? _('Could not check') : '');
 		var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': 'example.com', 'aria-label': _('Domain') });
 		var res = E('div', { 'class': 'gg-check-res' });
 		var check = function() {
@@ -292,12 +303,13 @@ return view.extend({
 				dom.content(res, (a && a.to) ? d + ' → ' + routeWord(a.to) : _('Could not check'));
 			}).catch(function() { dom.content(res, _('Could not check')); });
 		};
-		var btn = E('button', { 'class': 'cbi-button cbi-button-action', 'disabled': note ? '' : null,
-			'click': ui.createHandlerFn(this, check) }, _('Check'));
+		var btn = this.checkBtn = E('button', { 'class': 'cbi-button cbi-button-action', 'click': ui.createHandlerFn(this, check) }, _('Check'));
+		this.checkNote = E('span', { 'class': 'gg-muted' });
+		this.paintCheck();
 		input.addEventListener('keydown', function(ev) { if (ev.key == 'Enter' && !btn.disabled) { ev.preventDefault(); btn.click(); } });
 		return E('div', { 'class': 'cbi-section gg-check' }, [
 			E('h4', {}, _('Where will a site go?')),
-			E('div', { 'class': 'gg-check-row' }, [ input, btn, note ? E('span', { 'class': 'gg-muted' }, note) : '' ]),
+			E('div', { 'class': 'gg-check-row' }, [ input, btn, this.checkNote ]),
 			res
 		]);
 	},

@@ -104,7 +104,22 @@ assert_eq "true" "$(sh "$CLI" rules | jq -r .pending)" "an update running: pendi
 kill "$_upd" 2>/dev/null; wait "$_upd" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
 _down
 assert_eq '{"available":true,"to":null}' "$(sh "$CLI" route rare.example)" "route: the API does not answer"
+: > "$SYSLOG_STUB_FILE"
 assert_eq "false null" "$(sh "$CLI" rules | jq -r '"\(.api) \(.rules[0].status)"')" "rules: the API does not answer"
+sh "$CLI" rules >/dev/null; sh "$CLI" rules >/dev/null
+assert_eq "1" "$(grep -c '\[warn\] the xray API does not answer' "$SYSLOG_STUB_FILE")" "the API down is logged, once"
+_up "$tmp/c0.json"; sh "$CLI" rules >/dev/null; _down; : > "$SYSLOG_STUB_FILE"; sh "$CLI" rules >/dev/null
+assert_eq "1" "$(grep -c '\[warn\] the xray API does not answer' "$SYSLOG_STUB_FILE")" "and again after it came back and went"
+# no catch-all under IPIfNonMatch and a DNS server that never answers (xray gives up after 4 s):
+# the API check must not wait on it
+jq 'del(.routing.rules[-1]) | .dns = {servers: ["udp+local://10.255.255.1:53"]}' "$tmp/p0.json" > "$tmp/sd-in.json"
+_conf "$tmp/sd-in.json" "$tmp/sd.json" '[]'
+cp "$tmp/sd.json" "$GATYGO_STATE/xray.json"; cp "$UCI_STUB_FILE" "$tmp/uci.keep"; : > "$UCI_STUB_FILE"; echo '[]' > "$GATYGO_STATE/rules.json"
+_up "$tmp/sd.json"
+_t0=$(date +%s); _api=$(sh "$CLI" rules | jq -r .api); _t1=$(date +%s)
+assert_eq "true fast" "$_api $([ $((_t1 - _t0)) -le 2 ] && echo fast || echo "slow: $((_t1 - _t0)) s")" "the API check does not wait on DNS"
+_down
+cp "$tmp/uci.keep" "$UCI_STUB_FILE"; printf '%s\n' "$UR" > "$GATYGO_STATE/rules.json"
 jq '.inbounds |= map(select(.tag != "api"))' "$tmp/c0.json" > "$GATYGO_STATE/xray.json"
 assert_eq '{"available":false,"to":null}' "$(sh "$CLI" route rare.example)" "route: a config without the API"
 unset UBUS_STUB_RUNNING

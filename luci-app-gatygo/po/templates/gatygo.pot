@@ -75,6 +75,14 @@ msgid "✗ The rule does not work: the VPN provider blocks it"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Could not check"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The check works while the VPN is on"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "VPN provider rules take priority. A domain covers its subdomains."
 msgstr ""
 
@@ -104,14 +112,6 @@ msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Add"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "The check works while the VPN is on"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "Could not check"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
