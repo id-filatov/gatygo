@@ -446,6 +446,10 @@ msgid "Nothing opens through this country. Try another one."
 msgstr "Через эту страну ничего не открывается. Попробуйте другую."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Nothing opens through this country."
+msgstr "Через эту страну ничего не открывается."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "This link did not work. Check that you copied the whole link from your provider."
 msgstr "Эта ссылка не сработала. Проверьте, что скопировали ссылку от провайдера целиком."
 
@@ -569,8 +573,8 @@ msgid "Measuring response time…"
 msgstr "Измерение времени отклика…"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "No server answered. Check the router’s internet connection."
-msgstr "Ни один сервер не ответил. Проверьте подключение роутера к интернету."
+msgid "No server answered: your provider has an outage, or the router has no internet."
+msgstr "Ни один сервер не ответил: у провайдера сбой или у роутера нет интернета."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Response time measured %s"

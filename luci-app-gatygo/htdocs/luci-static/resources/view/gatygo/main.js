@@ -488,8 +488,10 @@ return view.extend({
 
 	// Do the usual services open through the tunnel? A tile per service with its brand icon; the
 	// number says how fast (the time to the end of the TLS handshake) and its colour how good,
-	// a dashed tile with a grey icon did not answer. Plain items: only ↻ is a button.
-	renderCheck: function() {
+	// a dashed tile with a grey icon did not answer. Plain items: only ↻ is a button. When nothing
+	// opens, another country is suggested only if one answers (silent: none does, the line under
+	// the countries says so; others: another one does).
+	renderCheck: function(silent, others) {
 		var c = this.check, busy = this.checking;
 		if (!c || !c.available || !Array.isArray(c.services) || !c.services.length) return '';
 		var items = c.services.map(function(sv) {
@@ -504,7 +506,8 @@ return view.extend({
 			E('p', { 'class': 'gg-checked' }, [ busy ? _('Checking…') : _('Checked %s').format(fmtAgo(+c.time)),
 				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': busy ? '' : null, 'title': _('Check again'), 'aria-label': _('Check again'),
 					'data-key': 'recheck', 'click': ui.createHandlerFn(this, 'handleCheck') }, icon('refresh')) ]),
-			none ? E('p', { 'class': 'gg-check-hint' }, _('Nothing opens through this country. Try another one.')) : ''
+			(none && !silent) ? E('p', { 'class': 'gg-check-hint' }, others ? _('Nothing opens through this country. Try another one.')
+				: _('Nothing opens through this country.')) : ''
 		]);
 	},
 
@@ -603,10 +606,11 @@ return view.extend({
 		}, this));
 
 		var measure = '';
+		var silent = !measuring && pg.time != null && profiles.length > 0 && profiles.every(function(p) { return times[p.remarks] == null; });
+		var others = !measuring && profiles.some(function(p) { return p.remarks != st.profile_used && times[p.remarks] != null; });
 		if (measuring || pg.time != null) {
-			var silent = !measuring && profiles.length > 0 && profiles.every(function(p) { return times[p.remarks] == null; });
 			measure = E('p', { 'class': 'gg-measure' + (silent ? ' bad' : '') }, [
-				E('span', {}, measuring ? _('Measuring response time…') : silent ? _('No server answered. Check the router’s internet connection.')
+				E('span', {}, measuring ? _('Measuring response time…') : silent ? _('No server answered: your provider has an outage, or the router has no internet.')
 					: _('Response time measured %s').format(fmtAgo(+pg.time))),
 				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': measuring ? '' : null, 'title': _('Measure again'), 'aria-label': _('Measure again'),
 					'data-key': 'remeasure', 'click': ui.createHandlerFn(this, 'handlePing') }, icon('refresh')) ]);
@@ -630,7 +634,7 @@ return view.extend({
 					'aria-label': _('Advanced: settings, nodes, log'), 'data-key': 'gear' }, icon('gear'))
 			]),
 			problem ? this.renderAlert(problem, dis) : '',
-			(hasConfig && running && this.busy != 'select') ? this.renderCheck() : '',
+			(hasConfig && running && this.busy != 'select') ? this.renderCheck(silent, others) : '',
 			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
 				E('div', { 'class': 'gg-chips', 'role': 'group', 'aria-label': _('Country') }, chips),
 				E('div', { 'class': 'gg-chips-foot' }, [
