@@ -2,11 +2,13 @@
 #
 # Only the entry points and service blocks change. outbounds, routing.rules,
 # routing.balancers, routing.domainStrategy, dns and burstObservatory pass through
-# unchanged (outbounds only gain streamSettings.sockopt.mark).
+# unchanged (outbounds only gain streamSettings.sockopt.mark); the user's own rules go in
+# among routing.rules (user_rules).
 #
 # Arguments:
 #   --argjson tproxy_port N   --argjson dns_port N   --argjson mark N
 #   --arg loglevel S          --argjson check_port N   --arg check_pass S
+#   --argjson user_rules [{domain, to: "proxy"|"direct"}]   (lib/rules.sh)
 
 def sniffing_from_socks:
   ([.inbounds[]? | select(.protocol == "socks") | .sniffing] | first)
@@ -18,6 +20,47 @@ def with_mark:
   if .tag == "block" then .
   else .streamSettings = ((.streamSettings // {}) | .sockopt = ((.sockopt // {}) | .mark = $mark))
   end;
+
+# The provider's catch-all: its last rule when that matches on nothing but the network.
+def has_catch_all($rules):
+  ($rules | length) > 0
+  and (($rules[-1] | keys) - ["type", "network", "outboundTag", "balancerTag", "ruleTag"]) == [];
+
+def protocol_of($cfg; $tag): [($cfg.outbounds // [])[] | select(.tag == $tag) | .protocol] | first;
+
+# Where "proxy" goes: where the catch-all goes when that is a tunnel, else the first balancer,
+# else the first outbound that is neither freedom, blackhole nor dns. null: nowhere.
+def tunnel_target($cfg; $catch):
+  if $catch != null and $catch.balancerTag then {balancerTag: $catch.balancerTag}
+  elif $catch != null and $catch.outboundTag
+    and ((protocol_of($cfg; $catch.outboundTag) // "") | IN("freedom", "blackhole") | not)
+  then {outboundTag: $catch.outboundTag}
+  elif (($cfg.routing.balancers // []) | length) > 0 then {balancerTag: $cfg.routing.balancers[0].tag}
+  else [($cfg.outbounds // [])[] | select(.protocol | IN("freedom", "blackhole", "dns") | not) | {outboundTag: .tag}] | first
+  end;
+
+# The user's rules as xray rules, more specific domains first. The provider's rules take
+# priority: these go after its explicit ones and before its catch-all, and only take traffic
+# from the LAN and the services check (a TestRoute from another inbound tag sees the provider's
+# rules alone: lib/route.sh). "direct" goes to the first freedom outbound; a rule with nowhere to
+# go is left out. Without a catch-all under IPIfNonMatch, a domain rule at the end would match on
+# xray's first, domain-only pass, ahead of the provider's address rules that only match on the
+# second one: an address condition that takes any address keeps it out of the first pass.
+def user_rules($cfg):
+  ($cfg.routing.rules // []) as $rules
+  | has_catch_all($rules) as $catch
+  | tunnel_target($cfg; if $catch then $rules[-1] else null end) as $proxy
+  | ([($cfg.outbounds // [])[] | select(.protocol == "freedom") | {outboundTag: .tag}] | first) as $direct
+  | (($catch | not) and (($cfg.routing.domainStrategy // "") | ascii_downcase) == "ipifnonmatch") as $second
+  | $user_rules
+  | sort_by(-(.domain | split(".") | length))
+  | map((if .to == "proxy" then $proxy else $direct end) as $target
+      | select($target != null)
+      | { type: "field", inboundTag: ["tproxy", "check"], domain: ["domain:" + .domain] }
+        + (if $second then { ip: ["0.0.0.0/0", "::/0"] } else {} end)
+        + $target)
+  # xray wants every rule tag unique; the tag names the rule in its log ("Hit route rule")
+  | to_entries | map(.value + { ruleTag: "gatygo-rule-\(.key + 1)" });
 
 . as $in
 | del(.remarks, .meta)
@@ -42,7 +85,11 @@ def with_mark:
 | .routing.rules = [
     { type: "field", inboundTag: ["dns-in"], outboundTag: "dns-out" },
     { type: "field", inboundTag: ["api"], outboundTag: "api" }
-  ] + (.routing.rules // [])
+  ] + ((.routing.rules // []) as $rules | user_rules($in) as $mine
+      | if ($mine | length) == 0 then $rules
+        elif has_catch_all($rules) then $rules[:-1] + $mine + [$rules[-1]]
+        else $rules + $mine
+        end)
 # error "" = console; procd relays it to the system log (bounded ring buffer, `logread -e xray`)
 | .log = (.log // {}) + { loglevel: $loglevel, access: "none", error: "" }
 | .stats = (.stats // {})

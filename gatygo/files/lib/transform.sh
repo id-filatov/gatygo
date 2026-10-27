@@ -1,8 +1,9 @@
 #!/bin/sh
-# gatygo_transform IN OUT TPROXY_PORT DNS_PORT MARK LOGLEVEL CHECK_PORT CHECK_PASS
+# gatygo_transform IN OUT TPROXY_PORT DNS_PORT MARK LOGLEVEL CHECK_PORT CHECK_PASS [USER_RULES]
 # Run transform.jq on the selected profile config. Ports and mark are decimal unsigned
 # integers (convert UCI "0xff" with $(( 0xff )) before calling). CHECK_PASS is the password of
-# the check inbound (gatygo_check_secret). On any failure exit 1 and leave OUT untouched.
+# the check inbound (gatygo_check_secret). USER_RULES: the user's rules as gatygo_rules_json
+# prints them, none by default. On any failure exit 1 and leave OUT untouched.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/common.sh"
 
@@ -12,7 +13,7 @@ _gatygo_is_uint() {
 
 gatygo_transform() {
     _gatygo_in=$1 _gatygo_out=$2 _gatygo_tp=$3 _gatygo_dp=$4 _gatygo_mark=$5 _gatygo_lvl=$6 _gatygo_cp=$7
-    _gatygo_pass=$8
+    _gatygo_pass=$8 _gatygo_ur=${9:-[]}
     if ! _gatygo_is_uint "$_gatygo_tp" || ! _gatygo_is_uint "$_gatygo_dp" || ! _gatygo_is_uint "$_gatygo_mark" \
         || ! _gatygo_is_uint "$_gatygo_cp"; then
         gatygo_log error "transform: tproxy port, dns port, mark and check port must be unsigned integers"
@@ -25,6 +26,7 @@ gatygo_transform() {
     _gatygo_tmp="$_gatygo_out.tmp.$$"
     if jq --argjson tproxy_port "$_gatygo_tp" --argjson dns_port "$_gatygo_dp" --argjson mark "$_gatygo_mark" \
           --arg loglevel "$_gatygo_lvl" --argjson check_port "$_gatygo_cp" --arg check_pass "$_gatygo_pass" \
+          --argjson user_rules "$_gatygo_ur" \
           -f "${GATYGO_LIB:-/usr/lib/gatygo}/transform.jq" "$_gatygo_in" > "$_gatygo_tmp" 2>/dev/null; then
         mv "$_gatygo_tmp" "$_gatygo_out"
     else

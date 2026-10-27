@@ -12,6 +12,7 @@
 . "${GATYGO_LIB:-/usr/lib/gatygo}/geo.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/core.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/relay.sh"
+. "${GATYGO_LIB:-/usr/lib/gatygo}/rules.sh"
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
@@ -98,8 +99,9 @@ gatygo_apply_profile() {
     _gatygo_prof=$(gatygo_sub_select "$1" "$GATYGO_PROFILE" "$_gatygo_t/selected.json")
     _gatygo_sel=$?
     if [ "$_gatygo_sel" -eq 1 ]; then rm -rf "$_gatygo_t"; return 1; fi
+    _gatygo_ur=$(gatygo_rules_json)
     if ! gatygo_transform "$_gatygo_t/selected.json" "$_gatygo_t/xray.json" "$GATYGO_TPROXY_PORT" "$GATYGO_DNS_PORT" \
-            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL" "$GATYGO_CHECK_PORT" "$(gatygo_check_secret)"; then
+            "$GATYGO_MARK_DEC" "$GATYGO_LOGLEVEL" "$GATYGO_CHECK_PORT" "$(gatygo_check_secret)" "$_gatygo_ur"; then
         rm -rf "$_gatygo_t"; return 1
     fi
     mkdir -p "$_gatygo_t/assets"
@@ -111,6 +113,11 @@ gatygo_apply_profile() {
     # in use whatever the later updates end with. Rewritten only when it changes (flash wear).
     if [ "$(cat "$GATYGO_STATE/profile" 2>/dev/null)" != "$_gatygo_prof" ]; then
         printf '%s\n' "$_gatygo_prof" > "$_gatygo_t/profile" && _gatygo_install "$_gatygo_t/profile" "$GATYGO_STATE/profile" 600
+    fi
+    # the user's rules the installed config was built with: `gatygo rules` holds the statuses back
+    # until they match the settings (lib/route.sh)
+    if [ "$(cat "$GATYGO_STATE/rules.json" 2>/dev/null)" != "$_gatygo_ur" ]; then
+        printf '%s\n' "$_gatygo_ur" > "$_gatygo_t/rules.json" && _gatygo_install "$_gatygo_t/rules.json" "$GATYGO_STATE/rules.json" 600
     fi
     rm -rf "$_gatygo_t"
     printf '%s\n' "$_gatygo_prof"

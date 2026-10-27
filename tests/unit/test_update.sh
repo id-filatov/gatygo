@@ -53,6 +53,17 @@ assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "init not called when nothing changed"
 assert_eq "$_sha1" "$(sha256sum < "$GATYGO_STATE/xray.json")" "xray.json untouched"
 assert_eq "2" "$(_geo_requests)" "geo not re-downloaded while fresh and subscription unchanged"
 
+# --- the user's rules go into every config an update builds
+uci set 'gatygo.@rule[0]=rule'; uci set 'gatygo.@rule[0].domain=rare.example'; uci set 'gatygo.@rule[0].to=direct'
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "an update with a user rule succeeds"
+assert_eq "1" "$(jq '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))] | length' "$GATYGO_STATE/xray.json")" "an update puts the user's rule in"
+assert_eq '[{"domain":"rare.example","to":"direct"}]' "$(cat "$GATYGO_STATE/rules.json")" "the rules of the installed config are noted"
+assert_eq "-rw-------" "$(ls -l "$GATYGO_STATE/rules.json" | cut -c1-10)" "rules.json is 0600"
+uci delete 'gatygo.@rule[0]'
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$_sha1" "$(sha256sum < "$GATYGO_STATE/xray.json")" "no rules: the config is the same as before them"
+assert_eq '[]' "$(cat "$GATYGO_STATE/rules.json")" "and so is the note"
+
 # --- profile switch
 uci set gatygo.main.profile="📍 Bravo"
 : > "$GATYGO_INIT_LOG"

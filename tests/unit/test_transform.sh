@@ -114,5 +114,68 @@ printf 'not json' > "$tmp/notjson.json"
 assert_exit 1 "invalid JSON input is rejected" gatygo_transform "$tmp/notjson.json" "$tmp/bad.json" 12345 5353 255 warning 10808 s3cret
 assert_exit 1 "OUT is not created on jq failure" test -e "$tmp/bad.json"
 
+# --- the user's rules: after the provider's own, before its catch-all
+UR='[{"domain":"example.org","to":"proxy"},{"domain":"rare.example","to":"direct"},{"domain":"sub.rare.example","to":"proxy"}]'
+_t() { gatygo_transform "$1" "$2" 12345 5353 255 warning 10808 s3cret "${3:-$UR}"; }
+_mine() { jq -c '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))]' "$1"; }
+_mine_f() { jq -c "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\")) | $2]" "$1"; }
+jq '.[13]' "$FIX" > "$tmp/r-13.json"
+
+_t "$tmp/in-0.json" "$tmp/u0.json"; assert_eq "0" "$?" "transform with user rules succeeds"
+assert_exit 0 "xray run -test accepts it" xray run -test -c "$tmp/u0.json"
+assert_exit 0 "user rules before the catch-all" jq -e --slurpfile o "$tmp/in-0.json" \
+    '.routing.rules == [.routing.rules[0], .routing.rules[1]] + $o[0].routing.rules[:-1]
+        + [.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))] + [$o[0].routing.rules[-1]]' "$tmp/u0.json"
+assert_eq '["domain:sub.rare.example","domain:example.org","domain:rare.example"]' "$(_mine_f "$tmp/u0.json" '.domain[0]')" "more specific first, then the order of the settings"
+assert_eq '[{"balancerTag":"balancer"},{"balancerTag":"balancer"},{"outboundTag":"direct"}]' \
+    "$(_mine_f "$tmp/u0.json" '{balancerTag, outboundTag} | with_entries(select(.value != null))')" "tunnel = the catch-all's balancer, direct = the freedom outbound"
+assert_eq "false" "$(jq '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-")) | has("ip")] | any' "$tmp/u0.json")" "no address condition with a catch-all"
+assert_exit 0 "rule shape" jq -e '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))][0]
+    == {"type":"field","ruleTag":"gatygo-rule-1","inboundTag":["tproxy","check"],"domain":["domain:sub.rare.example"],"balancerTag":"balancer"}' "$tmp/u0.json"
+
+_t "$tmp/r-13.json" "$tmp/u13.json"
+assert_eq '["proxy","proxy","direct"]' "$(_mine_f "$tmp/u13.json" '.outboundTag')" "tunnel = the catch-all's outbound"
+assert_exit 0 "xray run -test accepts it (no balancer)" xray run -test -c "$tmp/u13.json"
+
+jq '.routing.rules[-1] = {"type":"field","network":"tcp,udp","outboundTag":"direct"}' "$tmp/in-0.json" > "$tmp/cd-in.json"
+_t "$tmp/cd-in.json" "$tmp/cd.json"
+assert_eq '["balancer","balancer",null]' "$(_mine_f "$tmp/cd.json" '.balancerTag')" "catch-all goes direct: tunnel = the first balancer"
+assert_eq "$(jq -c '.routing.rules[-1]' "$tmp/cd-in.json")" "$(jq -c '.routing.rules[-1]' "$tmp/cd.json")" "the direct catch-all stays last"
+
+jq '.routing.rules[-1] = {"type":"field","network":"tcp,udp","outboundTag":"direct"}' "$tmp/r-13.json" > "$tmp/cd13-in.json"
+_t "$tmp/cd13-in.json" "$tmp/cd13.json"
+assert_eq '["proxy","proxy","direct"]' "$(_mine_f "$tmp/cd13.json" '.outboundTag')" "no balancer, catch-all direct: tunnel = the first proxy outbound"
+
+jq '.outbounds = [{"tag":"direct","protocol":"freedom"},{"tag":"block","protocol":"blackhole"}]
+    | .routing.rules = [{"type":"field","network":"tcp,udp","outboundTag":"direct"}]' "$tmp/r-13.json" > "$tmp/nt-in.json"
+_t "$tmp/nt-in.json" "$tmp/nt.json"
+assert_eq '["domain:rare.example"]' "$(_mine_f "$tmp/nt.json" '.domain[0]')" "no tunnel at all: only the direct rule goes in"
+
+jq '.outbounds |= map(select(.protocol != "freedom"))' "$tmp/r-13.json" > "$tmp/nf-in.json"
+_t "$tmp/nf-in.json" "$tmp/nf.json"
+assert_eq '["proxy","proxy"]' "$(_mine_f "$tmp/nf.json" '.outboundTag')" "no direct outbound: only the tunnel rules go in"
+
+jq 'del(.routing.rules[-1])' "$tmp/in-0.json" > "$tmp/nc-in.json"
+_t "$tmp/nc-in.json" "$tmp/nc.json"
+assert_exit 0 "no catch-all: user rules at the end" jq -e --slurpfile o "$tmp/nc-in.json" \
+    '.routing.rules[2:] == $o[0].routing.rules + [.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))]' "$tmp/nc.json"
+assert_eq '[["0.0.0.0/0","::/0"],["0.0.0.0/0","::/0"],["0.0.0.0/0","::/0"]]' "$(_mine_f "$tmp/nc.json" '.ip')" \
+    "no catch-all with IPIfNonMatch: they wait for the second pass, after the provider's address rules"
+assert_exit 0 "xray run -test accepts it (address condition)" xray run -test -c "$tmp/nc.json"
+
+jq 'del(.routing.rules[-1]) | .routing.domainStrategy = "AsIs"' "$tmp/in-0.json" > "$tmp/na-in.json"
+_t "$tmp/na-in.json" "$tmp/na.json"
+assert_eq '[null,null,null]' "$(_mine_f "$tmp/na.json" '.ip')" "no catch-all with AsIs: at the end, no address condition"
+jq 'del(.routing.rules[-1]) | .routing.domainStrategy = "ipifnonmatch"' "$tmp/in-0.json" > "$tmp/nl-in.json"
+_t "$tmp/nl-in.json" "$tmp/nl.json"
+assert_eq "3" "$(jq '[.routing.rules[] | select(((.ruleTag // "") | startswith("gatygo-rule-")) and has("ip"))] | length' "$tmp/nl.json")" "the strategy is read in any case, as xray does"
+
+gatygo_transform "$tmp/in-0.json" "$tmp/none-a.json" 12345 5353 255 warning 10808 s3cret '[]'
+gatygo_transform "$tmp/in-0.json" "$tmp/none-b.json" 12345 5353 255 warning 10808 s3cret
+assert_eq "$(sha256sum < "$tmp/none-b.json")" "$(sha256sum < "$tmp/none-a.json")" "no user rules: the same bytes as without them"
+assert_eq "$(sha256sum < "$tmp/out-0.json")" "$(sha256sum < "$tmp/none-b.json")" "and as before user rules existed"
+assert_exit 1 "bad user rules are rejected" gatygo_transform "$tmp/in-0.json" "$tmp/bad-ur.json" 12345 5353 255 warning 10808 s3cret 'not json'
+assert_exit 1 "OUT is not created on bad user rules" test -e "$tmp/bad-ur.json"
+
 rm -rf "$tmp"
 report
