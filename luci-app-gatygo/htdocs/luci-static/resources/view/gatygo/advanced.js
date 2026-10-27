@@ -6,18 +6,20 @@
 'require ui';
 'require form';
 
-// The page behind the gear of the main page: settings and the log.
+// The page behind the gear of the main page: settings, the user's own rules and the log.
 // It has no menu entry of its own (its menu.d node has no title); the main page links to it.
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callLog = rpc.declare({ object: 'gatygo', method: 'log', params: [ 'lines' ], expect: { log: '' } });
 var callForget = rpc.declare({ object: 'gatygo', method: 'forget', expect: { } });
+var callRules = rpc.declare({ object: 'gatygo', method: 'rules', expect: { } });
+var callRoute = rpc.declare({ object: 'gatygo', method: 'route', params: [ 'domain' ], expect: { } });
 // pending gatygo changes of this session (Save without Apply) would put the old link back
 var callUciRevert = rpc.declare({ object: 'uci', method: 'revert', params: [ 'config' ] });
 
 var CSS = [
-	'.gg-adv { --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-warn-ink:hsl(32 90% 26%); --gg-bad-ink:hsl(0 70% 38%); --gg-accent-ink:hsl(212 80% 36%); }',
-	'[data-darkmode="true"] .gg-adv { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-warn-ink:hsl(40 85% 68%); --gg-bad-ink:hsl(0 85% 76%); --gg-accent-ink:hsl(212 85% 72%); }',
+	'.gg-adv { --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-warn-ink:hsl(32 90% 26%); --gg-bad-ink:hsl(0 70% 38%); --gg-accent-ink:hsl(212 80% 36%); --gg-ok-ink:hsl(130 55% 30%); }',
+	'[data-darkmode="true"] .gg-adv { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-warn-ink:hsl(40 85% 68%); --gg-bad-ink:hsl(0 85% 76%); --gg-accent-ink:hsl(212 85% 72%); --gg-ok-ink:hsl(130 45% 70%); }',
 	'.gg-backrow { margin:.25em 0 .5em; }',
 	'.gg-adv-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25em 1.5em; }',
 	'.gg-adv-head h2 { margin:0; }',
@@ -33,7 +35,18 @@ var CSS = [
 	'.gg-lvl { color:var(--gg-ink-3); }',
 	'.gg-ll.is-warn .gg-lvl { color:var(--gg-warn-ink); font-weight:600; }',
 	'.gg-ll.is-error, .gg-ll.is-error .gg-lvl { color:var(--gg-bad-ink); } .gg-ll.is-error .gg-lvl { font-weight:600; }',
-	'.gg-ll.is-debug { color:var(--gg-ink-3); }'
+	'.gg-ll.is-debug { color:var(--gg-ink-3); }',
+	'.gg-rule-d { font-family:monospace; }',
+	'.gg-adv .cbi-section-actions .gg-rule-x { flex:0 0 auto; min-width:0; width:auto; padding:0 .9em; margin-left:auto; }',
+	'.gg-st.is-works { color:var(--gg-ok-ink); } .gg-st.is-nochange { color:var(--gg-ink-3); } .gg-st.is-bad { color:var(--gg-bad-ink); }',
+	'.gg-rules-add, .gg-check-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5em; }',
+	'.gg-rules-add input, .gg-check-row input { flex:1 1 12em; min-width:0; max-width:24em; }',
+	'.gg-rules-add select, .gg-rules-add button { flex:0 0 auto; width:auto; min-width:0; }',
+	'.gg-err { flex-basis:100%; color:var(--gg-bad-ink); }',
+	'.gg-err:empty { display:none; }',
+	'.gg-check { margin-top:1.5em; }',
+	'.gg-check h4 { margin:0 0 .5em; }',
+	'.gg-check-res { margin-top:.5em; }'
 ].join('\n');
 
 // https://panel.example.com/sub/AbCdEfGhIjKl -> https://panel.example.com/sub/AbCd***IjKl:
@@ -113,6 +126,38 @@ function confirmForget() {
 	});
 }
 
+// "https://Example.com:8443/x", "пример.рф", " example.com " -> the domain the router checks
+// (lib/rules.sh): lowercase, punycode, no scheme, port or path; null when it is not one
+function normDomain(s) {
+	s = (s || '').trim();
+	if (!s) return null;
+	if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = 'http://' + s;
+	var h;
+	try { h = new URL(s).hostname; } catch (e) { return null; }
+	h = h.replace(/\.$/, '');
+	if (h.length > 253 || /\.\d+$/.test(h)
+	    || !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(h))
+		return null;
+	return h;
+}
+
+// proxy | direct | block, as the router answers (lib/route.sh)
+function routeWord(to) {
+	return { proxy: _('tunnel'), direct: _('direct'), block: _('blocked') }[to];
+}
+
+// a rule's status (lib/route.sh): [kind, text]
+function statusText(code) {
+	switch (code) {
+	case 'works': return [ 'works', _('✓ The rule works') ];
+	case 'nochange': return [ 'nochange', _('— The rule changes nothing') ];
+	case 'provider_direct': return [ 'bad', _('✗ The rule does not work: the VPN provider sends it direct') ];
+	case 'provider_proxy': return [ 'bad', _('✗ The rule does not work: the VPN provider sends it through the tunnel') ];
+	case 'provider_block': return [ 'bad', _('✗ The rule does not work: the VPN provider blocks it') ];
+	}
+	return null;
+}
+
 // "xray: 2026/09/17 16:14:17.599658 [Warning] core: …" and "gatygo: 2026-09-17T16:14:50 [info] …":
 // time dimmed, our own lines marked by the tag, warnings and errors by colour
 function logLine(line) {
@@ -130,11 +175,130 @@ function logLine(line) {
 
 return view.extend({
 	logPre: null,
+	rules: null,
 
 	load: function() {
 		return Promise.all([
 			callStatus(),
-			L.resolveDefault(uci.load('gatygo'), null)
+			L.resolveDefault(uci.load('gatygo'), null),
+			L.resolveDefault(callRules(), null)
+		]);
+	},
+
+	// The status of the rule in section SID: only for a rule as saved and applied (a direction
+	// changed on the page, or a row not applied yet, has none), and only while xray can tell.
+	ruleStatus: function(sid) {
+		var r = this.rules;
+		if (!r || !r.available || !r.api || r.pending) return null;
+		var d = uci.get('gatygo', sid, 'domain'), to = uci.get('gatygo', sid, 'to');
+		var hit = (r.rules || []).filter(function(x) { return x.domain == d && x.to == to; })[0];
+		return hit ? hit.status : null;
+	},
+
+	paintStatus: function(el, sid, blank) {
+		var s = blank ? null : statusText(this.ruleStatus(sid));
+		el.className = 'gg-st' + (s ? ' is-' + s[0] : '');
+		el.textContent = s ? s[1] : '';
+	},
+
+	// while the router is still applying the saved rules (Save & Apply, an update): ask again
+	pollRules: function(left) {
+		if (!this.rules || !this.rules.pending || left <= 0) return;
+		window.setTimeout(L.bind(function() {
+			L.resolveDefault(callRules(), null).then(L.bind(function(r) {
+				if (r) {
+					this.rules = r;
+					document.querySelectorAll('[data-gg-rule]').forEach(L.bind(function(el) {
+						this.paintStatus(el, el.getAttribute('data-gg-rule'));
+					}, this));
+				}
+				this.pollRules(left - 1);
+			}, this));
+		}, this), 3000);
+	},
+
+	renderRules: function() {
+		var self = this, r = this.rules || {};
+		var m = new form.Map('gatygo', null, _('VPN provider rules take priority. A domain covers its subdomains.'));
+		var s = m.section(form.GridSection, 'rule');
+		var o;
+		s.anonymous = true;
+		s.addremove = true;
+		s.nodescriptions = true;
+
+		o = s.option(form.DummyValue, 'domain', _('Domain'));
+		o.textvalue = function(sid) { return E('span', { 'class': 'gg-rule-d' }, uci.get('gatygo', sid, 'domain') || ''); };
+
+		o = s.option(form.ListValue, 'to', _('Route'));
+		o.editable = true;
+		o.value('proxy', _('tunnel'));
+		o.value('direct', _('direct'));
+		o.default = 'proxy';
+		// a row added from the row below has no widget yet when the form is parsed: keep its value
+		o.retain = true;
+		// a direction not saved yet: the status shown is of the other one
+		o.onchange = function(ev, sid) {
+			var el = document.querySelector('[data-gg-rule="%s"]'.format(sid));
+			if (el) self.paintStatus(el, sid, true);
+		};
+
+		o = s.option(form.DummyValue, '_status', r.profile ? _('Now, in %s').format(r.profile) : '');
+		o.textvalue = function(sid) {
+			var el = E('span', { 'data-gg-rule': sid });
+			self.paintStatus(el, sid);
+			return el;
+		};
+
+		s.renderRowActions = function(sid) {
+			return E('td', { 'class': 'td cbi-section-table-cell nowrap cbi-section-actions' }, E('div', {},
+				E('button', { 'class': 'btn cbi-button cbi-button-remove gg-rule-x', 'title': _('Delete'),
+					'click': ui.createHandlerFn(this, 'handleRemove', sid) }, '×')));
+		};
+
+		// a row under the table: the domain, the direction, Add (GridSection's own Add opens a modal)
+		s.renderSectionAdd = function() {
+			var map = this.map;
+			var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': _('domain') });
+			var dir = E('select', { 'class': 'cbi-input-select' }, [
+				E('option', { 'value': 'proxy' }, _('tunnel')), E('option', { 'value': 'direct' }, _('direct')) ]);
+			var err = E('div', { 'class': 'gg-err' });
+			var add = function() {
+				var d = normDomain(input.value);
+				if (!d) return dom.content(err, _('A domain is needed, for example example.com'));
+				if (uci.sections('gatygo', 'rule').some(function(x) { return x.domain == d; }))
+					return dom.content(err, _('This domain is already listed'));
+				var sid = uci.add('gatygo', 'rule');
+				uci.set('gatygo', sid, 'domain', d);
+				uci.set('gatygo', sid, 'to', dir.value);
+				return map.save(null, true);
+			};
+			input.addEventListener('keydown', function(ev) { if (ev.key == 'Enter') { ev.preventDefault(); add(); } });
+			return E('div', { 'class': 'cbi-section-create gg-rules-add' }, [
+				input, dir, E('button', { 'class': 'cbi-button cbi-button-add', 'click': ui.createHandlerFn(this, add) }, _('Add')), err ]);
+		};
+
+		return m.render();
+	},
+
+	renderCheck: function() {
+		var r = this.rules || {};
+		var note = !r.available ? _('The check works while the VPN is on') : (!r.api ? _('Could not check') : '');
+		var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': 'example.com', 'aria-label': _('Domain') });
+		var res = E('div', { 'class': 'gg-check-res' });
+		var check = function() {
+			var d = normDomain(input.value);
+			if (!d) return dom.content(res, E('span', { 'class': 'gg-err' }, _('A domain is needed, for example example.com')));
+			return callRoute(d).then(function(a) {
+				dom.content(res, (a && a.to) ? d + ' → ' + routeWord(a.to) : _('Could not check'));
+			}).catch(function() { dom.content(res, _('Could not check')); });
+		};
+		var btn = E('button', { 'class': 'cbi-button cbi-button-action', 'disabled': note ? '' : null,
+			'click': ui.createHandlerFn(this, check) }, _('Check'));
+		input.addEventListener('keydown', function(ev) { if (ev.key == 'Enter' && !btn.disabled) { ev.preventDefault(); btn.click(); } });
+		return E('div', { 'class': 'cbi-section gg-check' }, [
+			E('h4', {}, _('Where will a site go?')),
+			E('div', { 'class': 'gg-check-row' }, [ input, btn, note ? E('span', { 'class': 'gg-muted' }, note) : '' ]),
+			res
 		]);
 	},
 
@@ -241,6 +405,7 @@ return view.extend({
 
 	render: function(data) {
 		var st = data[0], haveUci = (data[1] !== null);
+		this.rules = data[2];
 
 		this.logPre = E('pre', { 'class': 'gg-log' }, _('Loading…'));
 		var logPane = E('div', { 'data-tab': 'log', 'data-tab-title': _('Log') }, [
@@ -253,7 +418,10 @@ return view.extend({
 		var settingsPane = E('div', { 'data-tab': 'settings', 'data-tab-title': _('Settings') },
 			haveUci ? [] : [ E('div', { 'class': 'alert-message notice' }, _('Your account cannot read the gatygo settings.')) ]);
 
-		var tabs = E('div', {}, [ settingsPane, logPane ]);
+		var rulesPane = E('div', { 'data-tab': 'rules', 'data-tab-title': _('My rules') },
+			haveUci ? [] : [ E('div', { 'class': 'alert-message notice' }, _('Your account cannot read the gatygo settings.')) ]);
+
+		var tabs = E('div', {}, [ settingsPane, rulesPane, logPane ]);
 		var versions = [ st.version ? 'gatygo ' + st.version : '', st.xray_version ? 'xray ' + st.xray_version : '' ].filter(String).join(' · ');
 		var page = E('div', { 'class': 'gg-adv' }, [
 			E('style', {}, CSS),
@@ -263,10 +431,15 @@ return view.extend({
 		]);
 
 		var self = this;
-		return (haveUci ? this.renderSettings(st) : Promise.resolve(null)).then(function(formNode) {
-			if (formNode) settingsPane.appendChild(formNode);
+		return Promise.all([
+			haveUci ? this.renderSettings(st) : null,
+			haveUci ? this.renderRules() : null
+		]).then(function(nodes) {
+			if (nodes[0]) settingsPane.appendChild(nodes[0]);
+			if (nodes[1]) { rulesPane.appendChild(nodes[1]); rulesPane.appendChild(self.renderCheck()); }
 			ui.tabs.initTabGroup(tabs.childNodes);
 			self.renderLog();
+			self.pollRules(40);
 			return page;
 		});
 	}

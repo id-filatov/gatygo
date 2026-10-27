@@ -45,6 +45,86 @@ msgid "The router did not answer: %s"
 msgstr "Роутер не ответил: %s"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "tunnel"
+msgstr "туннель"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "direct"
+msgstr "напрямую"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "blocked"
+msgstr "заблокирован"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✓ The rule works"
+msgstr "✓ Правило работает"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "— The rule changes nothing"
+msgstr "— Правило ничего не меняет"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: the VPN provider sends it direct"
+msgstr "✗ Правило не работает: VPN-провайдер отправляет напрямую"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: the VPN provider sends it through the tunnel"
+msgstr "✗ Правило не работает: VPN-провайдер отправляет в туннель"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: the VPN provider blocks it"
+msgstr "✗ Правило не работает: VPN-провайдер блокирует"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "VPN provider rules take priority. A domain covers its subdomains."
+msgstr "Правила VPN-провайдера в приоритете. Домен действует вместе с поддоменами."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Domain"
+msgstr "Домен"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Route"
+msgstr "Куда"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Now, in %s"
+msgstr "Сейчас, в %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "domain"
+msgstr "домен"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "A domain is needed, for example example.com"
+msgstr "Нужен домен, например example.com"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "This domain is already listed"
+msgstr "Этот домен уже есть"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Add"
+msgstr "Добавить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "The check works while the VPN is on"
+msgstr "Проверка работает, когда VPN включён"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Could not check"
+msgstr "Не удалось проверить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Check"
+msgstr "Проверить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Where will a site go?"
+msgstr "Куда пойдёт сайт?"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "The log is empty."
 msgstr "Журнал пуст."
 
@@ -211,6 +291,10 @@ msgstr "Настройки"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Your account cannot read the gatygo settings."
 msgstr "У вашей учётной записи нет доступа к настройкам gatygo."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "My rules"
+msgstr "Мои правила"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Back to gatygo"
