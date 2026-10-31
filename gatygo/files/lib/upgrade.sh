@@ -8,6 +8,13 @@
 
 # the packages that own the same proxy rules: CONFLICTS in install.sh
 GATYGO_UPGRADE_CONFLICTS="luci-app-passwall luci-app-passwall2 luci-app-openclash luci-app-homeproxy"
+# the installed gatygo: after the install step these are the new version's (the executor itself
+# runs from a copy of the old library)
+GATYGO_BIN=${GATYGO_BIN:-/usr/bin/gatygo}
+GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
+GATYGO_UPGRADE_TARGET=${GATYGO_UPGRADE_TARGET:-/usr/lib/gatygo}
+# seconds xray has to keep one pid after the restart
+GATYGO_UPGRADE_SETTLE=${GATYGO_UPGRADE_SETTLE:-10}
 
 # gatygo_upgrade_api / gatygo_upgrade_raw — base URLs of the releases API and of the raw files of
 # a tag. Hidden UCI options (release_api, release_raw) point them elsewhere: a fork, the lab.
@@ -224,4 +231,146 @@ gatygo_upgrade_download() {
         return 1
     }
     gatygo_upgrade_mark download ok
+}
+
+# gatygo_upgrade_install WORK — the install step. Before apk: a copy of the state dir to
+# WORK/state and a hard link to the core in place (no room taken; the core step may replace the
+# file). Sets _gatygo_up_running (1 when the VPN runs). A failure before apk leaves the router as
+# it was; a failed apk is rolled back.
+gatygo_upgrade_install() {
+    _gatygo_uw=$1
+    _gatygo_up_running=0
+    gatygo_xray_running && _gatygo_up_running=1
+    rm -rf "$_gatygo_uw/state" "$GATYGO_CORE_DIR.prev"
+    if ! { mkdir -p "$GATYGO_STATE" && cp -a "$GATYGO_STATE" "$_gatygo_uw/state"; } \
+        || { [ -f "$GATYGO_CORE_DIR/xray" ] && ! { mkdir -p "$GATYGO_CORE_DIR.prev" \
+            && ln -f "$GATYGO_CORE_DIR/xray" "$GATYGO_CORE_DIR.prev/xray" \
+            && { [ ! -f "$GATYGO_CORE_DIR/pin" ] || cp -p "$GATYGO_CORE_DIR/pin" "$GATYGO_CORE_DIR.prev/pin"; }; }; }; then
+        rm -rf "$GATYGO_CORE_DIR.prev"
+        gatygo_upgrade_fail install_failed
+        return 1
+    fi
+    _gatygo_uo=$(apk add --allow-untrusted "$_gatygo_uw/new/gatygo.apk" "$_gatygo_uw/new/luci-app-gatygo.apk" 2>&1) || {
+        gatygo_log error "upgrade: apk: $(printf '%s' "$_gatygo_uo" | tail -n 3 | tr '\n' ' ')"
+        _gatygo_upgrade_abort "$_gatygo_uw" install_failed
+        return 1
+    }
+    gatygo_upgrade_mark install ok
+}
+
+# gatygo_upgrade_core WORK — the core step, by the new version's core.sh: the core it pins.
+# Not downloaded (kept) is a warning: the core in place still runs.
+gatygo_upgrade_core() {
+    _gatygo_uo=$(GATYGO_LIB=$GATYGO_UPGRADE_TARGET sh -c '. "$GATYGO_LIB/core.sh"; gatygo_core_ensure' 2>/dev/null) || {
+        _gatygo_upgrade_abort "$1" core_failed
+        return 1
+    }
+    case $_gatygo_uo in
+        *ready) gatygo_upgrade_mark core skip ;;
+        *kept) gatygo_upgrade_mark core warn ;;
+        *) gatygo_upgrade_mark core ok ;;
+    esac
+}
+
+# _gatygo_upgrade_steady — xray runs within 30 s and keeps one pid for GATYGO_UPGRADE_SETTLE
+# seconds; procd may still be restarting it for a new core, hence up to three such windows
+_gatygo_upgrade_steady() {
+    _gatygo_ui=0
+    until gatygo_xray_running; do
+        [ "$_gatygo_ui" -lt 30 ] || return 1
+        _gatygo_ui=$((_gatygo_ui + 1))
+        sleep 1
+    done
+    _gatygo_ui=0
+    while [ "$_gatygo_ui" -lt 3 ]; do
+        _gatygo_ui=$((_gatygo_ui + 1))
+        _gatygo_upid=$(gatygo_xray_pid)
+        sleep "$GATYGO_UPGRADE_SETTLE"
+        [ -n "$_gatygo_upid" ] && [ "$(gatygo_xray_pid)" = "$_gatygo_upid" ] && gatygo_xray_running && return 0
+    done
+    return 1
+}
+
+# gatygo_upgrade_restart WORK — the last step: the new version builds the config from the cached
+# subscription (`gatygo apply`, it takes the update lock itself) and, when the VPN ran, starts
+# again (procd restarts xray only for a changed config or core). A VPN that was stopped stays
+# stopped; the new version answering is the check then.
+gatygo_upgrade_restart() {
+    _gatygo_uw=$1
+    gatygo_update_unlock
+    GATYGO_LIB=$GATYGO_UPGRADE_TARGET "$GATYGO_BIN" apply wait >/dev/null 2>&1
+    case $? in
+        0) ;;
+        1) _gatygo_upgrade_abort "$_gatygo_uw" config_failed; return 1 ;;
+        *) _gatygo_upgrade_abort "$_gatygo_uw" not_started; return 1 ;;
+    esac
+    if [ "$_gatygo_up_running" = 1 ]; then
+        "$GATYGO_INIT" start >/dev/null 2>&1
+        _gatygo_upgrade_steady || { _gatygo_upgrade_abort "$_gatygo_uw" not_started; return 1; }
+    else
+        [ "$(GATYGO_LIB=$GATYGO_UPGRADE_TARGET "$GATYGO_BIN" version 2>/dev/null)" = "$_gatygo_up_new" ] \
+            || { _gatygo_upgrade_abort "$_gatygo_uw" not_started; return 1; }
+    fi
+    gatygo_upgrade_mark restart ok
+}
+
+# gatygo_upgrade_rollback WORK — the router as before the upgrade: the state dir and the core
+# (with its pin) from what the install step kept, then the installed version's packages, then
+# xray again when it ran. Exit 1 when any of it fails.
+gatygo_upgrade_rollback() {
+    _gatygo_uw=$1 _gatygo_uok=0
+    gatygo_log warn "upgrade: putting gatygo $GATYGO_VERSION back"
+    if [ -d "$_gatygo_uw/state" ]; then
+        rm -rf "$GATYGO_STATE"/* "$GATYGO_STATE"/.[!.]* && cp -a "$_gatygo_uw/state/." "$GATYGO_STATE/" || _gatygo_uok=1
+    fi
+    if [ -f "$GATYGO_CORE_DIR.prev/xray" ]; then
+        mkdir -p "$GATYGO_CORE_DIR" && mv -f "$GATYGO_CORE_DIR.prev/xray" "$GATYGO_CORE_DIR/xray" || _gatygo_uok=1
+        [ ! -f "$GATYGO_CORE_DIR.prev/pin" ] || mv -f "$GATYGO_CORE_DIR.prev/pin" "$GATYGO_CORE_DIR/pin" || _gatygo_uok=1
+    fi
+    # a link to the very file in place is not moved (rename does nothing): it goes here
+    rm -rf "$GATYGO_CORE_DIR.prev"
+    apk add --allow-untrusted "$_gatygo_uw/old/gatygo.apk" "$_gatygo_uw/old/luci-app-gatygo.apk" >/dev/null 2>&1 || _gatygo_uok=1
+    if [ "$_gatygo_up_running" = 1 ]; then
+        "$GATYGO_INIT" start >/dev/null 2>&1
+        _gatygo_ui=0
+        until gatygo_xray_running; do
+            [ "$_gatygo_ui" -lt 30 ] || { _gatygo_uok=1; break; }
+            _gatygo_ui=$((_gatygo_ui + 1))
+            sleep 1
+        done
+    fi
+    [ "$_gatygo_uok" = 0 ] && _gatygo_upgrade_edit '.rolled_back = true'
+    return $_gatygo_uok
+}
+
+# _gatygo_upgrade_abort WORK CODE [ARG…] — roll back, then fail the run: the page shows the
+# failure once the installed version works again (rollback_failed when it does not)
+_gatygo_upgrade_abort() {
+    _gatygo_uw=$1; shift
+    if gatygo_upgrade_rollback "$_gatygo_uw"; then
+        gatygo_upgrade_fail "$@"
+    else
+        gatygo_upgrade_fail rollback_failed
+    fi
+}
+
+# gatygo_upgrade_run — the whole upgrade, one at a time (another one running: exit 0, its
+# progress file stays). Every step marks its outcome in $GATYGO_RUN/upgrade.json.
+gatygo_upgrade_run() {
+    gatygo_lock upgrade || return 0
+    _gatygo_uwork=$(mktemp -d /tmp/gatygo-upgrade.XXXXXX)
+    gatygo_upgrade_begin "$GATYGO_VERSION" "$(jq -r '.version // empty' "$GATYGO_STATE/upgrade-latest.json" 2>/dev/null)"
+    _gatygo_urc=1
+    if gatygo_upgrade_preflight "$_gatygo_uwork" && gatygo_upgrade_download "$_gatygo_uwork" \
+        && gatygo_upgrade_install "$_gatygo_uwork" && gatygo_upgrade_core "$_gatygo_uwork" \
+        && gatygo_upgrade_restart "$_gatygo_uwork"; then
+        rm -rf "$GATYGO_CORE_DIR.prev"
+        gatygo_upgrade_finish
+        _gatygo_urc=0
+    fi
+    # the update lock, when it is still ours (`gatygo apply` and cron take it after the install)
+    [ "$(cat "$GATYGO_RUN/update.lock/pid" 2>/dev/null)" = "$$" ] && gatygo_update_unlock
+    rm -rf "$_gatygo_uwork"
+    gatygo_unlock upgrade
+    return $_gatygo_urc
 }

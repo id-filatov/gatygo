@@ -1,5 +1,5 @@
 #!/bin/sh
-# gatygo CLI stand-in for the rpcd plugin tests: canned answers; records every call.
+# gatygo CLI stand-in for the rpcd plugin and upgrade tests: canned answers; records every call.
 echo "$*" >> "${GATYGO_CLI_LOG:?}"
 case $1 in
     status) echo '{"running":true,"profile_used":"🌐 Auto","last_update":{"result":"error","code":"fetch_failed","message":"subscription download failed","time":"1"},"last_select":{"result":"ok","code":"applied","message":"profile applied","time":"2"}}' ;;
@@ -22,5 +22,11 @@ case $1 in
         ;;
     rules) echo '{"available":true,"api":true,"pending":false,"profile":"🌐 Auto","rules":[{"domain":"rare.example","to":"direct","status":"works"}]}' ;;
     route) echo '{"available":true,"to":"direct"}' ;;
+    # the upgrade's rebuild of the config and its look at the installed version
+    apply)
+        [ "${GATYGO_CLI_APPLY_RC:-0}" = 0 ] && echo '{"v":"new"}' > "$GATYGO_STATE/xray.json"
+        exit "${GATYGO_CLI_APPLY_RC:-0}"
+        ;;
+    version) if [ -n "$GATYGO_CLI_VERSION" ]; then echo "$GATYGO_CLI_VERSION"; else cat "$GATYGO_LIB/version"; fi ;;
     *) exit 1 ;;
 esac

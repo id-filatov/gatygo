@@ -162,6 +162,118 @@ assert_eq '"deps" [""]' "$_r" "the feeds refuse without naming a package"
 assert_exit 0 "the simulations are in the apk log" grep -q -- '^add --simulate' "$APK_STUB_LOG"
 assert_eq "0" "$(grep '^add' "$APK_STUB_LOG" | grep -vc -- '--simulate')" "apk add only ever simulated"
 
+
+# === install, core, rebuild, roll back
+export GATYGO_UPGRADE_TARGET="$tmp/newlib" GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_INIT=/src/tests/stubs/gatygo-init
+export GATYGO_CLI_LOG="$tmp/cli.log" GATYGO_INIT_LOG="$tmp/init.log" APK_STUB_ADDED="$tmp/added" GATYGO_UPGRADE_SETTLE=0
+mkdir -p "$GATYGO_UPGRADE_TARGET"
+echo 20261105.1200 > "$GATYGO_UPGRADE_TARGET/version"
+# the new version's core.sh: FAKE_CORE says what gatygo_core_ensure did; a new core replaces the
+# file (a new inode, as the real one does with xray.new)
+cat > "$GATYGO_UPGRADE_TARGET/core.sh" <<'EOF'
+gatygo_core_ensure() {
+    case ${FAKE_CORE:-ready} in
+        none) return 1 ;;
+        installed) echo new > "$GATYGO_CORE_DIR/xray.new"; mv "$GATYGO_CORE_DIR/xray.new" "$GATYGO_CORE_DIR/xray"
+            echo newpin > "$GATYGO_CORE_DIR/pin" ;;
+    esac
+    echo "${FAKE_CORE:-ready}"
+}
+EOF
+# xray as procd reports it: RUNNING (default 1); with PID_FILE the pid changes on every look
+gatygo_xray_running() { [ "${RUNNING:-1}" = 1 ]; }
+gatygo_xray_pid() {
+    [ -n "${PID_FILE:-}" ] || { echo 4242; return; }
+    _n=$(cat "$PID_FILE" 2>/dev/null || echo 100); echo $((_n + 1)) > "$PID_FILE"; echo "$_n"
+}
+# _setup — the router before the upgrade: old core and pin, old config, empty logs
+_setup() {
+    GATYGO_RUN=$(mktemp -d)
+    rm -rf "$GATYGO_STATE" "$GATYGO_CORE_DIR" "$GATYGO_CORE_DIR.prev"
+    mkdir -p "$GATYGO_STATE" "$GATYGO_CORE_DIR"
+    echo '{"v":"old"}' > "$GATYGO_STATE/xray.json"
+    echo '{"checked":1,"version":"20261105.1200"}' > "$GATYGO_STATE/upgrade-latest.json"
+    echo old > "$GATYGO_CORE_DIR/xray"; echo oldpin > "$GATYGO_CORE_DIR/pin"
+    : > "$APK_STUB_LOG"; : > "$APK_STUB_ADDED"; : > "$GATYGO_INIT_LOG"; : > "$GATYGO_CLI_LOG"
+}
+# _run — the whole upgrade; prints "<exit> <state> <code> <rolled_back> <core step> <restart step>"
+_run() {
+    gatygo_upgrade_run >/dev/null 2>&1
+    echo "$? $(_j .state) $(_j .code) $(_j .rolled_back) $(_j .steps.core) $(_j .steps.restart)"
+}
+_added() { sed -n "s#.*/\($1\)/\(.*\)#\1/\2#p" "$APK_STUB_ADDED" | tr '\n' ' '; }
+_starts() { grep -c '^start$' "$GATYGO_INIT_LOG"; }
+_clean() {
+    ls -d "$GATYGO_RUN/update.lock" "$GATYGO_RUN/upgrade.lock" "$GATYGO_CORE_DIR.prev" /tmp/gatygo-upgrade.* 2>/dev/null | wc -l | tr -d ' '
+}
+
+_r=$(_setup; _run; echo "$(_added new)/ $(_added old)/ $(_starts) $(cat "$GATYGO_CORE_DIR/xray") $(cat "$GATYGO_STATE/xray.json") $(_clean)")
+assert_eq '0 "ok" "" false "skip" "ok"
+new/gatygo.apk new/luci-app-gatygo.apk / / 1 old {"v":"new"} 0' "$_r" "success, the same core: new packages once, one start, nothing left over"
+
+_r=$(_setup; export FAKE_CORE=installed; _run; echo "$(cat "$GATYGO_CORE_DIR/xray") $(cat "$GATYGO_CORE_DIR/pin") $(_clean)")
+assert_eq '0 "ok" "" false "ok" "ok"
+new newpin 0' "$_r" "success, a new core: the old one is gone"
+
+assert_eq '0 "ok" "" false "warn" "ok"' "$(_setup; export FAKE_CORE=kept; _run)" "the new core was not downloaded: success with a warning"
+
+_r=$(_setup; export FAKE_CORE=none; _run; echo "$(_added old)/ $(cat "$GATYGO_STATE/xray.json") $(cat "$GATYGO_CORE_DIR/xray") $(_starts) $(_clean)")
+assert_eq '1 "failed" "core_failed" true "fail" "todo"
+old/gatygo.apk old/luci-app-gatygo.apk / {"v":"old"} old 1 0' "$_r" "no core: rolled back and started again"
+
+_r=$(_setup; export APK_STUB_ADD_FAIL=/new/; _run; echo "$(_j .steps.install) $(_added old)/ $(_clean)")
+assert_eq '1 "failed" "install_failed" true "todo" "todo"
+"fail" old/gatygo.apk old/luci-app-gatygo.apk / 0' "$_r" "apk refused: rolled back"
+
+_r=$(_setup; export FAKE_CORE=installed GATYGO_CLI_APPLY_RC=1; _run
+    echo "$(cat "$GATYGO_CORE_DIR/xray") $(cat "$GATYGO_CORE_DIR/pin") $(cat "$GATYGO_STATE/xray.json") $(_clean)")
+assert_eq '1 "failed" "config_failed" true "ok" "fail"
+old oldpin {"v":"old"} 0' "$_r" "the config does not build: the old core, pin and config are back"
+
+_r=$(_setup; export GATYGO_CLI_APPLY_RC=2; _run)
+assert_eq '1 "failed" "not_started" true "skip" "fail"' "$_r" "the rebuild waited in vain for the update lock"
+
+_r=$(_setup; export PID_FILE="$GATYGO_RUN/pid"; _run; echo "$(cat "$GATYGO_STATE/xray.json") $(_clean)")
+assert_eq '1 "failed" "not_started" true "skip" "fail"
+{"v":"old"} 0' "$_r" "xray does not stay up: rolled back, the old config is back"
+
+_r=$(_setup; export RUNNING=0 GATYGO_CLI_VERSION=20261105.1200; _run; _starts)
+assert_eq '0 "ok" "" false "skip" "ok"
+0' "$_r" "a VPN stopped by hand stays stopped"
+_r=$(_setup; export RUNNING=0; _run)
+assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "the version is asked of the installed library, not of the executor's copy"
+_r=$(_setup; export RUNNING=0 GATYGO_CLI_VERSION=20261027.1753; _run; _starts)
+assert_eq '1 "failed" "not_started" true "skip" "fail"
+0' "$_r" "stopped, and the new version does not answer: rolled back, still stopped"
+
+_r=$(_setup; export FAKE_CORE=none APK_STUB_ADD_FAIL=/; _run)
+assert_eq '1 "failed" "rollback_failed" false "todo" "todo"' "$_r" "the rollback fails too"
+
+_r=$(_setup; rm -f "$GATYGO_STATE"/*; export RUNNING=0; _run)
+assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "no subscription yet"
+
+_r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
+    gatygo_upgrade_run >/dev/null 2>&1; echo "$? $(ls "$GATYGO_RUN" | tr '\n' ' ')$(grep -c . "$APK_STUB_LOG")"; kill "$_s")
+assert_eq "0 upgrade.lock 0" "$_r" "another upgrade runs: nothing touched"
+
+_r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/update.lock"; echo "$_s" > "$GATYGO_RUN/update.lock/pid"
+    _run; [ "$(cat "$GATYGO_RUN/update.lock/pid")" = "$_s" ] && echo "its lock stays"; kill "$_s")
+assert_eq '1 "failed" "busy" false "todo" "todo"
+its lock stays' "$_r" "an update runs: busy, and the update keeps its lock"
+
+# a periodic update while the packages install waits its turn (the update lock)
+_r=$(_setup; echo '{"sub":"before"}' > "$GATYGO_STATE/subscription.json"; : > "$SYSLOG_STUB_FILE"
+    export APK_STUB_ADD_SLEEP=3
+    ( gatygo_upgrade_run >/dev/null 2>&1 ) &
+    _bg=$!
+    for _ in $(seq 1 50); do [ "$(_j .steps.install 2>/dev/null)" = '"now"' ] && break; sleep 0.1; done
+    sh /src/gatygo/files/gatygo update >/dev/null 2>&1
+    wait "$_bg"
+    echo "$(grep -c 'update skipped: another update is running' "$SYSLOG_STUB_FILE") $(_j .state)"
+    cat "$GATYGO_STATE/subscription.json")
+assert_eq '1 "ok"
+{"sub":"before"}' "$_r" "cron during the install waits, the subscription is not touched"
+
 kill "$_srv" 2>/dev/null
 rm -rf "$tmp"
 report
