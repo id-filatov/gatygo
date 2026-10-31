@@ -95,6 +95,12 @@ case $1 in
 						else
 							# detached: the upgrade restarts rpcd itself (luci-app-gatygo's postinst)
 							("$GATYGO" upgrade run </dev/null >/dev/null 2>&1 &)
+							# answer once the executor holds its lock (it takes it a fraction of a second
+							# after it starts): a second start then is refused. Asked again at once, not
+							# every second: the install restarts rpcd, and an answer still pending
+							# then is lost. A run that fails at once is never seen: 3 s at most.
+							_t=$(($(date +%s) + 3))
+							until "$GATYGO" upgrade running || [ "$(date +%s)" -ge "$_t" ]; do :; done
 							echo '{"started":true}'
 						fi
 						;;
