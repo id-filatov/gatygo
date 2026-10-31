@@ -1,0 +1,30 @@
+#!/bin/sh
+# `apk` stand-in for unit tests. Every call is appended to $APK_STUB_LOG. Supported:
+#   info -e PKG      exit 0 iff PKG is in $APK_STUB_INSTALLED_PKGS
+#   add --simulate … prints $APK_STUB_SIMULATE_OUT, exit ${APK_STUB_SIMULATE_RC:-0}
+#   add …            exit 1 when an argument contains $APK_STUB_ADD_FAIL; otherwise sleeps
+#                    ${APK_STUB_ADD_SLEEP:-0} s, appends the files to $APK_STUB_ADDED, exit 0
+[ -n "$APK_STUB_LOG" ] && echo "$*" >> "$APK_STUB_LOG"
+case $1 in
+    info)
+        [ "$2" = -e ] || exit 1
+        for p in $APK_STUB_INSTALLED_PKGS; do [ "$p" = "$3" ] && exit 0; done
+        exit 1 ;;
+    add)
+        shift
+        case " $* " in
+            *" --simulate "*)
+                [ -n "$APK_STUB_SIMULATE_OUT" ] && printf '%s\n' "$APK_STUB_SIMULATE_OUT"
+                exit "${APK_STUB_SIMULATE_RC:-0}" ;;
+        esac
+        for a in "$@"; do
+            case $a in *"${APK_STUB_ADD_FAIL:-<never>}"*) exit 1 ;; esac
+        done
+        sleep "${APK_STUB_ADD_SLEEP:-0}"
+        for a in "$@"; do
+            case $a in -*) ;; *) echo "$a" >> "${APK_STUB_ADDED:-/dev/null}" ;; esac
+        done
+        exit 0 ;;
+esac
+echo "apk stub: unsupported: $*" >&2
+exit 1
