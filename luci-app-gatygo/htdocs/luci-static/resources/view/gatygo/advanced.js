@@ -18,12 +18,19 @@ var callRoute = rpc.declare({ object: 'gatygo', method: 'route', params: [ 'doma
 var callUciRevert = rpc.declare({ object: 'uci', method: 'revert', params: [ 'config' ] });
 
 var CSS = [
-	'.gg-adv { --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-warn-ink:hsl(32 90% 26%); --gg-bad-ink:hsl(0 70% 38%); --gg-accent-ink:hsl(212 80% 36%); --gg-ok-ink:hsl(130 55% 30%); }',
-	'[data-darkmode="true"] .gg-adv { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-warn-ink:hsl(40 85% 68%); --gg-bad-ink:hsl(0 85% 76%); --gg-accent-ink:hsl(212 85% 72%); --gg-ok-ink:hsl(130 45% 70%); }',
+	'.gg-adv { --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-warn-ink:hsl(32 90% 26%); --gg-bad-ink:hsl(0 70% 38%); --gg-accent-ink:hsl(212 80% 36%); --gg-ok-ink:hsl(130 55% 30%);',
+	'  --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%); }',
+	'[data-darkmode="true"] .gg-adv { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-warn-ink:hsl(40 85% 68%); --gg-bad-ink:hsl(0 85% 76%); --gg-accent-ink:hsl(212 85% 72%); --gg-ok-ink:hsl(130 45% 70%);',
+	'  --gg-warn-tint:hsl(38 45% 15%); --gg-warn-line:hsl(38 40% 28%); }',
 	'.gg-backrow { margin:.25em 0 .5em; }',
 	'.gg-adv-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25em 1.5em; }',
 	'.gg-adv-head h2 { margin:0; }',
 	'.gg-muted { color:var(--gg-ink-2); }',
+	// the main page's Update button, as a link to its confirmation
+	'.gg-upgrade { display:inline-flex; align-items:center; gap:6px; height:26px; margin:0 0 0 10px; padding:0 10px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); color:var(--gg-warn-ink); font-size:12px; font-weight:600; line-height:1; white-space:nowrap; vertical-align:middle; text-decoration:none; }',
+	'.gg-upgrade:hover { color:var(--gg-warn-ink); text-decoration:none; }',
+	'.gg-upgrade-sep { width:1px; align-self:stretch; margin:0 2px; background:currentColor; opacity:.3; } .gg-upgrade-v { font-weight:400; opacity:.75; }',
+	'@media (max-width:640px) { .gg-upgrade { display:flex; width:fit-content; margin:6px 0 0; } }',
 	'.gg-adv .cbi-value-field select { width:auto; min-width:210px; max-width:100%; }',
 	'.gg-url-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5em; }',
 	// the real field comes wrapped in LuCI's own div: size the wrapper, let the input fill it
@@ -48,6 +55,18 @@ var CSS = [
 	'.gg-check h4 { margin:0 0 .5em; }',
 	'.gg-check-res { margin-top:.5em; }'
 ].join('\n');
+
+// Tabler's download icon (MIT), as on the main page
+function downloadIcon() {
+	var ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
+	var attrs = { 'width': 13, 'height': 13, 'viewBox': '0 0 24 24', 'fill': 'none', 'stroke': 'currentColor', 'stroke-width': 2.2,
+		'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' };
+	for (var k in attrs) svg.setAttribute(k, attrs[k]);
+	[ 'M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2', 'M7 11l5 5l5 -5', 'M12 4l0 12' ].forEach(function(d) {
+		var p = document.createElementNS(ns, 'path'); p.setAttribute('d', d); svg.appendChild(p);
+	});
+	return svg;
+}
 
 // https://panel.example.com/sub/AbCdEfGhIjKl -> https://panel.example.com/sub/AbCd***IjKl:
 // the server is readable, the secret part of the link is not
@@ -435,10 +454,14 @@ return view.extend({
 
 		var tabs = E('div', {}, [ settingsPane, rulesPane, logPane ]);
 		var versions = [ st.version ? 'gatygo ' + st.version : '', st.xray_version ? 'xray ' + st.xray_version : '' ].filter(String).join(' · ');
+		// a newer release: the main page shows the upgrade, this link opens its confirmation there
+		var up = st.upgrade || {}, upgrade = (up.available && !(up.run && up.run.state == 'running'))
+			? E('a', { 'class': 'gg-upgrade', 'href': L.url('admin/services/gatygo') + '?upgrade=1' },
+				[ downloadIcon(), _('Update'), E('span', { 'class': 'gg-upgrade-sep' }), E('span', { 'class': 'gg-upgrade-v' }, [ up.latest ]) ]) : '';
 		var page = E('div', { 'class': 'gg-adv' }, [
 			E('style', {}, CSS),
 			E('p', { 'class': 'gg-backrow' }, E('a', { 'href': L.url('admin/services/gatygo') }, '← ' + _('Back to gatygo'))),
-			E('div', { 'class': 'gg-adv-head' }, [ E('h2', {}, _('Advanced')), E('span', { 'class': 'gg-muted' }, versions) ]),
+			E('div', { 'class': 'gg-adv-head' }, [ E('h2', {}, _('Advanced')), E('span', {}, [ E('span', { 'class': 'gg-muted' }, versions), upgrade ]) ]),
 			tabs
 		]);
 

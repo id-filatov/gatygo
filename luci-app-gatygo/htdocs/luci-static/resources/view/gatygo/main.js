@@ -18,6 +18,7 @@ var callConnect = rpc.declare({ object: 'gatygo', method: 'connect', params: [ '
 var callCheck = rpc.declare({ object: 'gatygo', method: 'check', params: [ 'fresh' ], expect: { } });
 var callPing = rpc.declare({ object: 'gatygo', method: 'ping', params: [ 'fresh' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
+var callUpgrade = rpc.declare({ object: 'gatygo', method: 'upgrade', params: [ 'action' ], expect: { } });
 
 var CSS = [
 	'.gg { --gg-ink:var(--text-color-highest); --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-line:hsl(0 0% 86%); --gg-line-2:hsl(0 0% 92%);',
@@ -58,12 +59,22 @@ var CSS = [
 	'.gg-alert.bad { border-color:var(--gg-bad-line); background:var(--gg-bad-tint); }',
 	'.gg-alert-icon { flex:none; margin-top:1px; color:var(--gg-warn-ink); }',
 	'.gg-alert.bad .gg-alert-icon { color:var(--gg-bad-ink); }',
+	'.gg-alert.good { border-color:color-mix(in srgb, var(--gg-on) 40%, transparent); background:color-mix(in srgb, var(--gg-on) 10%, transparent); }',
+	'.gg-alert.good .gg-alert-icon { color:var(--gg-good); }',
 	'.gg-alert-body { flex:1 1 0; min-width:0; }',
 	'.gg-alert-title { margin:0; font-size:14px; line-height:1.4; font-weight:600; color:var(--gg-ink); }',
 	'.gg-alert-text { margin:2px 0 0; max-width:80ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
 	'.gg-detail { margin:6px 0 0; font:12px/1.5 monospace; color:var(--gg-ink-2); white-space:pre-wrap; }',
 	'.gg-alert-actions { flex:none; align-self:center; }',
-	'.gg-alert-actions a { text-decoration:none; }',
+	'.gg-alert-actions a { text-decoration:none; } .gg-alert-actions .cbi-button + .cbi-button { margin-left:8px; }',
+	'.gg-steps { margin:4px 0 10px; padding:0; list-style:none; font-size:13px; line-height:1.5; }',
+	'.gg-step { display:flex; align-items:center; gap:8px; padding:2px 0; color:var(--gg-ink-3); }',
+	'.gg-step.ok, .gg-step.skip, .gg-step.warn { color:var(--gg-ink); } .gg-step.now { color:var(--gg-ink); font-weight:600; } .gg-step.fail { color:var(--gg-bad-ink); font-weight:600; }',
+	'.gg-step-ic { flex:none; display:grid; place-items:center; box-sizing:border-box; width:16px; height:16px; border-radius:50%; font-size:10px; font-weight:800; line-height:1; color:#fff; }',
+	'.gg-step.ok .gg-step-ic { background:var(--gg-on); } .gg-step.warn .gg-step-ic { background:var(--warn-color-high); } .gg-step.fail .gg-step-ic { background:var(--gg-bad); }',
+	'.gg-step.now .gg-step-ic { border:2px solid var(--warn-color-high); border-right-color:transparent; animation:gg-spin .8s linear infinite; }',
+	'.gg-step.todo .gg-step-ic { border:1.5px solid var(--gg-off); } .gg-step.skip .gg-step-ic { border:1.5px dashed var(--gg-ink-3); }',
+	'.gg-step-note { font-weight:400; color:var(--gg-ink-2); }',
 	'.gg-card-check { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 24px; margin-top:20px; padding-top:16px; border-top:1px solid var(--gg-line); }',
 	'.gg-checks { display:flex; flex-wrap:wrap; gap:6px 8px; margin:0; padding:0; list-style:none; }',
 	'.gg-check { display:inline-flex; align-items:center; gap:7px; padding:3px 9px 3px 4px; border:1px solid var(--gg-line); border-radius:7px; background:var(--background-color-high); font-size:13px; line-height:1.5; color:var(--gg-ink); }',
@@ -107,6 +118,9 @@ var CSS = [
 	'.gg-sign { margin:0 0 0 auto; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
 	'.gg-mark { margin-right:7px; vertical-align:middle; }',
 	'.gg-sign b { margin-right:6px; font-weight:700; letter-spacing:-.01em; color:var(--gg-ink); }',
+	'.gg-upgrade { display:inline-flex; align-items:center; gap:6px; height:26px; margin:0 0 0 10px; padding:0 10px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); color:var(--gg-warn-ink); font:inherit; font-size:12px; font-weight:600; line-height:1; white-space:nowrap; vertical-align:middle; cursor:pointer; transition:transform 120ms var(--gg-ease); }',
+	'.gg-upgrade:not(:disabled):active { transform:scale(.97); } .gg-upgrade:disabled { cursor:default; opacity:.6; } .gg-upgrade:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-upgrade-sep { width:1px; align-self:stretch; margin:0 2px; background:currentColor; opacity:.3; } .gg-upgrade-v { font-weight:400; opacity:.75; }',
 	'.gg-donate { display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 9px 0 8px; border-radius:13px; background:var(--gg-heart-tint); color:var(--gg-heart); font-size:13px; font-weight:600; line-height:1; white-space:nowrap; text-decoration:none; transition:filter 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-donate:hover { color:var(--gg-heart); text-decoration:none; } .gg-donate:active { transform:scale(.97); } .gg-donate .gg-ext { opacity:.7; }',
 	'.gg-field { display:flex; gap:8px; align-items:center; max-width:640px; margin:16px 0 0; }',
@@ -130,8 +144,9 @@ var CSS = [
 	'  .gg-gear { width:44px; height:44px; }',
 	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
 	'  .gg-actions .cbi-button { flex:1 1 auto; }',
-	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; } }',
-	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before, .gg-chip-ms.wait::before { animation:none; } .gg-gear:hover svg { transform:none; } }'
+	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; }',
+	'  .gg-upgrade { display:flex; width:fit-content; margin:6px 0 0 auto; } }',
+	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before, .gg-chip-ms.wait::before, .gg-step.now .gg-step-ic { animation:none; } .gg-gear:hover svg { transform:none; } }'
 ].join('\n');
 
 // Tabler icons (MIT). width/height are attributes: an icon never grows when the styles are missing.
@@ -145,6 +160,9 @@ var ICONS = {
 	telegram: [ 13, 1.9, 'M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4' ],
 	whatsapp: [ 13, 1.9, 'M3 21l1.65 -3.8a9 9 0 1 1 3.4 2.9l-5.05 .9', 'M9 10a.5 .5 0 0 0 1 0v-1a.5 .5 0 0 0 -1 0v1a5 5 0 0 0 5 5h1a.5 .5 0 0 0 0 -1h-1a.5 .5 0 0 0 0 1' ],
 	world: [ 13, 1.9, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M3.6 9h16.8', 'M3.6 15h16.8', 'M11.5 3a17 17 0 0 0 0 18', 'M12.5 3a17 17 0 0 1 0 18' ],
+	download: [ 13, 2.2, 'M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2', 'M7 11l5 5l5 -5', 'M12 4l0 12' ],
+	upgrade: [ 20, 2, 'M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2', 'M7 11l5 5l5 -5', 'M12 4l0 12' ],
+	check: [ 20, 2, 'M5 12l5 5l10 -10' ],
 	heart: [ 13, 2.2, 'M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572' ],
 	arrow: [ 12, 2.2, 'M17 7l-10 10', 'M8 7l9 0l0 9' ]
 };
@@ -240,6 +258,9 @@ return view.extend({
 	checkedTunnel: null,   // the tunnel (profile and xray pid) the last check was started for; null = page just opened
 	ping: null,            // the countries' response times: {time, measuring, profiles: [{remarks, ms}]}; null = not asked yet
 	pinging: false,        // a ping call is on its way
+	upgradeAsk: false,     // the confirmation of an upgrade is open
+	upgradeSeen: false,    // this page saw an upgrade run: its end reloads the page (the new version's page)
+	upgradeTimer: null,
 	panel: null,
 
 	// no form on this page: no Save & Apply footer
@@ -255,7 +276,7 @@ return view.extend({
 	// the user holds: the focused control and a half-typed link.
 	repaint: function() {
 		var st = this.status;
-		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, this.ping, Math.floor(Date.now() / 60000) ],
+		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, this.ping, this.upgradeAsk, Math.floor(Date.now() / 60000) ],
 			function(k, v) { return (k == 'uptime' && v != null) ? Math.floor(v / 60) : v; });
 		if (key == this.painted) return;
 		this.painted = key;
@@ -273,11 +294,40 @@ return view.extend({
 
 	refresh: function() {
 		return callStatus().then(L.bind(function(st) {
+			// rpcd restarts while the new packages install: the last progress stays, without a word
+			if ((st == null || typeof st != 'object') && this.upgrading()) return this.upgradeTick();
 			this.status = st;
+			if (this.upgrading()) {
+				this.upgradeSeen = true;
+				this.upgradeTick();
+			}
+			else if (this.upgradeSeen && this.upgradeRun().state == 'ok') {
+				this.upgradeSeen = false;
+				location.reload();
+				return;
+			}
 			this.syncCheck();
 			this.syncPing();
 			this.repaint();
+		}, this), L.bind(function(e) {
+			if (!this.upgrading()) throw e;
+			this.upgradeTick();
 		}, this));
+	},
+
+	// the progress of an upgrade ($GATYGO_RUN/upgrade.json), {} when there is none
+	upgradeRun: function() {
+		return (this.status && this.status.upgrade && this.status.upgrade.run) || {};
+	},
+
+	upgrading: function() {
+		return this.upgradeRun().state == 'running';
+	},
+
+	// while an upgrade runs the page asks every 2 s
+	upgradeTick: function() {
+		if (this.upgradeTimer) return;
+		this.upgradeTimer = window.setTimeout(L.bind(function() { this.upgradeTimer = null; this.refresh(); }, this), 2000);
 	},
 
 	// The services check belongs to one tunnel. A tunnel the page has not checked yet (the page
@@ -355,6 +405,29 @@ return view.extend({
 			if (!started)
 				ui.addNotification(null, E('p', _('An update is already running.')), 'warning');
 		}));
+	},
+
+	handleUpgradeAsk: function(ev) {
+		this.upgradeAsk = true;
+		this.repaint();
+	},
+
+	handleUpgradeCancel: function(ev) {
+		this.upgradeAsk = false;
+		this.repaint();
+	},
+
+	// the router upgrades by itself: the page follows its progress from the status
+	handleUpgradeStart: function(ev) {
+		this.upgradeAsk = false;
+		return this.run('upgrade', callUpgrade('start').then(function() {
+			// the run writes its first step a moment after the start
+			return new Promise(function(resolve) { window.setTimeout(resolve, 1500); });
+		}));
+	},
+
+	handleUpgradeDismiss: function(ev) {
+		return this.run('upgrade', callUpgrade('dismiss'));
 	},
 
 	handleInit: function(action, ev) {
@@ -487,6 +560,77 @@ return view.extend({
 		]);
 	},
 
+	// Why an upgrade failed, in the user's words; args fill in the numbers and names
+	upgradeReason: function(run) {
+		var a = Array.isArray(run.args) ? run.args : [];
+		switch (run.code) {
+		case 'busy': return _('Another action is running: a subscription update or a country switch. Try again in a minute.');
+		case 'no_release': return _('GitHub did not give the new version.');
+		case 'no_rollback': return _('The current version is not on GitHub: there would be nothing to go back to.');
+		case 'openwrt': return _('gatygo needs OpenWrt 25.12, the router runs %s.').format(a[0] || '');
+		case 'conflict': return _('%s is installed: it owns the same proxy rules. Remove it first.').format(a[0] || '');
+		case 'no_core': return _('The new version has no xray core for this router\'s processor.');
+		case 'no_space': return _('Not enough flash: %d MB needed, %d MB free.').format(+a[0] || 0, +a[1] || 0);
+		case 'no_memory': return _('Not enough memory: %d MB needed, %d MB free.').format(+a[0] || 0, +a[1] || 0);
+		case 'download_failed': return _('The packages could not be downloaded.');
+		case 'checksum': return _('A downloaded file is damaged: its checksum does not match.');
+		case 'deps': return _('The router\'s package feeds do not have: %s.').format(a[0] || '');
+		case 'install_failed': return _('The packages did not install.');
+		case 'core_failed': return _('The xray core did not install.');
+		case 'config_failed': return _('The new version could not build the settings from the subscription.');
+		case 'not_started': return _('The new version did not start.');
+		case 'rollback_failed': return _('The previous version could not be put back. Reinstall gatygo with install.sh.');
+		}
+		return '';
+	},
+
+	// An upgrade's panel under the status: the confirmation, the failure, or a fresh success
+	// (the first 5 minutes after it, on the new version's page)
+	renderUpgrade: function(up, dis) {
+		var run = up.run || {}, steps = run.steps || {};
+		var button = L.bind(function(cls, label, handler, key) {
+			return E('button', { 'class': 'cbi-button ' + cls, 'type': 'button', 'disabled': dis, 'data-key': key, 'click': ui.createHandlerFn(this, handler) }, label);
+		}, this);
+		var panel = function(kind, ic, title, text, actions) {
+			return E('div', { 'class': 'gg-alert' + (kind ? ' ' + kind : ''), 'role': (kind == 'bad') ? 'alert' : 'status' }, [
+				icon(ic, 'gg-alert-icon'),
+				E('div', { 'class': 'gg-alert-body' }, [
+					E('p', { 'class': 'gg-alert-title' }, [ title ]),
+					text ? E('p', { 'class': 'gg-alert-text' }, [ text ]) : ''
+				]),
+				actions ? E('div', { 'class': 'gg-alert-actions' }, actions) : ''
+			]);
+		};
+		if (this.upgradeAsk && up.available && run.state != 'running')
+			return panel('', 'upgrade', _('Update to %s?').format(up.latest),
+				_('The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay.'),
+				[ button('cbi-button-neutral', _('Cancel'), 'handleUpgradeCancel', 'up-cancel'), button('cbi-button-action', _('Update'), 'handleUpgradeStart', 'up-start') ]);
+		if (run.state == 'failed')
+			return panel('bad', 'bad', _('Update failed'),
+				[ this.upgradeReason(run), (run.code != 'rollback_failed') ? _('Version %s is running.').format(run.from) : '' ].filter(String).join(' '),
+				[ button('cbi-button-neutral', _('Close'), 'handleUpgradeDismiss', 'up-close'), button('cbi-button-action', _('Try again'), 'handleUpgradeStart', 'up-retry') ]);
+		if (run.state == 'ok' && Date.now() / 1000 - (+run.time || 0) <= 300)
+			return panel('good', 'check', _('Updated to %s').format(run.to),
+				(steps.core == 'warn') ? _('xray core') + ' — ' + _('not downloaded, the current one works; retried with the next subscription update') : '');
+		return '';
+	},
+
+	// the five steps of a running upgrade, each with its mark
+	renderSteps: function(run) {
+		var steps = run.steps || {};
+		return E('ul', { 'class': 'gg-steps', 'aria-live': 'polite' }, [
+			[ 'check', _('Checking the router') ], [ 'download', _('Downloading') ], [ 'install', _('Installing') ],
+			[ 'core', _('xray core') ], [ 'restart', _('Restarting the VPN and checking') ]
+		].map(function(s) {
+			var v = steps[s[0]];
+			if ([ 'todo', 'now', 'ok', 'skip', 'warn', 'fail' ].indexOf(v) < 0) v = 'todo';
+			var note = (v == 'skip') ? _('unchanged') : (v == 'warn') ? _('not downloaded, the current one works; retried with the next subscription update') : '';
+			return E('li', { 'class': 'gg-step ' + v }, [
+				E('span', { 'class': 'gg-step-ic', 'aria-hidden': 'true' }, (v == 'ok') ? '✓' : (v == 'warn' || v == 'fail') ? '!' : ''),
+				s[1], note ? E('span', { 'class': 'gg-step-note' }, ' — ' + note) : '' ]);
+		}));
+	},
+
 	// Do the usual services open through the tunnel? A tile per service with its brand icon; the
 	// number says how fast (the time to the end of the TLS handshake) and its colour how good,
 	// a dashed tile with a grey icon did not answer. Plain items: only ↻ is a button. When nothing
@@ -539,12 +683,19 @@ return view.extend({
 	renderPanel: function(st) {
 		var running = st.running === true, updating = st.updating === true, hasConfig = !!st.profile_used;
 		var profiles = Array.isArray(st.profiles) ? st.profiles : [], lu = st.last_update || {};
+		var up = st.upgrade || {}, upgrading = (up.run && up.run.state == 'running');
 		// E() writes every non-null attribute, so a boolean false would still disable the control
-		var dis = (!!this.busy || updating) ? '' : null;
-		var problem = (hasConfig && this.busy != 'select') ? this.problem(st, running) : null;
+		var dis = (!!this.busy || updating || upgrading) ? '' : null;
+		var problem = (hasConfig && this.busy != 'select' && !upgrading) ? this.problem(st, running) : null;
 		var main = [], facts = [];
 
-		if (!hasConfig && (updating || this.busy == 'connect')) {
+		if (upgrading) {
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Updating'),
+				E('span', { 'class': 'gg-state-sep' }, '·'), up.run.to || '' ]));
+			main.push(this.renderSteps(up.run));
+			main.push(E('p', { 'class': 'gg-meta' }, _('Countries and buttons are unavailable until the update ends.')));
+		}
+		else if (!hasConfig && (updating || this.busy == 'connect')) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Setting up') ]));
 			main.push(E('p', { 'class': 'gg-meta' }, E('span', { 'class': 'spinning' }, _('Downloading the list of countries…'))));
 		}
@@ -634,6 +785,7 @@ return view.extend({
 				E('a', { 'class': 'gg-gear', 'href': L.url('admin/services/gatygo/advanced'), 'title': _('Advanced: settings, nodes, log'),
 					'aria-label': _('Advanced: settings, nodes, log'), 'data-key': 'gear' }, icon('gear'))
 			]),
+			this.renderUpgrade(up, dis),
 			problem ? this.renderAlert(problem, dis) : '',
 			(hasConfig && running && this.busy != 'select') ? this.renderCheck(silent, others) : '',
 			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
@@ -644,7 +796,9 @@ return view.extend({
 			]) : '',
 			E('div', { 'class': 'gg-card-foot' }, [
 				E('a', { 'class': 'gg-donate', 'href': 'https://filatov.page', 'target': '_blank', 'rel': 'noopener', 'data-key': 'donate' }, [ icon('heart'), _('Donate'), icon('arrow', 'gg-ext') ]),
-				E('p', { 'class': 'gg-sign' }, [ mark(), E('b', {}, 'gatygo'), st.version || '' ])
+				E('p', { 'class': 'gg-sign' }, [ mark(), E('b', {}, 'gatygo'), st.version || '',
+					(up.available && !upgrading) ? E('button', { 'class': 'gg-upgrade', 'type': 'button', 'disabled': dis, 'data-key': 'upgrade',
+						'click': ui.createHandlerFn(this, 'handleUpgradeAsk') }, [ icon('download'), _('Update'), E('span', { 'class': 'gg-upgrade-sep' }), E('span', { 'class': 'gg-upgrade-v' }, [ up.latest ]) ]) : '' ])
 			])
 		]);
 	},
@@ -654,6 +808,17 @@ return view.extend({
 		this.status = st;
 		this.link = uci.get('gatygo', 'main', 'sub_url') || null;
 		this.panel = E('div', {});
+		// from the Advanced page's Update button: the confirmation right away
+		var q = new URLSearchParams(location.search);
+		if (q.get('upgrade') == '1') {
+			q.delete('upgrade');
+			history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+			this.upgradeAsk = !!(st.upgrade && st.upgrade.available);
+		}
+		if (this.upgrading()) {
+			this.upgradeSeen = true;
+			this.upgradeTick();
+		}
 		this.syncCheck();
 		this.syncPing();
 		this.repaint();

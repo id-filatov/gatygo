@@ -12,7 +12,7 @@ msgstr "Остановить и удалить"
 msgid "Delete"
 msgstr "Удалить"
 
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Cancel"
 msgstr "Отмена"
 
@@ -296,6 +296,10 @@ msgstr "У вашей учётной записи нет доступа к на�
 msgid "My rules"
 msgstr "Мои правила"
 
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update"
+msgstr "Обновить"
+
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Back to gatygo"
 msgstr "Назад к gatygo"
@@ -498,6 +502,122 @@ msgid "The last update finished with a warning"
 msgstr "Последнее обновление завершилось с предупреждением"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Another action is running: a subscription update or a country switch. Try again in a minute."
+msgstr "Идёт другое действие: обновление подписки или смена страны. Попробуйте через минуту."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "GitHub did not give the new version."
+msgstr "GitHub не отдал новую версию."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The current version is not on GitHub: there would be nothing to go back to."
+msgstr "Текущей версии нет на GitHub: вернуться было бы не на что."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo needs OpenWrt 25.12, the router runs %s."
+msgstr "Нужна OpenWrt 25.12, на роутере %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "%s is installed: it owns the same proxy rules. Remove it first."
+msgstr "Установлен %s: он управляет теми же правилами. Сначала удалите его."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The new version has no xray core for this router's processor."
+msgstr "В новой версии нет ядра xray для процессора этого роутера."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Not enough flash: %d MB needed, %d MB free."
+msgstr "Мало места на флешке: нужно %d МБ, свободно %d МБ."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Not enough memory: %d MB needed, %d MB free."
+msgstr "Мало оперативной памяти: нужно %d МБ, свободно %d МБ."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The packages could not be downloaded."
+msgstr "Не удалось скачать пакеты."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "A downloaded file is damaged: its checksum does not match."
+msgstr "Скачанный файл повреждён: контрольная сумма не совпала."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The router's package feeds do not have: %s."
+msgstr "В источниках пакетов роутера нет: %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The packages did not install."
+msgstr "Пакеты не установились."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The xray core did not install."
+msgstr "Ядро xray не установилось."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The new version could not build the settings from the subscription."
+msgstr "Новая версия не собрала настройки из подписки."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The new version did not start."
+msgstr "Новая версия не запустилась."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The previous version could not be put back. Reinstall gatygo with install.sh."
+msgstr "Не удалось вернуть прежнюю версию. Переустановите gatygo через install.sh."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update to %s?"
+msgstr "Обновить до %s?"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay."
+msgstr "Интернет через VPN пропадёт на несколько секунд. Подписка, страна, настройки и «Мои правила» сохранятся."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update failed"
+msgstr "Обновить не удалось"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Version %s is running."
+msgstr "Работает %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Close"
+msgstr "Закрыть"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updated to %s"
+msgstr "Обновлено до %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "xray core"
+msgstr "Ядро xray"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "not downloaded, the current one works; retried with the next subscription update"
+msgstr "не скачалось, работает прежнее; повторит при обновлении подписки"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Checking the router"
+msgstr "Проверка роутера"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Downloading"
+msgstr "Скачивание"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Installing"
+msgstr "Установка"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Restarting the VPN and checking"
+msgstr "Перезапуск VPN и проверка"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "unchanged"
+msgstr "не менялось"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "no reply"
 msgstr "нет ответа"
 
@@ -566,12 +686,16 @@ msgid "Subscription link"
 msgstr "Ссылка на подписку"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update"
-msgstr "Обновить"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Connect"
 msgstr "Подключить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updating"
+msgstr "Обновление"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Countries and buttons are unavailable until the update ends."
+msgstr "Страны и кнопки недоступны до конца обновления."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Setting up"
