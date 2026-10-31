@@ -22,6 +22,16 @@ case $1 in
         ;;
     rules) echo '{"available":true,"api":true,"pending":false,"profile":"🌐 Auto","rules":[{"domain":"rare.example","to":"direct","status":"works"}]}' ;;
     route) echo '{"available":true,"to":"direct"}' ;;
+    upgrade)
+        case $2 in
+            due) exit "${GATYGO_CLI_UPGRADE_DUE_RC:-1}" ;;
+            check) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.check" ;;
+            running) exit "${GATYGO_CLI_UPGRADE_RUNNING_RC:-1}" ;;
+            run) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.upgrade" ;;
+            dismiss) ;;
+            *) exit 1 ;;
+        esac
+        ;;
     # the upgrade's rebuild of the config and its look at the installed version
     apply)
         [ "${GATYGO_CLI_APPLY_RC:-0}" = 0 ] && echo '{"v":"new"}' > "$GATYGO_STATE/xray.json"

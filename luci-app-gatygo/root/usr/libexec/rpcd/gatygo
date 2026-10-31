@@ -6,11 +6,15 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true},"rules":{},"route":{"domain":"domain"}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true},"rules":{},"route":{"domain":"domain"},"upgrade":{"action":"action"}}'
 		;;
 	call)
 		case $2 in
-			status) "$GATYGO" status ;;
+			status)
+				# the router looks for a newer gatygo while the page is open, once a day
+				"$GATYGO" upgrade due && ("$GATYGO" upgrade check </dev/null >/dev/null 2>&1 &)
+				"$GATYGO" status
+				;;
 			log)
 				_n=$(jq -r '.lines // empty' 2>/dev/null)
 				case $_n in '' | *[!0-9]*) _n=200 ;; esac
@@ -82,6 +86,24 @@ case $1 in
 					exit 0
 				}
 				"$GATYGO" route "$_d"
+				;;
+			upgrade)
+				case $(jq -r '.action // empty' 2>/dev/null) in
+					start)
+						if "$GATYGO" upgrade running; then
+							echo '{"started":false}'
+						else
+							# detached: the upgrade restarts rpcd itself (luci-app-gatygo's postinst)
+							("$GATYGO" upgrade run </dev/null >/dev/null 2>&1 &)
+							echo '{"started":true}'
+						fi
+						;;
+					dismiss)
+						"$GATYGO" upgrade dismiss >/dev/null 2>&1
+						echo '{"result":"ok"}'
+						;;
+					*) echo '{"error":"unknown action"}' ;;
+				esac
 				;;
 			*) echo '{"error":"unknown method"}' ;;
 		esac

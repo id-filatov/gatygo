@@ -36,7 +36,9 @@ gatygo_forget() {
     [ "$_gatygo_geo" = 1 ] && rm -f "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
     for _gatygo_f in "$GATYGO_RUN"/* "$GATYGO_RUN"/.[!.]*; do
         [ -e "$_gatygo_f" ] || continue
-        [ "$_gatygo_f" = "$GATYGO_RUN/update.lock" ] || rm -rf "$_gatygo_f"
+        # the update lock is ours to release; an upgrade's lock and its outcome are the upgrade's
+        case $_gatygo_f in "$GATYGO_RUN"/update.lock | "$GATYGO_RUN"/upgrade.lock | "$GATYGO_RUN"/upgrade.json) continue ;; esac
+        rm -rf "$_gatygo_f"
     done
     # the settings back to the package defaults, the device ID kept
     _gatygo_hwid=$(uci -q get gatygo.main.hwid 2>/dev/null)

@@ -16,12 +16,13 @@
 #   gatygo cron-sync                 re-create the periodic update line
 #   gatygo watch                     wait for xray to quit for good (run by the service itself)
 #   gatygo upgrade due|check         exit 0 when the daily look at the latest release is due | look now
+#   gatygo upgrade running|run|dismiss  exit 0 while an upgrade runs | upgrade now | drop its outcome
 #   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|running|run|dismiss|version" >&2
 	exit 1
 }
 
@@ -376,6 +377,15 @@ upgrade)
 	case ${2:-} in
 	due) gatygo_upgrade_due ;;
 	check) gatygo_upgrade_check ;;
+	running) gatygo_locked upgrade ;;
+	run)
+		# the upgrade replaces this file and the library: it runs from a copy of the library's
+		# files in /tmp (not of its directories: the 35 MB xray core lives in one)
+		_d=$(mktemp -d /tmp/gatygo-upgrade.XXXXXX) && mkdir "$_d/lib" || exit 1
+		for _f in "$GATYGO_LIB"/*; do [ -f "$_f" ] && cp -p "$_f" "$_d/lib/"; done
+		GATYGO_LIB="$_d/lib" exec sh -c '. "$GATYGO_LIB/upgrade.sh"; gatygo_load_config; gatygo_upgrade_run; _rc=$?; rm -rf "'"$_d"'"; exit $_rc'
+		;;
+	dismiss) gatygo_locked upgrade || rm -f "$GATYGO_RUN/upgrade.json" ;;
 	*) usage ;;
 	esac
 	;;

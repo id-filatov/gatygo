@@ -6,7 +6,7 @@ export GATYGO_BIN=/src/tests/stubs/gatygo-cli GATYGO_CLI_LOG="$tmp/calls" GATYGO
 : > "$GATYGO_CLI_LOG"
 call() { _m=$1; shift; printf '%s' "${1:-{\}}" | sh "$RPCD" call "$_m"; }
 
-assert_eq '["check","connect","forget","log","ping","route","rules","select","status","update"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names the ten methods"
+assert_eq '["check","connect","forget","log","ping","route","rules","select","status","update","upgrade"]' "$(sh "$RPCD" list | jq -c 'keys')" "list names eleven methods"
 assert_eq "32" "$(sh "$RPCD" list | jq '.log.lines')" "log declares a numeric argument"
 assert_eq "true" "$(call status | jq .running)" "status passes the CLI JSON through"
 assert_eq "unknown method" "$(call nodes | jq -r .error)" "the page has no node list: no nodes method"
@@ -69,6 +69,23 @@ assert_eq "1" "$(grep -c '^route rare.example$' "$GATYGO_CLI_LOG")" "route passe
 assert_eq "domain required" "$(call route '{}' | jq -r .error)" "route without a domain"
 assert_exit 0 "ACL: rules and route are read methods" jq -e '.["luci-app-gatygo"].read.ubus.gatygo | index("rules") and index("route")' "$ACL"
 assert_eq "unknown method" "$(call bogus | jq -r .error)" "unknown method"
+
+# --- upgrade: one detached runner; the page's status call looks for a new release once a day
+: > "$GATYGO_CLI_LOG"
+assert_eq "true" "$(call upgrade '{"action":"start"}' | jq .started)" "upgrade starts"
+assert_exit 1 "returns before the run ends" test -e "$GATYGO_CLI_UPDATE_MARK.upgrade"
+sleep 1.5; assert_exit 0 "the run happened" test -e "$GATYGO_CLI_UPDATE_MARK.upgrade"
+assert_eq "false" "$(GATYGO_CLI_UPGRADE_RUNNING_RC=0 call upgrade '{"action":"start"}' | jq .started)" "second start refused"
+assert_eq "1" "$(grep -c '^upgrade run$' "$GATYGO_CLI_LOG")" "one runner"
+assert_eq '{"result":"ok"}' "$(call upgrade '{"action":"dismiss"}')" "dismiss"
+assert_eq "1" "$(grep -c '^upgrade dismiss$' "$GATYGO_CLI_LOG")" "dismiss reached the CLI"
+assert_eq "unknown action" "$(call upgrade '{}' | jq -r .error)" "no action"
+assert_eq "unknown action" "$(call upgrade '{"action":"run"}' | jq -r .error)" "an action the page does not have"
+assert_eq "true" "$(GATYGO_CLI_UPGRADE_DUE_RC=0 call status | jq .running)" "status still answers when a check is due"
+sleep 1.5
+assert_exit 0 "a due check runs in the background" test -e "$GATYGO_CLI_UPDATE_MARK.check"
+call status >/dev/null; assert_eq "1" "$(grep -c '^upgrade check$' "$GATYGO_CLI_LOG")" "not due: no second check"
+assert_eq "true" "$(jq '.["luci-app-gatygo"].write.ubus.gatygo | index("upgrade") != null' "$ACL")" "ACL grants upgrade as a write"
 
 rm -rf "$tmp"
 report

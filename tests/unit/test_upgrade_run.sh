@@ -274,6 +274,25 @@ _r=$(_setup; echo '{"sub":"before"}' > "$GATYGO_STATE/subscription.json"; : > "$
 assert_eq '1 "ok"
 {"sub":"before"}' "$_r" "cron during the install waits, the subscription is not touched"
 
+# --- CLI: the executor runs from a copy of the library and leaves nothing in /tmp
+CLI=/src/gatygo/files/gatygo
+uci set gatygo.main.release_api=http://127.0.0.1:1/releases
+_r=$(_setup; sh "$CLI" upgrade run >/dev/null 2>&1; echo "$? $(_j .state) $(_j .code) $(ls -d /tmp/gatygo-upgrade.* 2>/dev/null | wc -l | tr -d ' ')"
+    sh "$CLI" upgrade dismiss; echo "$? $(ls "$GATYGO_RUN" | tr '\n' ' ')")
+assert_eq '1 "failed" "no_release" 0
+0 ' "$_r" "cli: upgrade run fails cleanly, dismiss drops the progress file"
+uci set gatygo.main.release_api=http://127.0.0.1:8793/releases
+_r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
+    echo '{"state":"running"}' > "$GATYGO_RUN/upgrade.json"
+    sh "$CLI" upgrade running; echo "running $?"
+    sh "$CLI" upgrade dismiss; echo "$(_j .state)"
+    kill "$_s"; wait "$_s" 2>/dev/null
+    sh "$CLI" upgrade running; echo "running $?")
+assert_eq 'running 0
+"running"
+running 1' "$_r" "cli: running while the executor lives; dismiss leaves a running upgrade alone"
+assert_exit 1 "cli: unknown upgrade action" sh "$CLI" upgrade nonsense
+
 kill "$_srv" 2>/dev/null
 rm -rf "$tmp"
 report
