@@ -36,6 +36,17 @@ case $1 in
         ;;
     # the upgrade's rebuild of the config and its look at the installed version
     apply)
+        # an update holds the lock the first time (exit 2), the rebuild works the next
+        if [ -n "${GATYGO_CLI_APPLY_BUSY_ONCE:-}" ] && [ ! -e "$GATYGO_CLI_APPLY_BUSY_ONCE" ]; then
+            touch "$GATYGO_CLI_APPLY_BUSY_ONCE"; exit 2
+        fi
+        # a cron update takes the lock right after the rebuild failed and writes the config 2 s later
+        if [ -n "${GATYGO_CLI_APPLY_RACE:-}" ]; then
+            mkdir -p "$GATYGO_RUN/update.lock"
+            ( sleep 2; echo '{"v":"cron"}' > "$GATYGO_STATE/xray.json"; rm -rf "$GATYGO_RUN/update.lock" ) &
+            echo "$!" > "$GATYGO_RUN/update.lock/pid"
+            exit 1
+        fi
         [ "${GATYGO_CLI_APPLY_RC:-0}" = 0 ] && echo '{"v":"new"}' > "$GATYGO_STATE/xray.json"
         exit "${GATYGO_CLI_APPLY_RC:-0}"
         ;;

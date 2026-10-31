@@ -566,6 +566,10 @@ msgid "The previous version could not be put back. Reinstall gatygo with install
 msgstr "Не удалось вернуть прежнюю версию. Переустановите gatygo через install.sh."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The update stopped halfway. If the VPN does not work, reinstall gatygo with install.sh."
+msgstr "Обновление прервалось на полпути. Если VPN не работает, переустановите gatygo через install.sh."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Update to %s?"
 msgstr "Обновить до %s?"
 

@@ -583,6 +583,7 @@ return view.extend({
 		case 'config_failed': return _('The new version could not build the settings from the subscription.');
 		case 'not_started': return _('The new version did not start.');
 		case 'rollback_failed': return _('The previous version could not be put back. Reinstall gatygo with install.sh.');
+		case 'interrupted': return _('The update stopped halfway. If the VPN does not work, reinstall gatygo with install.sh.');
 		}
 		return '';
 	},
@@ -610,7 +611,7 @@ return view.extend({
 				[ button('cbi-button-neutral', _('Cancel'), 'handleUpgradeCancel', 'up-cancel'), button('cbi-button-action', _('Update'), 'handleUpgradeStart', 'up-start') ]);
 		if (run.state == 'failed')
 			return panel('bad', 'bad', _('Update failed'),
-				[ this.upgradeReason(run), (run.code != 'rollback_failed') ? _('Version %s is running.').format(run.from) : '' ].filter(String).join(' '),
+				[ this.upgradeReason(run), (run.code != 'rollback_failed' && run.code != 'interrupted') ? _('Version %s is running.').format(run.from) : '' ].filter(String).join(' '),
 				[ button('cbi-button-neutral', _('Close'), 'handleUpgradeDismiss', 'up-close'), button('cbi-button-action', _('Try again'), 'handleUpgradeStart', 'up-retry') ]);
 		if (run.state == 'ok' && Date.now() / 1000 - (+run.time || 0) <= 300)
 			return panel('good', 'check', _('Updated to %s').format(run.to),

@@ -99,9 +99,13 @@ gatygo_upgrade_check
 assert_eq "true" "$(gatygo_upgrade_status_json | jq .available)" "newer than installed 20261027.1753"
 assert_eq "20261105.1200" "$(gatygo_upgrade_status_json | jq -r .latest)" "latest"
 assert_eq "null" "$(gatygo_upgrade_status_json | jq .run)" "no run yet"
-echo '{"state":"running","from":"20261027.1753","to":"20261105.1200"}' > "$GATYGO_RUN/upgrade.json"
+echo '{"state":"running","from":"20261027.1753","to":"20261105.1200","steps":{"install":"now"},"code":"","args":[]}' > "$GATYGO_RUN/upgrade.json"
+sleep 30 & _up=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_up" > "$GATYGO_RUN/upgrade.lock/pid"
 assert_eq "running" "$(gatygo_upgrade_status_json | jq -r .run.state)" "run: the progress file"
-rm -f "$GATYGO_RUN/upgrade.json"
+kill "$_up"; wait "$_up" 2>/dev/null
+# the executor is gone (killed, the router's memory): the page gets a failure it can close
+assert_eq "failed interrupted fail" "$(gatygo_upgrade_status_json | jq -r '"\(.run.state) \(.run.code) \(.run.steps.install)"')" "run: an executor that is gone is a failure"
+rm -rf "$GATYGO_RUN/upgrade.json" "$GATYGO_RUN/upgrade.lock"
 echo 20261105.1200 > "$GATYGO_LIB/version"; gatygo_load_config
 assert_eq "false" "$(gatygo_upgrade_status_json | jq .available)" "not newer than itself"
 echo 20261027.1753 > "$GATYGO_LIB/version"; gatygo_load_config

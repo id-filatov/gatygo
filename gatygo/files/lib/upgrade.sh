@@ -9,7 +9,9 @@
 # the packages that own the same proxy rules: CONFLICTS in install.sh
 GATYGO_UPGRADE_CONFLICTS="luci-app-passwall luci-app-passwall2 luci-app-openclash luci-app-homeproxy"
 # the installed gatygo: after the install step these are the new version's (the executor itself
-# runs from a copy of the old library)
+# runs from a copy of the old library). The executor's environment reaches the new version's
+# processes (apk's postinst, the new CLI): config.sh exports the paths, and every version reads
+# them as ${VAR:-default}. Those defaults are a contract between versions, as upgrade.json is.
 GATYGO_BIN=${GATYGO_BIN:-/usr/bin/gatygo}
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 GATYGO_UPGRADE_TARGET=${GATYGO_UPGRADE_TARGET:-/usr/lib/gatygo}
@@ -97,6 +99,11 @@ gatygo_upgrade_status_json() {
     _gatygo_ua=false
     gatygo_upgrade_newer "$_gatygo_ul" "$GATYGO_VERSION" && _gatygo_ua=true
     _gatygo_urun=$(jq -c . "$GATYGO_RUN/upgrade.json" 2>/dev/null) || _gatygo_urun=''
+    # running, but nobody holds the lock: the executor was killed. A failure the page can close.
+    case $_gatygo_urun in
+        *'"state":"running"'*) gatygo_locked upgrade || _gatygo_urun=$(printf '%s' "$_gatygo_urun" | jq -c '.state = "failed"
+            | .code = "interrupted" | .args = [] | .steps |= map_values(if . == "now" then "fail" else . end)') ;;
+    esac
     jq -nc --arg latest "$_gatygo_ul" --argjson available "$_gatygo_ua" --argjson run "${_gatygo_urun:-null}" \
         '{latest: (if $latest == "" then null else $latest end), available: $available, run: $run}'
 }
@@ -159,6 +166,12 @@ gatygo_upgrade_free_kb() {
     df -k "$1" 2>/dev/null | awk 'END { print $(NF - 2) }'
 }
 
+# _gatygo_upgrade_kb VALUE — VALUE when it is a whole number, 0 otherwise (shell arithmetic on
+# anything else would end the run)
+_gatygo_upgrade_kb() {
+    case $1 in '' | *[!0-9]*) echo 0 ;; *) echo "$1" ;; esac
+}
+
 # _gatygo_upgrade_get URL FILE — one download, quiet; exit as curl
 _gatygo_upgrade_get() {
     curl -fsSL --proto '=http,https' --connect-timeout 15 --max-time "${3:-60}" -o "$2" "$1" 2>/dev/null
@@ -195,16 +208,16 @@ gatygo_upgrade_preflight() {
     [ "$_gatygo_up_core" = 1 ] && _gatygo_uneed=40960
     _gatygo_ud=/overlay
     [ -d "$_gatygo_ud" ] || _gatygo_ud=/
-    _gatygo_ufree=$(gatygo_upgrade_free_kb "$_gatygo_ud")
-    [ "${_gatygo_ufree:-0}" -ge "$_gatygo_uneed" ] 2>/dev/null \
-        || { gatygo_upgrade_fail no_space $((_gatygo_uneed / 1024)) $((${_gatygo_ufree:-0} / 1024)); return 1; }
+    _gatygo_ufree=$(_gatygo_upgrade_kb "$(gatygo_upgrade_free_kb "$_gatygo_ud")")
+    [ "$_gatygo_ufree" -ge "$_gatygo_uneed" ] \
+        || { gatygo_upgrade_fail no_space $((_gatygo_uneed / 1024)) $((_gatygo_ufree / 1024)); return 1; }
     # memory: the downloads, the copy of the state dir, the core's archive
-    _gatygo_uneed=$(du -sk "$GATYGO_STATE" 2>/dev/null | cut -f1)
-    _gatygo_uneed=$((${_gatygo_uneed:-0} + 5120))
+    _gatygo_uneed=$(_gatygo_upgrade_kb "$(du -sk "$GATYGO_STATE" 2>/dev/null | cut -f1)")
+    _gatygo_uneed=$((_gatygo_uneed + 5120))
     [ "$_gatygo_up_core" = 1 ] && _gatygo_uneed=$((_gatygo_uneed + 25600))
-    _gatygo_ufree=$(gatygo_upgrade_free_kb /tmp)
-    [ "${_gatygo_ufree:-0}" -ge "$_gatygo_uneed" ] 2>/dev/null \
-        || { gatygo_upgrade_fail no_memory $((_gatygo_uneed / 1024)) $((${_gatygo_ufree:-0} / 1024)); return 1; }
+    _gatygo_ufree=$(_gatygo_upgrade_kb "$(gatygo_upgrade_free_kb /tmp)")
+    [ "$_gatygo_ufree" -ge "$_gatygo_uneed" ] \
+        || { gatygo_upgrade_fail no_memory $((_gatygo_uneed / 1024)) $((_gatygo_ufree / 1024)); return 1; }
     gatygo_upgrade_mark check ok
 }
 
@@ -225,6 +238,8 @@ gatygo_upgrade_download() {
                 || { gatygo_upgrade_fail checksum; return 1; }
         done
     done
+    # the feeds' index lives in tmpfs: after a reboot apk knows no package of the feeds
+    apk update >/dev/null 2>&1
     _gatygo_uo=$(apk add --simulate --allow-untrusted "$_gatygo_uw/new/gatygo.apk" "$_gatygo_uw/new/luci-app-gatygo.apk" 2>&1) || {
         _gatygo_um=$(printf '%s\n' "$_gatygo_uo" | sed -n 's/^ *\([^ ][^ ]*\) (no such package):.*$/\1/p' | tr '\n' ' ')
         gatygo_upgrade_fail deps "${_gatygo_um% }"
@@ -298,8 +313,16 @@ _gatygo_upgrade_steady() {
 gatygo_upgrade_restart() {
     _gatygo_uw=$1
     gatygo_update_unlock
-    GATYGO_LIB=$GATYGO_UPGRADE_TARGET "$GATYGO_BIN" apply wait >/dev/null 2>&1
-    case $? in
+    # nothing cached to build from (a link whose subscription never came): nothing to rebuild
+    _gatygo_uarc=0 _gatygo_ui=0
+    while [ -s "$GATYGO_STATE/subscription.json" ]; do
+        GATYGO_LIB=$GATYGO_UPGRADE_TARGET "$GATYGO_BIN" apply wait >/dev/null 2>&1
+        _gatygo_uarc=$?
+        # 2: an update held the lock for the whole minute `apply wait` waits; it ends, wait again
+        [ "$_gatygo_uarc" = 2 ] && [ "$_gatygo_ui" -lt 3 ] || break
+        _gatygo_ui=$((_gatygo_ui + 1))
+    done
+    case $_gatygo_uarc in
         0) ;;
         1) _gatygo_upgrade_abort "$_gatygo_uw" config_failed; return 1 ;;
         *) _gatygo_upgrade_abort "$_gatygo_uw" not_started; return 1 ;;
@@ -320,6 +343,14 @@ gatygo_upgrade_restart() {
 gatygo_upgrade_rollback() {
     _gatygo_uw=$1 _gatygo_uok=0
     gatygo_log warn "upgrade: putting gatygo $GATYGO_VERSION back"
+    # the update lock again (the rebuild let it go): no update writes the state dir meanwhile
+    if [ "$(cat "$GATYGO_RUN/update.lock/pid" 2>/dev/null)" != "$$" ]; then
+        _gatygo_ui=0
+        until gatygo_update_lock || [ "$_gatygo_ui" -ge 300 ]; do
+            _gatygo_ui=$((_gatygo_ui + 1))
+            sleep 1
+        done
+    fi
     if [ -d "$_gatygo_uw/state" ]; then
         rm -rf "$GATYGO_STATE"/* "$GATYGO_STATE"/.[!.]* && cp -a "$_gatygo_uw/state/." "$GATYGO_STATE/" || _gatygo_uok=1
     fi
@@ -358,6 +389,8 @@ _gatygo_upgrade_abort() {
 # progress file stays). Every step marks its outcome in $GATYGO_RUN/upgrade.json.
 gatygo_upgrade_run() {
     gatygo_lock upgrade || return 0
+    # started from a shell that may go away (ssh): a hangup must not cut the upgrade off
+    trap '' HUP
     _gatygo_uwork=$(mktemp -d /tmp/gatygo-upgrade.XXXXXX)
     gatygo_upgrade_begin "$GATYGO_VERSION" "$(jq -r '.version // empty' "$GATYGO_STATE/upgrade-latest.json" 2>/dev/null)"
     _gatygo_urc=1

@@ -158,6 +158,15 @@ assert_eq '1 "fail" "deps" ["kmod-nft-foo libfoo2"]' "$_r" "the feeds miss a dep
 _r=$(_fresh; _pre >/dev/null; APK_STUB_SIMULATE_RC=1 gatygo_upgrade_download "$WORK" >/dev/null 2>&1; echo "$(_j .code) $(_j .args)")
 assert_eq '"deps" [""]' "$_r" "the feeds refuse without naming a package"
 
+# the feeds' index lives in tmpfs (gone after a reboot): it is fetched before apk resolves anything
+_r=$(_fresh; : > "$APK_STUB_LOG"; _pre >/dev/null; gatygo_upgrade_download "$WORK" >/dev/null 2>&1
+    grep -E '^(update|add --simulate)' "$APK_STUB_LOG" | cut -d' ' -f1-2 | tr '\n' ','; echo)
+assert_eq "update,add --simulate," "$_r" "the feeds' index is fetched before the simulation"
+_r=$(_fresh; _pre >/dev/null; APK_STUB_UPDATE_RC=1 gatygo_upgrade_download "$WORK" >/dev/null 2>&1; echo "$? $(_j .steps.download)")
+assert_eq '0 "ok"' "$_r" "an index that does not come is not a refusal by itself"
+# df answering something else than a number refuses, it does not kill the run
+assert_eq '1 "fail" "no_space" ["40","0"]' "$(_fresh; FREE_KB='12%'; _pre)" "free space that is not a number"
+
 # --- nothing was installed by any of the above
 assert_exit 0 "the simulations are in the apk log" grep -q -- '^add --simulate' "$APK_STUB_LOG"
 assert_eq "0" "$(grep '^add' "$APK_STUB_LOG" | grep -vc -- '--simulate')" "apk add only ever simulated"
@@ -192,6 +201,7 @@ _setup() {
     rm -rf "$GATYGO_STATE" "$GATYGO_CORE_DIR" "$GATYGO_CORE_DIR.prev"
     mkdir -p "$GATYGO_STATE" "$GATYGO_CORE_DIR"
     echo '{"v":"old"}' > "$GATYGO_STATE/xray.json"
+    echo '{"sub":"cached"}' > "$GATYGO_STATE/subscription.json"
     echo '{"checked":1,"version":"20261105.1200"}' > "$GATYGO_STATE/upgrade-latest.json"
     echo old > "$GATYGO_CORE_DIR/xray"; echo oldpin > "$GATYGO_CORE_DIR/pin"
     : > "$APK_STUB_LOG"; : > "$APK_STUB_ADDED"; : > "$GATYGO_INIT_LOG"; : > "$GATYGO_CLI_LOG"
@@ -251,6 +261,25 @@ assert_eq '1 "failed" "rollback_failed" false "todo" "todo"' "$_r" "the rollback
 
 _r=$(_setup; rm -f "$GATYGO_STATE"/*; export RUNNING=0; _run)
 assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "no subscription yet"
+_r=$(_setup; rm -f "$GATYGO_STATE/subscription.json"; export RUNNING=0 GATYGO_CLI_APPLY_RC=1; _run)
+assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "a link whose subscription never came: nothing to rebuild, no rollback"
+
+# an update that holds the lock longer than the rebuild waits: wait for it again, no rollback
+_r=$(_setup; export GATYGO_CLI_APPLY_BUSY_ONCE="$GATYGO_RUN/busy-once"; _run)
+assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "the rebuild waits out a long update"
+# a cron update that slips in after the failed rebuild: the rollback waits for it, then puts the old config back
+_r=$(_setup; export GATYGO_CLI_APPLY_RACE=1; _run; sleep 3; cat "$GATYGO_STATE/xray.json")
+assert_eq '1 "failed" "config_failed" true "skip" "fail"
+{"v":"old"}' "$_r" "the rollback takes the update lock: a cron update cannot write over it"
+
+# the shell it was started from goes away (ssh dropped): the upgrade goes on
+_r=$(_setup; export APK_STUB_ADD_SLEEP=2
+    ( gatygo_upgrade_run >/dev/null 2>&1 ) &
+    _bg=$!
+    for _ in $(seq 1 50); do [ "$(_j .steps.install 2>/dev/null)" = '"now"' ] && break; sleep 0.1; done
+    kill -HUP "$_bg"; wait "$_bg"
+    _j .state)
+assert_eq '"ok"' "$_r" "a hangup does not stop the upgrade"
 
 _r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
     gatygo_upgrade_run >/dev/null 2>&1; echo "$? $(ls "$GATYGO_RUN" | tr '\n' ' ')$(grep -c . "$APK_STUB_LOG")"; kill "$_s")
