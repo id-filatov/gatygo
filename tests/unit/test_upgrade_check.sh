@@ -93,6 +93,10 @@ gatygo_upgrade_check 2>/dev/null
 assert_eq "null" "$(jq .version "$GATYGO_STATE/upgrade-latest.json")" "never answered -> null"
 uci set gatygo.main.release_api=http://127.0.0.1:8793/releases
 
+# --- a state dir the check creates is the router's alone
+_r=$(GATYGO_STATE="$tmp/fresh/state"; gatygo_upgrade_check; ls -ld "$GATYGO_STATE" | cut -c1-10)
+assert_eq "drwx------" "$_r" "the state dir it creates is 0700"
+
 # --- what the page gets
 assert_eq '{"latest":null,"available":false,"run":null}' "$(gatygo_upgrade_status_json)" "nothing known yet"
 gatygo_upgrade_check

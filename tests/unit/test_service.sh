@@ -61,6 +61,14 @@ mkdir -p "$GATYGO_RUN/update.lock"; echo 999999 > "$GATYGO_RUN/update.lock/pid"
 assert_exit 1 "stale lock (dead pid) does not count as updating" gatygo_updating
 assert_exit 0 "stale lock is taken over" gatygo_update_lock
 gatygo_update_unlock
+# taken a moment ago, its pid not written yet: held, not left behind
+mkdir -p "$GATYGO_RUN/update.lock"
+assert_exit 1 "a fresh lock without a pid is being taken: refused" gatygo_update_lock
+assert_exit 0 "and counts as held" gatygo_updating
+touch -t 202601010000 "$GATYGO_RUN/update.lock"
+assert_exit 1 "an old lock without a pid was left behind: not held" gatygo_updating
+assert_exit 0 "and is taken over" gatygo_update_lock
+gatygo_update_unlock
 
 # --- next update: cron slots in local time (tests run in UTC)
 export TZ=UTC

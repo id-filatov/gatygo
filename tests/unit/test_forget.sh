@@ -54,14 +54,21 @@ assert_eq "" "$(uci show gatygo.@rule)" "every one of them"
 assert_eq "1" "$(grep -c '\[info\] subscription removed$' "$SYSLOG_STUB_FILE")" "one log line says so"
 assert_exit 1 "the link never reaches the log" grep -q SECRETTOKEN "$SYSLOG_STUB_FILE"
 
-# --- an upgrade's lock and its progress stay: the page shows how the upgrade ended
+# --- an upgrade is running: nothing is touched (it rebuilds the config with the settings it finds)
 _populate
 mkdir -p "$GATYGO_RUN/upgrade.lock"; sleep 30 & _upg=$!; echo "$_upg" > "$GATYGO_RUN/upgrade.lock/pid"
+assert_exit 2 "forget during an upgrade: busy" sh "$CLI" forget
+assert_eq "x" "$(cat "$GATYGO_STATE/subscription.json")" "the subscription stays"
+assert_eq "https://panel.example.com/sub/SECRETTOKEN" "$(uci -q get gatygo.main.sub_url)" "the link stays"
+kill "$_upg"; wait "$_upg" 2>/dev/null; rm -rf "$GATYGO_RUN/upgrade.lock"
+
+# --- an upgrade's progress and lock stay (here a lock its killed executor left): the page shows
+# how the upgrade ended
+_populate
+mkdir -p "$GATYGO_RUN/upgrade.lock"; echo 999999 > "$GATYGO_RUN/upgrade.lock/pid"
 echo '{"state":"failed"}' > "$GATYGO_RUN/upgrade.json"
 assert_exit 0 "forget with an upgrade's files in the run dir" sh "$CLI" forget
 assert_eq "upgrade.json upgrade.lock" "$(ls "$GATYGO_RUN" | tr '\n' ' ' | sed 's/ $//')" "the upgrade's lock and progress stay"
-assert_eq "$_upg" "$(cat "$GATYGO_RUN/upgrade.lock/pid")" "the lock is still the upgrade's"
-kill "$_upg"
 
 # --- an update is running: nothing is touched
 _populate

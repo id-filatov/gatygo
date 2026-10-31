@@ -118,7 +118,7 @@ assert_eq '1 "fail" "no_rollback" []' "$(_fresh; _pre)" "the installed version i
 mv "$tmp/tag.json" "$www/releases/tags/v20261027.1753"
 
 uci set gatygo.main.release_api=http://127.0.0.1:1/releases
-assert_eq '1 "fail" "no_release" []' "$(_fresh; _pre)" "GitHub does not answer"
+assert_eq '1 "fail" "no_answer" []' "$(_fresh; _pre)" "GitHub does not answer: no_answer, not a missing release"
 uci set gatygo.main.release_api=http://127.0.0.1:8793/releases
 
 assert_eq '1 "fail" "openwrt" ["24.10.2"]' "$(_fresh; _sysroot 24.10.2 aarch64_generic; _pre)" "OpenWrt 24.10"
@@ -126,6 +126,12 @@ assert_eq '1 "fail" "openwrt" ["unknown"]' "$(_fresh; GATYGO_SYSROOT=$tmp/nowher
 assert_eq '1 "fail" "conflict" ["luci-app-openclash"]' \
     "$(_fresh; APK_STUB_INSTALLED_PKGS="luci-app-openclash luci-base"; export APK_STUB_INSTALLED_PKGS; _pre)" "a conflicting package"
 assert_eq '1 "fail" "no_core" []' "$(_fresh; _sysroot 25.12.5 powerpc_8548; _pre)" "no xray core for the processor"
+mv "$www/raw/v20261105.1200/gatygo/files/lib/core.pin" "$tmp/core.pin.away"
+assert_eq '1 "fail" "no_core" []' "$(_fresh; _pre)" "the new version has no core.pin"
+mv "$tmp/core.pin.away" "$www/raw/v20261105.1200/gatygo/files/lib/core.pin"
+uci set gatygo.main.release_raw=http://127.0.0.1:1/raw
+assert_eq '1 "fail" "no_answer" []' "$(_fresh; _pre)" "raw files do not answer: no_answer, not a missing core"
+uci set gatygo.main.release_raw=http://127.0.0.1:8793/raw
 assert_eq '1 "fail" "no_space" ["40","29"]' "$(_fresh; FREE_KB=30000; _pre)" "too little flash for a new core"
 assert_eq '0 "ok" "" [] 0' "$(_fresh; FREE_KB=3000; echo "$NEWPIN" > "$GATYGO_CORE_DIR/pin"; _pre > "$WORK/pre.out"; echo "$(cat "$WORK/pre.out") $_gatygo_up_core")" \
     "the same core: 2 MB of flash are enough"
@@ -227,9 +233,11 @@ new newpin 0' "$_r" "success, a new core: the old one is gone"
 
 assert_eq '0 "ok" "" false "warn" "ok"' "$(_setup; export FAKE_CORE=kept; _run)" "the new core was not downloaded: success with a warning"
 
-_r=$(_setup; export FAKE_CORE=none; _run; echo "$(_added old)/ $(cat "$GATYGO_STATE/xray.json") $(cat "$GATYGO_CORE_DIR/xray") $(_starts) $(_clean)")
+_r=$(_setup; export FAKE_CORE=none; _run; echo "$(_added old)/ $(cat "$GATYGO_STATE/xray.json") $(cat "$GATYGO_CORE_DIR/xray") $(_starts) $(_clean)"
+    tr '\n' ' ' < "$GATYGO_INIT_LOG")
 assert_eq '1 "failed" "core_failed" true "fail" "todo"
-old/gatygo.apk old/luci-app-gatygo.apk / {"v":"old"} old 1 0' "$_r" "no core: rolled back and started again"
+old/gatygo.apk old/luci-app-gatygo.apk / {"v":"old"} old 1 0
+stop start ' "$_r" "no core: the new version stopped, rolled back and started again"
 
 _r=$(_setup; export APK_STUB_ADD_FAIL=/new/; _run; echo "$(_j .steps.install) $(_added old)/ $(_clean)")
 assert_eq '1 "failed" "install_failed" true "todo" "todo"
@@ -256,8 +264,34 @@ _r=$(_setup; export RUNNING=0 GATYGO_CLI_VERSION=20261027.1753; _run; _starts)
 assert_eq '1 "failed" "not_started" true "skip" "fail"
 0' "$_r" "stopped, and the new version does not answer: rolled back, still stopped"
 
-_r=$(_setup; export FAKE_CORE=none APK_STUB_ADD_FAIL=/; _run)
-assert_eq '1 "failed" "rollback_failed" false "todo" "todo"' "$_r" "the rollback fails too"
+_r=$(_setup; : > "$SYSLOG_STUB_FILE"; export FAKE_CORE=none APK_STUB_ADD_FAIL=/; _run; grep -c 'install_failed' "$SYSLOG_STUB_FILE")
+assert_eq '1 "failed" "rollback_failed" false "todo" "todo"
+1' "$_r" "the rollback fails too, and the log keeps why the upgrade failed"
+# apk refuses both installs (another apk holds its database): nothing changed, nothing to put back
+echo 20261027.1753 > "$GATYGO_UPGRADE_TARGET/version"
+_r=$(_setup; export APK_STUB_ADD_FAIL=/; _run)
+echo 20261105.1200 > "$GATYGO_UPGRADE_TARGET/version"
+assert_eq '1 "failed" "install_failed" true "todo" "todo"' "$_r" "apk refused everything, the installed version is the old one: rolled back, not rollback_failed"
+# apk waits for its database instead of failing at once
+_r=$(_setup; export APK_STUB_WAIT_LOG="$GATYGO_RUN/wait.log"; _run >/dev/null; sort -u "$APK_STUB_WAIT_LOG" | tr '\n' ',')
+assert_eq "60 add,60 update," "$_r" "apk waits for its database lock"
+# the installed version's processes see their own library and defaults, not the executor's
+_r=$(_setup; export GATYGO_INIT_ENV_LOG="$GATYGO_RUN/env.log"; _run >/dev/null; sort -u "$GATYGO_INIT_ENV_LOG")
+assert_eq "lib=none" "$_r" "the init script does not get the executor's library copy"
+_r=$(GATYGO_STATE=/etc/gatygo GATYGO_RUN=/var/run/gatygo GATYGO_ASSETS=/usr/share/xray GATYGO_CORE_DIR=/usr/lib/gatygo/core \
+    GATYGO_XRAY=/usr/lib/gatygo/core/xray GATYGO_SYSROOT=; _gatygo_upgrade_env | tr '\n' ' ')
+assert_eq "-u GATYGO_LIB -u GATYGO_STATE -u GATYGO_RUN -u GATYGO_ASSETS -u GATYGO_CORE_DIR -u GATYGO_XRAY -u GATYGO_SYSROOT " "$_r" \
+    "paths that are only this version's defaults are left to the installed version"
+assert_eq "-u GATYGO_LIB " "$(GATYGO_ASSETS="$tmp/assets"; _gatygo_upgrade_env | tr '\n' ' ')" "paths set on purpose are kept"
+# no room for its work dir: a failure the page shows, nothing written elsewhere
+_r=$(_setup; export GATYGO_UPGRADE_TMP=/nonexistent; _run; ls /release.json /new /state 2>/dev/null | wc -l | tr -d ' ')
+assert_eq '1 "failed" "no_memory" false "todo" "todo"
+0' "$_r" "no work dir: no_memory, nothing on the flash"
+# a relative state path is never emptied
+_r=$(cd "$(mktemp -d)" && mkdir rel && echo keep > rel/keep && W=$(mktemp -d) && mkdir "$W/state" \
+    && GATYGO_STATE=rel GATYGO_RUN=$(mktemp -d) && gatygo_upgrade_begin a b && _gatygo_up_running=0 \
+    && { gatygo_upgrade_rollback "$W" >/dev/null 2>&1; echo "$? $(cat rel/keep)"; })
+assert_eq "1 keep" "$_r" "the rollback does not empty a relative state path"
 
 _r=$(_setup; rm -f "$GATYGO_STATE"/*; export RUNNING=0; _run)
 assert_eq '0 "ok" "" false "skip" "ok"' "$_r" "no subscription yet"
@@ -298,17 +332,25 @@ _r=$(_setup; echo '{"sub":"before"}' > "$GATYGO_STATE/subscription.json"; : > "$
     for _ in $(seq 1 50); do [ "$(_j .steps.install 2>/dev/null)" = '"now"' ] && break; sleep 0.1; done
     sh /src/gatygo/files/gatygo update >/dev/null 2>&1
     wait "$_bg"
-    echo "$(grep -c 'update skipped: another update is running' "$SYSLOG_STUB_FILE") $(_j .state)"
+    echo "$(grep -c 'update: after the gatygo upgrade' "$SYSLOG_STUB_FILE") $(_j .state)"
     cat "$GATYGO_STATE/subscription.json")
 assert_eq '1 "ok"
-{"sub":"before"}' "$_r" "cron during the install waits, the subscription is not touched"
+{"sub":"before"}' "$_r" "cron during the install waits: the subscription is not touched"
+_r=$(_setup; : > "$SYSLOG_STUB_FILE"; export APK_STUB_ADD_SLEEP=3 GATYGO_CLI_UPDATE_MARK="$GATYGO_RUN/updated"
+    ( gatygo_upgrade_run >/dev/null 2>&1 ) &
+    _bg=$!
+    for _ in $(seq 1 50); do [ "$(_j .steps.install 2>/dev/null)" = '"now"' ] && break; sleep 0.1; done
+    sh /src/gatygo/files/gatygo update >/dev/null 2>&1
+    wait "$_bg"; sleep 2
+    ls "$GATYGO_RUN" | grep -c '^updated$')
+assert_eq "1" "$_r" "the update cron asked for during the upgrade runs after it"
 
 # --- CLI: the executor runs from a copy of the library and leaves nothing in /tmp
 CLI=/src/gatygo/files/gatygo
 uci set gatygo.main.release_api=http://127.0.0.1:1/releases
 _r=$(_setup; sh "$CLI" upgrade run >/dev/null 2>&1; echo "$? $(_j .state) $(_j .code) $(ls -d /tmp/gatygo-upgrade.* 2>/dev/null | wc -l | tr -d ' ')"
     sh "$CLI" upgrade dismiss; echo "$? $(ls "$GATYGO_RUN" | tr '\n' ' ')")
-assert_eq '1 "failed" "no_release" 0
+assert_eq '1 "failed" "no_answer" 0
 0 ' "$_r" "cli: upgrade run fails cleanly, dismiss drops the progress file"
 uci set gatygo.main.release_api=http://127.0.0.1:8793/releases
 _r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
@@ -321,6 +363,34 @@ assert_eq 'running 0
 "running"
 running 1' "$_r" "cli: running while the executor lives; dismiss leaves a running upgrade alone"
 assert_exit 1 "cli: unknown upgrade action" sh "$CLI" upgrade nonsense
+_r=$(_setup; GATYGO_UPGRADE_TMP=/nonexistent sh "$CLI" upgrade run >/dev/null 2>&1; echo "$(_j .state) $(_j .code)")
+assert_eq '"failed" "no_memory"' "$_r" "cli: no room for the library copy: a failure the page shows"
+# start: the check, the launch and the wait for the runner's lock, one caller at a time
+uci set gatygo.main.release_api=http://127.0.0.1:1/releases
+_r=$(_setup; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
+    sh "$CLI" upgrade start; kill "$_s")
+assert_eq '{"started":false}' "$_r" "cli: start while an upgrade runs"
+_r=$(_setup; mkdir -p "$GATYGO_RUN/upgrade-start.lock"
+    sh "$CLI" upgrade start; rm -rf "$GATYGO_RUN/upgrade-start.lock")
+assert_eq '{"started":false}' "$_r" "cli: start while another start is under way"
+_r=$(_setup; sh "$CLI" upgrade start; sleep 1; echo "$(_j .code) $(ls -d "$GATYGO_RUN"/*.lock 2>/dev/null | wc -l | tr -d ' ')")
+assert_eq '{"started":true}
+"no_answer" 0' "$_r" "cli: start launches the runner; nothing locked afterwards"
+uci set gatygo.main.release_api=http://127.0.0.1:8793/releases
+# the page asks these every few seconds: no settings to read for them
+mkdir -p "$tmp/uci-count"
+printf '#!/bin/sh\necho x >> "%s/uci-count/calls"\nexec /src/tests/stubs/uci "$@"\n' "$tmp" > "$tmp/uci-count/uci"; chmod +x "$tmp/uci-count/uci"
+_r=$(_setup; PATH="$tmp/uci-count:$PATH"; sh "$CLI" upgrade running; sh "$CLI" upgrade due; sh "$CLI" upgrade dismiss
+    cat "$tmp/uci-count/calls" 2>/dev/null | wc -l | tr -d ' ')
+assert_eq "0" "$_r" "cli: running, due and dismiss read no settings"
+# a rebuild the upgrade did not ask for waits for it: the upgrade rebuilds with the new code
+uci set gatygo.main.sub_url=https://panel.example.com/sub/x
+_r=$(_setup; : > "$SYSLOG_STUB_FILE"; sleep 30 & _s=$!; mkdir -p "$GATYGO_RUN/upgrade.lock"; echo "$_s" > "$GATYGO_RUN/upgrade.lock/pid"
+    sh "$CLI" apply; echo "$? $(grep -c 'apply: the gatygo upgrade' "$SYSLOG_STUB_FILE")"
+    GATYGO_UPGRADE_RUN=1 sh "$CLI" apply >/dev/null 2>&1; echo "upgrade's own: $?"; kill "$_s")
+assert_eq '0 1
+upgrade'"'"'s own: 1' "$_r" "cli: apply during an upgrade is left to it; the upgrade's own apply runs"
+uci delete gatygo.main.sub_url
 
 kill "$_srv" 2>/dev/null
 rm -rf "$tmp"

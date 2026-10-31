@@ -1,10 +1,16 @@
 #!/bin/sh
 # `apk` stand-in for unit tests. Every call is appended to $APK_STUB_LOG. Supported:
+#   --wait TIME …    recorded in $APK_STUB_WAIT_LOG as "TIME COMMAND", then as without it
 #   update           exit ${APK_STUB_UPDATE_RC:-0}
 #   info -e PKG      exit 0 iff PKG is in $APK_STUB_INSTALLED_PKGS
 #   add --simulate … prints $APK_STUB_SIMULATE_OUT, exit ${APK_STUB_SIMULATE_RC:-0}
 #   add …            exit 1 when an argument contains $APK_STUB_ADD_FAIL; otherwise sleeps
 #                    ${APK_STUB_ADD_SLEEP:-0} s, appends the files to $APK_STUB_ADDED, exit 0
+# --wait TIME (wait for the database lock) goes to $APK_STUB_WAIT_LOG, the rest to the log
+if [ "$1" = --wait ]; then
+    [ -n "${APK_STUB_WAIT_LOG:-}" ] && echo "$2 $3" >> "$APK_STUB_WAIT_LOG"
+    shift 2
+fi
 [ -n "$APK_STUB_LOG" ] && echo "$*" >> "$APK_STUB_LOG"
 case $1 in
     update) exit "${APK_STUB_UPDATE_RC:-0}" ;;

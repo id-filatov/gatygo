@@ -78,8 +78,7 @@ gatygo_lock() {
     mkdir -p "$GATYGO_RUN"
     _gatygo_l=$GATYGO_RUN/$1.lock
     if ! mkdir "$_gatygo_l" 2>/dev/null; then
-        _gatygo_p=$(cat "$_gatygo_l/pid" 2>/dev/null)
-        [ -n "$_gatygo_p" ] && kill -0 "$_gatygo_p" 2>/dev/null && return 1
+        gatygo_locked "$1" && return 1
         rm -rf "$_gatygo_l"
         mkdir "$_gatygo_l" 2>/dev/null || return 1
     fi
@@ -90,10 +89,16 @@ gatygo_unlock() {
     rm -rf "$GATYGO_RUN/$1.lock"
 }
 
-# gatygo_locked NAME — exit 0 iff a live process holds the lock
+# gatygo_locked NAME — exit 0 iff a live process holds the lock. A lock without a pid is being
+# taken this very moment (mkdir, then the pid): held for 10 s, left behind after that.
 gatygo_locked() {
     _gatygo_p=$(cat "$GATYGO_RUN/$1.lock/pid" 2>/dev/null)
-    [ -n "$_gatygo_p" ] && kill -0 "$_gatygo_p" 2>/dev/null
+    if [ -n "$_gatygo_p" ]; then
+        kill -0 "$_gatygo_p" 2>/dev/null
+        return
+    fi
+    _gatygo_lm=$(date -r "$GATYGO_RUN/$1.lock" +%s 2>/dev/null) || return 1
+    [ $(($(date +%s) - _gatygo_lm)) -lt 10 ]
 }
 
 # the update cycle: one at a time

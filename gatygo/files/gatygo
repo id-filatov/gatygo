@@ -17,12 +17,13 @@
 #   gatygo watch                     wait for xray to quit for good (run by the service itself)
 #   gatygo upgrade due|check         exit 0 when the daily look at the latest release is due | look now
 #   gatygo upgrade running|run|dismiss  exit 0 while an upgrade runs | upgrade now | drop its outcome
+#   gatygo upgrade start             JSON: launch an upgrade in the background (the page's Update)
 #   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|running|run|dismiss|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|start|running|run|dismiss|version" >&2
 	exit 1
 }
 
@@ -153,7 +154,13 @@ cmd_update() {
 	. "$GATYGO_LIB/dns.sh"
 	gatygo_load_config
 	gatygo_update_lock || {
-		gatygo_log info "update skipped: another update is running"
+		# the upgrade of gatygo holds it while the packages install: it runs the update after
+		if gatygo_locked upgrade; then
+			touch "$GATYGO_RUN/update-wanted"
+			gatygo_log info "update: after the gatygo upgrade"
+		else
+			gatygo_log info "update skipped: another update is running"
+		fi
 		return 0
 	}
 	trap gatygo_update_unlock EXIT
@@ -225,6 +232,13 @@ cmd_apply() {
 	. "$GATYGO_LIB/dns.sh"
 	gatygo_load_config
 	[ -n "$GATYGO_SUB_URL" ] || return 0
+	# an upgrade of gatygo rebuilds the config itself, with the new code and the settings as they
+	# are then; a rebuild started before it would mix the old code with the new files
+	_upgrade_rebuilds() {
+		gatygo_locked upgrade && [ "${GATYGO_UPGRADE_RUN:-}" != 1 ] || return 1
+		gatygo_log info "apply: the gatygo upgrade rebuilds the config"
+	}
+	_upgrade_rebuilds && return 0
 	_i=0
 	until gatygo_update_lock; do
 		[ "$1" = wait ] && [ "$_i" -lt 60 ] || return 2
@@ -232,6 +246,7 @@ cmd_apply() {
 		sleep 1
 	done
 	trap gatygo_update_unlock EXIT
+	_upgrade_rebuilds && return 0
 	_stage=$(mktemp -d)
 	gatygo_apply_profile "$GATYGO_STATE/subscription.json" "$_stage" >/dev/null
 	_rc=$?
@@ -372,17 +387,50 @@ cron-sync)
 	gatygo_cron_sync "$(gatygo_update_interval_hours)"
 	;;
 upgrade)
+	# the page asks some of these every few seconds: no settings are read here (run's executor
+	# reads them itself)
 	. "$GATYGO_LIB/upgrade.sh"
-	gatygo_load_config
 	case ${2:-} in
 	due) gatygo_upgrade_due ;;
 	check) gatygo_upgrade_check ;;
 	running) gatygo_locked upgrade ;;
+	start)
+		# one caller at a time: the look at the lock, the launch, the wait for the runner's lock
+		gatygo_lock upgrade-start || {
+			echo '{"started":false}'
+			exit 0
+		}
+		if gatygo_locked upgrade; then
+			gatygo_unlock upgrade-start
+			echo '{"started":false}'
+			exit 0
+		fi
+		(sh "$0" upgrade run </dev/null >/dev/null 2>&1 &)
+		# the runner takes its lock a moment after it starts; one that fails at once is never
+		# seen holding it: 3 s at most. Asked again at once: the install restarts rpcd, which
+		# waits for this answer.
+		_t=$(($(date +%s) + 3))
+		until gatygo_locked upgrade || [ "$(date +%s)" -ge "$_t" ]; do :; done
+		gatygo_unlock upgrade-start
+		echo '{"started":true}'
+		;;
 	run)
 		# the upgrade replaces this file and the library: it runs from a copy of the library's
 		# files in /tmp (not of its directories: the 35 MB xray core lives in one)
-		_d=$(mktemp -d /tmp/gatygo-upgrade.XXXXXX) && mkdir "$_d/lib" || exit 1
-		for _f in "$GATYGO_LIB"/*; do [ -f "$_f" ] && cp -p "$_f" "$_d/lib/"; done
+		_ok=0 _tmp=${GATYGO_UPGRADE_TMP:-/tmp}
+		if _d=$(mktemp -d "$_tmp/gatygo-upgrade.XXXXXX" 2>/dev/null) && mkdir "$_d/lib"; then
+			_ok=1
+			for _f in "$GATYGO_LIB"/*; do [ ! -f "$_f" ] || cp -p "$_f" "$_d/lib/" || _ok=0; done
+		fi
+		if [ "$_ok" = 0 ]; then
+			# no room for the copy: the page says so, unless another upgrade owns the progress
+			[ -n "${_d:-}" ] && rm -rf "$_d"
+			gatygo_locked upgrade && exit 0
+			gatygo_load_config
+			gatygo_upgrade_begin "$GATYGO_VERSION" ""
+			gatygo_upgrade_fail no_memory 1 $(($(_gatygo_upgrade_kb "$(gatygo_upgrade_free_kb "$_tmp")") / 1024))
+			exit 1
+		fi
 		GATYGO_LIB="$_d/lib" exec sh -c '. "$GATYGO_LIB/upgrade.sh"; gatygo_load_config; gatygo_upgrade_run; _rc=$?; rm -rf "'"$_d"'"; exit $_rc'
 		;;
 	dismiss) gatygo_locked upgrade || rm -f "$GATYGO_RUN/upgrade.json" ;;

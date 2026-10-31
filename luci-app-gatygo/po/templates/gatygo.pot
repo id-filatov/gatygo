@@ -505,6 +505,10 @@ msgid "GitHub did not give the new version."
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "GitHub did not answer. Check the router's internet connection and try again."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The current version is not on GitHub: there would be nothing to go back to."
 msgstr ""
 
@@ -541,6 +545,10 @@ msgid "The router's package feeds do not have: %s."
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The router's package feeds do not have everything the new version needs."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The packages did not install."
 msgstr ""
 
@@ -565,38 +573,6 @@ msgid "The update stopped halfway. If the VPN does not work, reinstall gatygo wi
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update to %s?"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay."
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update failed"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Version %s is running."
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Close"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Updated to %s"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "xray core"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "not downloaded, the current one works; retried with the next subscription update"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Checking the router"
 msgstr ""
 
@@ -609,7 +585,39 @@ msgid "Installing"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "xray core"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Restarting the VPN and checking"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update to %s?"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Version %s is running."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update failed"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Close"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updated to %s"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "not downloaded, the current one works; retried with the next subscription update"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js

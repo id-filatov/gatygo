@@ -510,6 +510,10 @@ msgid "GitHub did not give the new version."
 msgstr "GitHub не отдал новую версию."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "GitHub did not answer. Check the router's internet connection and try again."
+msgstr "GitHub не ответил. Проверьте интернет на роутере и попробуйте ещё раз."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The current version is not on GitHub: there would be nothing to go back to."
 msgstr "Текущей версии нет на GitHub: вернуться было бы не на что."
 
@@ -546,6 +550,10 @@ msgid "The router's package feeds do not have: %s."
 msgstr "В источниках пакетов роутера нет: %s."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The router's package feeds do not have everything the new version needs."
+msgstr "В источниках пакетов роутера нет всего, что нужно новой версии."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The packages did not install."
 msgstr "Пакеты не установились."
 
@@ -570,38 +578,6 @@ msgid "The update stopped halfway. If the VPN does not work, reinstall gatygo wi
 msgstr "Обновление прервалось на полпути. Если VPN не работает, переустановите gatygo через install.sh."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update to %s?"
-msgstr "Обновить до %s?"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay."
-msgstr "Интернет через VPN пропадёт на несколько секунд. Подписка, страна, настройки и «Мои правила» сохранятся."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update failed"
-msgstr "Обновить не удалось"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Version %s is running."
-msgstr "Работает %s."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Close"
-msgstr "Закрыть"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Updated to %s"
-msgstr "Обновлено до %s"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "xray core"
-msgstr "Ядро xray"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "not downloaded, the current one works; retried with the next subscription update"
-msgstr "не скачалось, работает прежнее; повторит при обновлении подписки"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Checking the router"
 msgstr "Проверка роутера"
 
@@ -614,8 +590,40 @@ msgid "Installing"
 msgstr "Установка"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "xray core"
+msgstr "Ядро xray"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Restarting the VPN and checking"
 msgstr "Перезапуск VPN и проверка"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update to %s?"
+msgstr "Обновить до %s?"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay."
+msgstr "Интернет через VPN пропадёт на несколько секунд. Подписка, страна, настройки и «Мои правила» сохранятся."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Version %s is running."
+msgstr "Работает %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update failed"
+msgstr "Обновить не удалось"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Close"
+msgstr "Закрыть"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Updated to %s"
+msgstr "Обновлено до %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "not downloaded, the current one works; retried with the next subscription update"
+msgstr "не скачалось, работает прежнее; повторит при обновлении подписки"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "unchanged"

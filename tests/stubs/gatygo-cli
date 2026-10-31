@@ -26,6 +26,7 @@ case $1 in
         case $2 in
             due) exit "${GATYGO_CLI_UPGRADE_DUE_RC:-1}" ;;
             check) sleep 1; touch "${GATYGO_CLI_UPDATE_MARK:?}.check" ;;
+            start) if [ "${GATYGO_CLI_UPGRADE_START+set}" = set ]; then printf '%s\n' "$GATYGO_CLI_UPGRADE_START"; else echo '{"started":true}'; fi ;;
             # running: as told, or while a run below is under way
             running) [ -n "${GATYGO_CLI_UPGRADE_RUNNING_RC:-}" ] && exit "$GATYGO_CLI_UPGRADE_RUNNING_RC"; test -e "${GATYGO_CLI_UPDATE_MARK:?}.running" ;;
             # the executor takes its lock a moment after it starts (it copies the library first)

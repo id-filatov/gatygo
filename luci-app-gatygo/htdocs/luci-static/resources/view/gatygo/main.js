@@ -569,6 +569,7 @@ return view.extend({
 		switch (run.code) {
 		case 'busy': return _('Another action is running: a subscription update or a country switch. Try again in a minute.');
 		case 'no_release': return _('GitHub did not give the new version.');
+		case 'no_answer': return _('GitHub did not answer. Check the router\'s internet connection and try again.');
 		case 'no_rollback': return _('The current version is not on GitHub: there would be nothing to go back to.');
 		case 'openwrt': return _('gatygo needs OpenWrt 25.12, the router runs %s.').format(a[0] || '');
 		case 'conflict': return _('%s is installed: it owns the same proxy rules. Remove it first.').format(a[0] || '');
@@ -577,7 +578,7 @@ return view.extend({
 		case 'no_memory': return _('Not enough memory: %d MB needed, %d MB free.').format(+a[0] || 0, +a[1] || 0);
 		case 'download_failed': return _('The packages could not be downloaded.');
 		case 'checksum': return _('A downloaded file is damaged: its checksum does not match.');
-		case 'deps': return _('The router\'s package feeds do not have: %s.').format(a[0] || '');
+		case 'deps': return a[0] ? _('The router\'s package feeds do not have: %s.').format(a[0]) : _('The router\'s package feeds do not have everything the new version needs.');
 		case 'install_failed': return _('The packages did not install.');
 		case 'core_failed': return _('The xray core did not install.');
 		case 'config_failed': return _('The new version could not build the settings from the subscription.');
@@ -586,6 +587,12 @@ return view.extend({
 		case 'interrupted': return _('The update stopped halfway. If the VPN does not work, reinstall gatygo with install.sh.');
 		}
 		return '';
+	},
+
+	// the five steps of an upgrade and their names on the page
+	upgradeSteps: function() {
+		return [ [ 'check', _('Checking the router') ], [ 'download', _('Downloading') ], [ 'install', _('Installing') ],
+			[ 'core', _('xray core') ], [ 'restart', _('Restarting the VPN and checking') ] ];
 	},
 
 	// An upgrade's panel under the status: the confirmation, the failure, or a fresh success
@@ -600,7 +607,7 @@ return view.extend({
 				icon(ic, 'gg-alert-icon'),
 				E('div', { 'class': 'gg-alert-body' }, [
 					E('p', { 'class': 'gg-alert-title' }, [ title ]),
-					text ? E('p', { 'class': 'gg-alert-text' }, [ text ]) : ''
+					text ? E('p', { 'class': 'gg-alert-text' }, Array.isArray(text) ? text : [ text ]) : ''
 				]),
 				actions ? E('div', { 'class': 'gg-alert-actions' }, actions) : ''
 			]);
@@ -609,10 +616,13 @@ return view.extend({
 			return panel('', 'upgrade', _('Update to %s?').format(up.latest),
 				_('The internet through the VPN drops for a few seconds. The subscription, country, settings and My rules stay.'),
 				[ button('cbi-button-neutral', _('Cancel'), 'handleUpgradeCancel', 'up-cancel'), button('cbi-button-action', _('Update'), 'handleUpgradeStart', 'up-start') ]);
-		if (run.state == 'failed')
-			return panel('bad', 'bad', _('Update failed'),
-				[ this.upgradeReason(run), (run.code != 'rollback_failed' && run.code != 'interrupted') ? _('Version %s is running.').format(run.from) : '' ].filter(String).join(' '),
+		if (run.state == 'failed') {
+			// the step it failed at, in bold, then why, then what runs now (as in the mock-up)
+			var at = this.upgradeSteps().filter(function(s) { return steps[s[0]] == 'fail'; })[0];
+			var why = [ this.upgradeReason(run), (run.code != 'rollback_failed' && run.code != 'interrupted') ? _('Version %s is running.').format(run.from) : '' ].filter(String).join(' ');
+			return panel('bad', 'bad', _('Update failed'), [ at ? E('b', {}, at[1] + ': ') : '', why ],
 				[ button('cbi-button-neutral', _('Close'), 'handleUpgradeDismiss', 'up-close'), button('cbi-button-action', _('Try again'), 'handleUpgradeStart', 'up-retry') ]);
+		}
 		if (run.state == 'ok' && Date.now() / 1000 - (+run.time || 0) <= 300)
 			return panel('good', 'check', _('Updated to %s').format(run.to),
 				(steps.core == 'warn') ? _('xray core') + ' — ' + _('not downloaded, the current one works; retried with the next subscription update') : '');
@@ -622,10 +632,7 @@ return view.extend({
 	// the five steps of a running upgrade, each with its mark
 	renderSteps: function(run) {
 		var steps = run.steps || {};
-		return E('ul', { 'class': 'gg-steps', 'aria-live': 'polite' }, [
-			[ 'check', _('Checking the router') ], [ 'download', _('Downloading') ], [ 'install', _('Installing') ],
-			[ 'core', _('xray core') ], [ 'restart', _('Restarting the VPN and checking') ]
-		].map(function(s) {
+		return E('ul', { 'class': 'gg-steps', 'aria-live': 'polite' }, this.upgradeSteps().map(function(s) {
 			var v = steps[s[0]];
 			if ([ 'todo', 'now', 'ok', 'skip', 'warn', 'fail' ].indexOf(v) < 0) v = 'todo';
 			var note = (v == 'skip') ? _('unchanged') : (v == 'warn') ? _('not downloaded, the current one works; retried with the next subscription update') : '';

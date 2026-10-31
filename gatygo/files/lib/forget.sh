@@ -15,6 +15,8 @@ GATYGO_DEFAULTS=${GATYGO_DEFAULTS:-${GATYGO_LIB:-/usr/lib/gatygo}/defaults.confi
 gatygo_forget() {
     # the one guard between an empty or relative path and `rm -rf /*`; config.sh never gives one
     case $GATYGO_STATE:$GATYGO_RUN in /?*:/?*) ;; *) return 4 ;; esac
+    # an upgrade of gatygo rebuilds the config with the settings it finds: not under its feet
+    gatygo_locked upgrade && return 2
     # an update is never cut off halfway through writing its files
     gatygo_update_lock || return 2
     # a link or anything in the state dir: there is a subscription to remove (and to log)

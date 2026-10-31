@@ -35,6 +35,8 @@ start_service() {
 	mkdir -p "$GATYGO_STATE" "$GATYGO_RUN" "$GATYGO_ASSETS"
 	chmod 700 "$GATYGO_STATE"
 	rm -f "$GATYGO_RUN/stopped"
+	# the old core an upgrade kept for its rollback, left behind when the power went mid-way
+	gatygo_locked upgrade || rm -rf "$GATYGO_CORE_DIR.prev"
 	gatygo_crash_clear
 	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
 	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
