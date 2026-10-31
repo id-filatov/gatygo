@@ -45,6 +45,10 @@ wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | 
 
 Дальше: LuCI → **Services → gatygo**, вставить ссылку, **Connect**.
 
+Новые релизы ставятся со страницы: **Update** рядом с номером версии. Сначала проверяется
+роутер; если новая версия не запустилась, возвращается прежняя. Версию без этой кнопки один раз
+обновить командой установки выше.
+
 - Убрать подписку: **Delete** в Advanced → Settings или `gatygo forget`.
 - Удалить: `apk del luci-app-gatygo gatygo`; `/etc/gatygo` и `/etc/config/gatygo` остаются.
 

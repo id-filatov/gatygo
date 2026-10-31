@@ -45,6 +45,10 @@ fails. Then it installs the latest release and the xray core.
 
 Then: LuCI → **Services → gatygo**, paste the link, **Connect**.
 
+New releases install from the page: **Update** next to the version number. The router is checked
+first; if the new version does not start, the previous one is put back. A version without the
+button: run the install command above once.
+
 - Drop the subscription: **Delete** in Advanced → Settings or `gatygo forget`.
 - Remove: `apk del luci-app-gatygo gatygo`; `/etc/gatygo` and `/etc/config/gatygo` stay.
 
