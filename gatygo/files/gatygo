@@ -15,12 +15,13 @@
 #   gatygo updating                  exit 0 while an update runs
 #   gatygo cron-sync                 re-create the periodic update line
 #   gatygo watch                     wait for xray to quit for good (run by the service itself)
+#   gatygo upgrade due|check         exit 0 when the daily look at the latest release is due | look now
 #   gatygo version
 GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|version" >&2
 	exit 1
 }
 
@@ -247,6 +248,7 @@ cmd_apply() {
 cmd_status() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/subscription.sh"
+	. "$GATYGO_LIB/upgrade.sh"
 	gatygo_load_config
 	_running=false _updating=false _configured=false _enabled=false _send_hwid=false _uptime='' _next=''
 	gatygo_xray_running && _running=true
@@ -277,6 +279,7 @@ cmd_status() {
 	[ "$_running" = true ] && _next=$(gatygo_next_update "$_interval")
 	_profiles='[]'
 	[ -s "$GATYGO_STATE/subscription.json" ] && _profiles=$(gatygo_sub_profiles "$GATYGO_STATE/subscription.json")
+	_upgrade=$(gatygo_upgrade_status_json)
 	(
 		[ -f "$GATYGO_STATE/headers.env" ] && . "$GATYGO_STATE/headers.env"
 		[ -f "$GATYGO_STATE/last-update.env" ] && . "$GATYGO_STATE/last-update.env"
@@ -293,6 +296,7 @@ cmd_status() {
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg code "${CODE:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
 			--argjson last_select "$_select" --arg interval "$_interval" --arg next "$_next" \
+			--argjson upgrade "$_upgrade" \
 			--arg maxdev "${GATYGO_HWID_MAX_DEVICES:-0}" --arg notsup "${GATYGO_HWID_NOT_SUPPORTED:-0}" \
 			--arg geosite "$(date -r "$GATYGO_ASSETS/geosite.dat" +%s 2>/dev/null)" \
 			--arg geoip "$(date -r "$GATYGO_ASSETS/geoip.dat" +%s 2>/dev/null)" \
@@ -308,7 +312,8 @@ cmd_status() {
 			  update_interval: ($interval | tonumber),
 			  next_update: (if $next == "" then null else ($next | tonumber) end),
 			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
-			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup}}'
+			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup},
+			  upgrade: $upgrade}'
 	)
 }
 
@@ -364,6 +369,15 @@ cron-sync)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_load_config
 	gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	;;
+upgrade)
+	. "$GATYGO_LIB/upgrade.sh"
+	gatygo_load_config
+	case ${2:-} in
+	due) gatygo_upgrade_due ;;
+	check) gatygo_upgrade_check ;;
+	*) usage ;;
+	esac
 	;;
 version) cat "$GATYGO_LIB/version" ;;
 *) usage ;;
