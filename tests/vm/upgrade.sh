@@ -102,6 +102,7 @@ vm '/etc/init.d/gatygo stop >/dev/null 2>&1; apk add --allow-untrusted /tmp/up/v
     uci set gatygo.main.release_api=http://10.0.2.2:8790/releases; uci set gatygo.main.release_raw=http://10.0.2.2:8790/raw
     uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].domain=rare.example; uci set gatygo.@rule[-1].to=direct; uci commit gatygo'
 v1
+check "an old core an upgrade kept (the power went) goes at the next start" 'mkdir -p /usr/lib/gatygo/core.prev && touch /usr/lib/gatygo/core.prev/xray && /etc/init.d/gatygo restart >/dev/null 2>&1 && ! test -e /usr/lib/gatygo/core.prev'
 expect "the check finds v2" "$V2 true" 'gatygo upgrade check; ubus -S call gatygo status | jq -r "\"\(.upgrade.latest) \(.upgrade.available)\""'
 
 echo "== 2. success: the same core, the same config"
@@ -135,6 +136,15 @@ expect "the state dir untouched" "$_state" "$STATE"
 expect "the core untouched" "$_core" "$CORE"
 expect "apk installed nothing" "$_apkdb" 'date -r /lib/apk/db/installed +%s'
 
+echo "== 4b. a package does not download"
+v1
+_state=$(vm "$STATE")
+ssh "$LAB_HOST" "rm -f $LAB_DIR/upgrade/www/assets/luci-app-gatygo-$V2-r1.apk"
+upgrade
+expect "outcome download_failed" "failed download_failed false todo" "$OUTCOME"
+expect "v1 stays, the state dir untouched" "$V1 $_state" 'echo "$(gatygo version) $('"$STATE"')"'
+serve v2
+
 echo "== 5. the new version's config fails xray -test"
 serve v2-badconfig
 v1
@@ -157,12 +167,32 @@ expect "the old core byte for byte" "$_core" "$CORE"
 check "running again" 'i=0; until [ "$(gatygo status | jq -r .running)" = true ] || [ $i -ge 30 ]; do i=$((i + 1)); sleep 1; done; [ "$(gatygo status | jq -r .running)" = true ]'
 check "the tunnel answers" 'gatygo check fresh | jq -e ".available == true" >/dev/null'
 
+echo "== 6b. the new version's core does not download: kept"
+serve v2-badcore
+ssh "$LAB_HOST" "rm -rf $LAB_DIR/upgrade/www/core/*"
+v1
+_core=$(vm "$CORE")
+upgrade
+expect "outcome ok, core step warns" "ok  false warn" "$OUTCOME"
+expect "v2 on the old core, running" "$V2 true" 'echo "$(gatygo version) $(gatygo status | jq -r .running)"'
+expect "the old core byte for byte" "$_core" "$CORE"
+
 echo "== 7. two starts from the page"
 serve v2
 v1
 expect "the first starts, the second is refused" "true false" 'a=$(ubus -S call gatygo upgrade "{\"action\":\"start\"}" | jq -r .started); b=$(ubus -S call gatygo upgrade "{\"action\":\"start\"}" | jq -r .started); echo "$a $b"'
 check "the run ends" 'i=0; while gatygo upgrade running && [ $i -lt 240 ]; do i=$((i + 1)); sleep 1; done; ! gatygo upgrade running'
 expect "started by rpcd, it outlived rpcd's restart: v2 installed" "ok $V2" 'echo "$(jq -r .state /var/run/gatygo/upgrade.json) $(gatygo version)"'
+expect "nobody watched: the status gives the outcome to a page opened later" "ok $V2" 'ubus -S call gatygo status | jq -r "\"\(.upgrade.run.state) \(.upgrade.run.to)\""'
+
+echo "== 7b. no subscription yet"
+v1
+vm 'gatygo forget >/dev/null 2>&1; uci set gatygo.main.release_api=http://10.0.2.2:8790/releases; uci set gatygo.main.release_raw=http://10.0.2.2:8790/raw; uci commit gatygo'
+upgrade
+expect "outcome ok" "ok" 'jq -r .state /var/run/gatygo/upgrade.json'
+expect "v2 installed, the VPN off as it was" "$V2 false" 'echo "$(gatygo version) $(gatygo status | jq -r .running)"'
+# the mock subscription back for what follows
+vm 'uci set gatygo.main.enabled=1; uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo; /etc/init.d/gatygo start >/dev/null 2>&1'
 
 echo "== 8. clean-up"
 check "no executor copies left in /tmp" '! ls -d /tmp/gatygo-upgrade.* >/dev/null 2>&1'
