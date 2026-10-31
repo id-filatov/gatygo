@@ -410,6 +410,9 @@ return view.extend({
 	handleUpgradeAsk: function(ev) {
 		this.upgradeAsk = true;
 		this.repaint();
+		// the button is at the foot of the card, the confirmation under the status
+		var ask = this.panel.querySelector('[data-key="up-start"]');
+		if (ask) ask.closest('.gg-alert').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 	},
 
 	handleUpgradeCancel: function(ev) {
@@ -691,7 +694,7 @@ return view.extend({
 
 		if (upgrading) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Updating'),
-				E('span', { 'class': 'gg-state-sep' }, '·'), up.run.to || '' ]));
+				E('span', { 'class': 'gg-state-sep' }, '·'), E('span', { 'class': 'gg-state-country' }, [ up.run.to || '' ]) ]));
 			main.push(this.renderSteps(up.run));
 			main.push(E('p', { 'class': 'gg-meta' }, _('Countries and buttons are unavailable until the update ends.')));
 		}
