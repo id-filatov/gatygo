@@ -270,14 +270,29 @@ return view.extend({
 		]);
 	},
 
+	// What the router reads from section SID (lib/rules.sh): {domain} or {ip} in the form it
+	// compares, or null for a section it skips (both, neither, a bad value or direction). The file
+	// may hold an address as typed by hand.
+	ruleOf: function(sid) {
+		var d = uci.get('gatygo', sid, 'domain'), ip = uci.get('gatygo', sid, 'ip'), to = uci.get('gatygo', sid, 'to');
+		if ((d && ip) || (to != 'proxy' && to != 'direct')) return null;
+		if (d) return normDomain(d) === d ? { domain: d } : null;
+		var a = normAddr(ip);
+		return a ? { ip: a } : null;
+	},
+
 	// The status of the rule in section SID: only for a rule as saved and applied (a direction
-	// changed on the page, or a row not applied yet, has none), and only while xray can tell.
+	// changed on the page, or a row not applied yet, has none), and only while xray can tell. Of a
+	// domain or an address listed twice the router keeps the first: the repeat has none either.
 	ruleStatus: function(sid) {
 		var r = this.rules;
 		if (!r || !r.available || !r.api || r.pending) return null;
-		// an address is looked up as the router reads it: the file may hold it as typed by hand
-		var d = uci.get('gatygo', sid, 'domain'), ip = d ? null : normAddr(uci.get('gatygo', sid, 'ip')), to = uci.get('gatygo', sid, 'to');
-		var hit = (r.rules || []).filter(function(x) { return (d ? x.domain == d : ip != null && x.ip == ip) && x.to == to; })[0];
+		var same = function(a, b) { return a && b && a.domain == b.domain && a.ip == b.ip; };
+		var mine = this.ruleOf(sid), self = this;
+		var first = uci.sections('gatygo', 'rule').filter(function(x) { return same(self.ruleOf(x['.name']), mine); })[0];
+		if (!mine || first['.name'] != sid) return null;
+		var to = uci.get('gatygo', sid, 'to');
+		var hit = (r.rules || []).filter(function(x) { return same({ domain: x.domain, ip: x.ip }, mine) && x.to == to; })[0];
 		return hit ? hit.status : null;
 	},
 
