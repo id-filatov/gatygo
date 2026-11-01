@@ -109,15 +109,28 @@ gatygo_addr_family() {
 }
 
 # gatygo_addr_local ADDR — exit 0 if the whole subnet lies in the local network: GATYGO_RESERVED4
-# for IPv4, fe80::/10 and fc00::/7 for IPv6 (ADDR canonical)
+# for IPv4, GATYGO_LOCAL6 for IPv6 (ADDR canonical)
 gatygo_addr_local() {
-    awk -v a="$1" -v res="$GATYGO_RESERVED4" "$_GATYGO_ADDR_AWK"'
+    awk -v a="$1" -v res="$GATYGO_RESERVED4" -v res6="$GATYGO_LOCAL6" "$_GATYGO_ADDR_AWK"'
     BEGIN {
         m = index(a, "/") ? substr(a, index(a, "/") + 1) + 0 : -1
         if (index(a, ":")) {
             s = a; sub(/\/.*/, "", s); v6groups(s, g)
             if (m < 0) m = 128
-            exit !((m >= 10 && int(g[1] / 64) == int(65152 / 64)) || (m >= 7 && int(g[1] / 512) == int(64512 / 512)))
+            # inside a range: a mask as long at least and the same first bits as the range
+            n = split(res6, R, " ")
+            for (i = 1; i <= n; i++) {
+                split(R[i], p, "/"); rm = p[2] + 0; v6groups(p[1], q)
+                if (m < rm) continue
+                for (k = 1; k <= 8; k++) {
+                    b = rm - (k - 1) * 16
+                    if (b <= 0) break
+                    if (b > 16) b = 16
+                    if (int(g[k] / 2 ^ (16 - b)) != int(q[k] / 2 ^ (16 - b))) break
+                }
+                if (b <= 0 || k > 8) exit 0
+            }
+            exit 1
         }
         v4net(a); s = r[1]; e = r[2]
         n = split(res, R, " ")

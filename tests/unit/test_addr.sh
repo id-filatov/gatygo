@@ -44,5 +44,8 @@ assert_exit 1 "probe: all local" gatygo_addr_probe 10.0.0.0/8
 # one list of the local networks for the firewall and the statuses
 assert_eq "$(printf '%s\n' $GATYGO_RESERVED4 | paste -sd, - | sed 's/,/, /g')" \
     "$(gatygo_nft_ruleset | sed -n 's/^.*elements = { \(0\.0\.0\.0.*\) }$/\1/p')" "the nft set is GATYGO_RESERVED4"
+assert_eq "$(printf '%s\n' $GATYGO_LOCAL6 | paste -sd, - | sed 's/,/, /g')" \
+    "$(gatygo_nft_ruleset | sed -n 's/^.*ip6 daddr != { \(.*\) } counter drop$/\1/p')" "the IPv6 block leaves GATYGO_LOCAL6 alone"
+assert_exit 0 "the IPv6 local ranges are GATYGO_LOCAL6's" sh -c '. "$GATYGO_LIB/config.sh"; . "$GATYGO_LIB/addr.sh"; GATYGO_LOCAL6="2001:db8::/32"; gatygo_addr_local 2001:db8:1::/48 && ! gatygo_addr_local fe80::1'
 
 report

@@ -19,6 +19,7 @@
 gatygo_nft_ruleset() {
     _gatygo_ifs=$(printf '%s' "$GATYGO_LAN_IFACES" | tr -s ' ' | sed 's/ /, /g')
     _gatygo_res=$(printf '%s' "$GATYGO_RESERVED4" | sed 's/ /, /g')
+    _gatygo_res6=$(printf '%s' "$GATYGO_LOCAL6" | sed 's/ /, /g')
     cat <<RULES
 table inet gatygo
 delete table inet gatygo
@@ -64,7 +65,7 @@ RULES
         cat <<RULES
 	chain forward6 {
 		type filter hook forward priority filter - 1; policy accept;
-		iifname @lan_ifaces ip6 daddr != { fe80::/10, fc00::/7 } counter drop
+		iifname @lan_ifaces ip6 daddr != { $_gatygo_res6 } counter drop
 	}
 RULES
     fi

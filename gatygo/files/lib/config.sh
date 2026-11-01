@@ -11,9 +11,11 @@ GATYGO_ASSETS=${GATYGO_ASSETS:-/usr/share/xray}
 GATYGO_CORE_DIR=${GATYGO_CORE_DIR:-/usr/lib/gatygo/core}
 GATYGO_XRAY=${GATYGO_XRAY:-$GATYGO_CORE_DIR/xray}
 GATYGO_SYSROOT=${GATYGO_SYSROOT:-}
-# the local network: always direct, never through xray (firewall.sh's set reserved4); an address
-# rule inside it does nothing, and its status says so (addr.sh)
+# the local network: always direct, never through xray (firewall.sh's set reserved4; the IPv6
+# block leaves GATYGO_LOCAL6 alone); an address rule inside it does nothing, and its status says so
+# (addr.sh)
 GATYGO_RESERVED4="0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 224.0.0.0/4 240.0.0.0/4"
+GATYGO_LOCAL6="fe80::/10 fc00::/7"
 
 # gatygo_cfg KEY DEFAULT — option gatygo.main.KEY, or DEFAULT when unset or empty
 gatygo_cfg() {
