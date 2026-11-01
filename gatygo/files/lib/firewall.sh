@@ -18,6 +18,7 @@
 
 gatygo_nft_ruleset() {
     _gatygo_ifs=$(printf '%s' "$GATYGO_LAN_IFACES" | tr -s ' ' | sed 's/ /, /g')
+    _gatygo_res=$(printf '%s' "$GATYGO_RESERVED4" | sed 's/ /, /g')
     cat <<RULES
 table inet gatygo
 delete table inet gatygo
@@ -29,7 +30,7 @@ table inet gatygo {
 	set reserved4 {
 		type ipv4_addr
 		flags interval
-		elements = { 0.0.0.0/8, 10.0.0.0/8, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4, 240.0.0.0/4 }
+		elements = { $_gatygo_res }
 	}
 	set conn_dev {
 		type ipv4_addr
