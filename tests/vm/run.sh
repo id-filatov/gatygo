@@ -154,20 +154,31 @@ expect "the next update drops the switch's result" "ok null" 'gatygo status | jq
 echo "== 7b. my rules"
 # the panel down: Save & Apply puts the rules in from the cached subscription. The fixture's lists
 # (tools/gen-geodat.py): ads.example.com an ad, example.org local (direct), video.example.com
-# streaming (balancer); anything else takes the catch-all (balancer).
+# streaming (balancer), the three IPv4 documentation ranges local (geoip:local, direct); anything
+# else takes the catch-all (balancer).
 vm 'i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
 ssh "$LAB_HOST" 'pkill -f sub_server.py'
 vm 'r() { uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].domain=$1; uci set gatygo.@rule[-1].to=$2; }
+    a() { uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].ip=$1; uci set gatygo.@rule[-1].to=$2; }
     r rare.example direct; r other.example proxy; r example.org proxy; r video.example.com direct; r ads.example.com direct
+    a 192.0.2.0/24 direct; a 198.51.100.7 proxy; a 2001:db8::/32 proxy; a 10.8.0.0/24 proxy; a 1.1.1.1 direct
     uci commit gatygo; /etc/init.d/gatygo reload'
 check "my rules: applied with the panel down" 'i=0; until gatygo rules | jq -e ".pending == false" >/dev/null; do i=$((i + 1)); [ $i -lt 90 ] || exit 1; sleep 1; done'
-expect "my rules: all five in the config" "5" 'jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json'
+expect "my rules: all ten in the config" "10" 'jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json'
+expect "my rules: the addresses after the domains, IPv4 narrow to wide, then IPv6" '[null,null,null,null,null,"198.51.100.7","1.1.1.1","192.0.2.0/24","10.8.0.0/24","2001:db8::/32"]' \
+    'jq -c "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\")) | .ip[0]?]" /etc/gatygo/xray.json'
 expect "my rules: the provider's catch-all stays last" "tcp,udp" 'jq -r ".routing.rules[-1].network" /etc/gatygo/xray.json'
-expect "my rules: a status for each" "works nochange provider_direct provider_proxy provider_block" 'gatygo rules | jq -r "[.rules[].status] | join(\" \")"'
+expect "my rules: a status for each" "works nochange provider_direct provider_proxy provider_block" 'gatygo rules | jq -r "[.rules[] | select(.domain) | .status] | join(\" \")"'
+# 192.0.2.0/24 and 198.51.100.7 are the provider's (geoip:local, direct); IPv6 is blocked by default;
+# 10.8.0.0/24 is the local network; 1.1.1.1 is in no list of the provider
+expect "my rules: a status for each address" "nochange provider_direct ipv6_blocked local works" 'gatygo rules | jq -r "[.rules[] | select(.ip) | .status] | join(\" \")"'
 expect "route: a domain the provider blocks" "block" 'ubus -S call gatygo route "{\"domain\":\"ads.example.com\"}" | jq -r .to'
 expect "route: the user's rule" "direct" 'ubus -S call gatygo route "{\"domain\":\"rare.example\"}" | jq -r .to'
+expect "route: an address" "direct null" 'ubus -S call gatygo route "{\"domain\":\"192.0.2.1\"}" | jq -r "\"\(.to) \(.why)\""'
+expect "route: IPv6" "block ipv6_blocked" 'ubus -S call gatygo route "{\"domain\":\"2001:db8::5\"}" | jq -r "\"\(.to) \(.why)\""'
+expect "route: the local network" "direct local" 'ubus -S call gatygo route "{\"domain\":\"10.8.0.5\"}" | jq -r "\"\(.to) \(.why)\""'
 vm 'sleep 2; i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
-expect "the download behind it failed, the rules stayed" "error fetch_failed 5" 'echo "$(gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\"") $(jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json)"'
+expect "the download behind it failed, the rules stayed" "error fetch_failed 10" 'echo "$(gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\"") $(jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json)"'
 # the panel back (as in section 0), the rules gone
 ssh "$LAB_HOST" "cd $LAB_DIR && nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
              i=0; until curl -fs -o /dev/null localhost:8787/log; do i=\$((i + 1)); [ \$i -lt 20 ] || exit 1; sleep 0.5; done" \
@@ -191,6 +202,17 @@ T0=$(tp_counter); vm 'ip netns exec c1 /tmp/tmo 3 nc 1.1.1.1 443 </dev/null >/de
 # 192.0.2.1 answers nobody: a connection means xray's local-only inbound took the packet from the nft rule
 check "TCP from the LAN is accepted by xray" 'ip netns exec c1 curl -s -o /dev/null -m 4 -w "%{time_connect}" http://192.0.2.1/ | awk "{ exit !(\$1 > 0) }"'
 check "the tproxy inbound cannot be reached directly from the LAN" '! ip netns exec c1 /tmp/tmo 3 nc 192.168.1.1 12345 </dev/null'
+# an address rule takes a LAN connection without a name (no TLS, no HTTP: nothing to sniff), as
+# xray's debug log names the rule. 1.1.1.1: in no list of the provider (192.0.2.0/24 is geoip:local,
+# the provider's rule would come first). Port 80: port 53 is the DNS hijack's.
+vm 'uci set gatygo.main.loglevel=debug; uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].ip=1.1.1.1; uci set gatygo.@rule[-1].to=direct
+    uci commit gatygo; /etc/init.d/gatygo reload'
+check "address rule: applied" 'i=0; until gatygo rules | jq -e ".pending == false and .rules[0].status == \"works\"" >/dev/null; do i=$((i + 1)); [ $i -lt 90 ] || exit 1; sleep 1; done'
+TAG=$(vm 'jq -r "[.routing.rules[] | select(.ip == [\"1.1.1.1\"]) | .ruleTag][0]" /etc/gatygo/xray.json')
+check "address rule: a nameless connection from the LAN takes it ($TAG)" "ip netns exec c1 sh -c '(echo hello; sleep 2) | /tmp/tmo 4 nc 1.1.1.1 80 >/dev/null 2>&1'; sleep 1
+    logread -e xray | tail -n 200 | grep -F -q 'Hit route rule: [$TAG] so taking detour [direct]'"
+vm 'uci -q delete gatygo.@rule[0]; uci set gatygo.main.loglevel=warning; uci commit gatygo; /etc/init.d/gatygo reload; sleep 5
+    i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
 # a cap set in the settings reaches the rules with Save & Apply; over it the device's next connection
 # is refused at once (curl 7) instead of being taken by xray (192.0.2.1 answers nobody: curl 28)
 vm 'uci set gatygo.main.conn_per_device=2; uci commit gatygo; reload_config; sleep 5'
