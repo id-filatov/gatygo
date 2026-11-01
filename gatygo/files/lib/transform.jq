@@ -8,7 +8,7 @@
 # Arguments:
 #   --argjson tproxy_port N   --argjson dns_port N   --argjson mark N
 #   --arg loglevel S          --argjson check_port N   --arg check_pass S
-#   --argjson user_rules [{domain, to: "proxy"|"direct"}]   (lib/rules.sh)
+#   --argjson user_rules [{domain or ip, to: "proxy"|"direct"}]   (lib/rules.sh)
 
 def sniffing_from_socks:
   ([.inbounds[]? | select(.protocol == "socks") | .sniffing] | first)
@@ -39,7 +39,9 @@ def tunnel_target($cfg; $catch):
   else [($cfg.outbounds // [])[] | select(.protocol | IN("freedom", "blackhole", "dns") | not) | {outboundTag: .tag}] | first
   end;
 
-# The user's rules as xray rules, more specific domains first. The provider's rules take
+# The user's rules as xray rules: domains, more specific first, then addresses, IPv4 before IPv6,
+# narrower subnets first (a single address is /32 or /128), an equal mask in the order of the
+# settings: a domain rule wins over an address rule for the same connection. The provider's rules take
 # priority: these go after its explicit ones and before its catch-all, and only take traffic
 # from the LAN and the services check (a TestRoute from another inbound tag sees the provider's
 # rules alone: lib/route.sh). "direct" goes to the first freedom outbound; a rule with nowhere to
@@ -52,12 +54,16 @@ def user_rules($cfg):
   | tunnel_target($cfg; if $catch then $rules[-1] else null end) as $proxy
   | ([($cfg.outbounds // [])[] | select(.protocol == "freedom") | {outboundTag: .tag}] | first) as $direct
   | (($catch | not) and (($cfg.routing.domainStrategy // "") | ascii_downcase) == "ipifnonmatch") as $second
-  | $user_rules
-  | sort_by(-(.domain | split(".") | length))
+  | ([$user_rules[] | select(has("domain"))] | sort_by(-(.domain | split(".") | length)))
+    + ([$user_rules[] | select(has("ip"))]
+       | sort_by(.ip | contains(":") as $v6
+           | [$v6, -(if contains("/") then split("/")[1] | tonumber elif $v6 then 128 else 32 end)]))
   | map((if .to == "proxy" then $proxy else $direct end) as $target
       | select($target != null)
-      | { type: "field", inboundTag: ["tproxy", "check"], domain: ["domain:" + .domain] }
-        + (if $second then { ip: ["0.0.0.0/0", "::/0"] } else {} end)
+      | if has("ip") then { type: "field", inboundTag: ["tproxy", "check"], ip: [.ip] }
+        else { type: "field", inboundTag: ["tproxy", "check"], domain: ["domain:" + .domain] }
+          + (if $second then { ip: ["0.0.0.0/0", "::/0"] } else {} end)
+        end
         + $target)
   # xray wants every rule tag unique; the tag names the rule in its log ("Hit route rule")
   | to_entries | map(.value + { ruleTag: "gatygo-rule-\(.key + 1)" });

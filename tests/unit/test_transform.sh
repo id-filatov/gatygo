@@ -170,6 +170,32 @@ jq 'del(.routing.rules[-1]) | .routing.domainStrategy = "ipifnonmatch"' "$tmp/in
 _t "$tmp/nl-in.json" "$tmp/nl.json"
 assert_eq "3" "$(jq '[.routing.rules[] | select(((.ruleTag // "") | startswith("gatygo-rule-")) and has("ip"))] | length' "$tmp/nl.json")" "the strategy is read in any case, as xray does"
 
+# --- the user's address rules: after the domain ones, IPv4 narrow to wide, then IPv6
+URI='[{"domain":"rare.example","to":"direct"},{"ip":"0.0.0.0/0","to":"direct"},{"ip":"203.0.113.0/24","to":"proxy"},{"ip":"2001:db8::/32","to":"proxy"},{"ip":"198.51.100.7","to":"direct"}]'
+_t "$tmp/in-0.json" "$tmp/ui.json" "$URI"
+assert_exit 0 "xray run -test accepts address rules" xray run -test -c "$tmp/ui.json"
+assert_eq '[["domain:rare.example"],null,null,null,null]' "$(_mine_f "$tmp/ui.json" '.domain')" "domains first"
+assert_eq '[null,["198.51.100.7"],["203.0.113.0/24"],["0.0.0.0/0"],["2001:db8::/32"]]' "$(_mine_f "$tmp/ui.json" '.ip')" "then addresses: IPv4 narrow to wide, then IPv6"
+assert_eq '["gatygo-rule-1","gatygo-rule-2","gatygo-rule-3","gatygo-rule-4","gatygo-rule-5"]' "$(_mine_f "$tmp/ui.json" '.ruleTag')" "one numbering"
+assert_eq "tcp,udp" "$(jq -r '.routing.rules[-1].network' "$tmp/ui.json")" "the catch-all stays last"
+assert_eq '[{"outboundTag":"direct"},{"outboundTag":"direct"},{"balancerTag":"balancer"},{"outboundTag":"direct"},{"balancerTag":"balancer"}]' \
+    "$(_mine_f "$tmp/ui.json" '{balancerTag, outboundTag} | with_entries(select(.value != null))')" "an address rule goes where a domain rule of its direction goes"
+assert_exit 0 "address rule shape" jq -e '[.routing.rules[] | select(.ruleTag == "gatygo-rule-2")][0]
+    == {"type":"field","ruleTag":"gatygo-rule-2","inboundTag":["tproxy","check"],"ip":["198.51.100.7"],"outboundTag":"direct"}' "$tmp/ui.json"
+assert_exit 0 "user rules still before the catch-all" jq -e --slurpfile o "$tmp/in-0.json" \
+    '.routing.rules == [.routing.rules[0], .routing.rules[1]] + $o[0].routing.rules[:-1]
+        + [.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))] + [$o[0].routing.rules[-1]]' "$tmp/ui.json"
+U3='[{"ip":"203.0.113.0/24","to":"proxy"},{"ip":"198.51.100.0/24","to":"direct"},{"ip":"192.0.2.0/24","to":"proxy"}]'
+_t "$tmp/in-0.json" "$tmp/u3.json" "$U3"
+assert_eq '["203.0.113.0/24","198.51.100.0/24","192.0.2.0/24"]' "$(_mine_f "$tmp/u3.json" '.ip[0]')" "an equal mask keeps the order of the settings"
+# no catch-all under IPIfNonMatch: the domain rules wait for the second pass, the address rules after them, all last
+_t "$tmp/nc-in.json" "$tmp/nci.json" "$URI"
+assert_eq '[["0.0.0.0/0","::/0"],["198.51.100.7"],["203.0.113.0/24"],["0.0.0.0/0"],["2001:db8::/32"]]' "$(_mine_f "$tmp/nci.json" '.ip')" \
+    "no catch-all with IPIfNonMatch: the domain rule takes any address, the address rules their own"
+assert_exit 0 "no catch-all: domain and address rules at the end" jq -e --slurpfile o "$tmp/nc-in.json" \
+    '.routing.rules[2:] == $o[0].routing.rules + [.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))]' "$tmp/nci.json"
+assert_exit 0 "xray run -test accepts it (no catch-all, address rules)" xray run -test -c "$tmp/nci.json"
+
 gatygo_transform "$tmp/in-0.json" "$tmp/none-a.json" 12345 5353 255 warning 10808 s3cret '[]'
 gatygo_transform "$tmp/in-0.json" "$tmp/none-b.json" 12345 5353 255 warning 10808 s3cret
 assert_eq "$(sha256sum < "$tmp/none-b.json")" "$(sha256sum < "$tmp/none-a.json")" "no user rules: the same bytes as without them"

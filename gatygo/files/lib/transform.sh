@@ -2,8 +2,8 @@
 # gatygo_transform IN OUT TPROXY_PORT DNS_PORT MARK LOGLEVEL CHECK_PORT CHECK_PASS [USER_RULES]
 # Run transform.jq on the selected profile config. Ports and mark are decimal unsigned
 # integers (convert UCI "0xff" with $(( 0xff )) before calling). CHECK_PASS is the password of
-# the check inbound (gatygo_check_secret). USER_RULES: the user's rules as gatygo_rules_json
-# prints them, none by default. On any failure exit 1 and leave OUT untouched.
+# the check inbound (gatygo_check_secret). USER_RULES: the user's domain and address rules as
+# gatygo_rules_json prints them, none by default. On any failure exit 1 and leave OUT untouched.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/common.sh"
 
