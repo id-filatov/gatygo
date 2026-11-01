@@ -44,6 +44,7 @@ var CSS = [
 	'.gg-ll.is-error, .gg-ll.is-error .gg-lvl { color:var(--gg-bad-ink); } .gg-ll.is-error .gg-lvl { font-weight:600; }',
 	'.gg-ll.is-debug { color:var(--gg-ink-3); }',
 	'.gg-rule-d { font-family:monospace; }',
+	'.gg-adv tr.gg-grp > td { padding-top:.6em; color:var(--gg-ink-3); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }',
 	'.gg-adv .cbi-section-actions .gg-rule-x { flex:0 0 auto; min-width:0; width:auto; padding:0 .9em; margin-left:auto; }',
 	'.gg-st.is-works { color:var(--gg-ok-ink); } .gg-st.is-nochange { color:var(--gg-ink-3); } .gg-st.is-bad { color:var(--gg-bad-ink); }',
 	'.gg-rules-add, .gg-check-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5em; }',
@@ -160,6 +161,68 @@ function normDomain(s) {
 	return h;
 }
 
+// " 203.0.113.7/24 ", "2001:DB8::1", "http://[2001:db8::1]/" -> the address or subnet in the one
+// form the router stores and compares (lib/addr.sh): IPv4 without leading zeros, IPv6 per RFC 5952,
+// host bits zeroed, no /32 or /128; null when it is not one. A link's host is taken as typed: the
+// URL parser would read 010.1.1.1 as octal and 1.2.3 as 1.2.0.3.
+function normAddr(s) {
+	var dec = function(x, max) { return /^(0|[1-9]\d{0,2})$/.test(x) && +x <= max ? +x : -1; };
+	s = (s || '').trim().toLowerCase();
+	var link = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@\/?#]*@)?(\[[^\]]*\]|[^:\/?#]*)/.exec(s);
+	if (link) s = link[1].replace(/^\[(.*)\]$/, '$1');
+	var p = s.split('/'), m = -1;
+	if (p.length > 2) return null;
+	if (p.length == 2 && (m = dec(p[1], 128)) < 0) return null;
+	s = p[0];
+	if (s.indexOf(':') < 0) {
+		var q = s.split('.'), n = 0;
+		if (q.length != 4 || m > 32) return null;
+		for (var i = 0; i < 4; i++) {
+			var o = dec(q[i], 255);
+			if (o < 0) return null;
+			n = n * 256 + o;
+		}
+		if (m < 0) m = 32;
+		var b = Math.pow(2, 32 - m);
+		n = Math.floor(n / b) * b;
+		var a = [ Math.floor(n / 16777216), Math.floor(n / 65536) % 256, Math.floor(n / 256) % 256, n % 256 ].join('.');
+		return m < 32 ? a + '/' + m : a;
+	}
+	if (!/^[0-9a-f:]+$/.test(s)) return null;
+	var halves = s.split('::');
+	if (halves.length > 2) return null;
+	var groups = function(h) { return h == '' ? [] : h.split(':'); };
+	var l = groups(halves[0]), r = halves.length == 2 ? groups(halves[1]) : [];
+	if (halves.length == 2 ? l.length + r.length > 7 : l.length != 8) return null;
+	if (l.concat(r).some(function(x) { return !/^[0-9a-f]{1,4}$/.test(x); })) return null;
+	var g = l.concat(new Array(8 - l.length - r.length).fill('0'), r).map(function(x) { return parseInt(x, 16); });
+	if (m < 0) m = 128;
+	for (var k = 0; k < 8; k++) {
+		var bits = m - k * 16;
+		if (bits <= 0) g[k] = 0;
+		else if (bits < 16) g[k] = Math.floor(g[k] / Math.pow(2, 16 - bits)) * Math.pow(2, 16 - bits);
+	}
+	// the longest run of two or more zero groups becomes "::", the first of equal ones
+	var bs = -1, bl = 1;
+	for (var j = 0, rs = -1; j <= 8; j++) {
+		if (j < 8 && g[j] == 0) { if (rs < 0) rs = j; continue; }
+		if (rs >= 0 && j - rs > bl) { bs = rs; bl = j - rs; }
+		rs = -1;
+	}
+	var hex = function(a) { return a.map(function(x) { return x.toString(16); }).join(':'); };
+	var out = bs < 0 ? hex(g) : hex(g.slice(0, bs)) + '::' + hex(g.slice(bs + bl));
+	return m < 128 ? out + '/' + m : out;
+}
+
+// what is typed in the rules row or the check: {ip} for an address or subnet, else {domain}; null
+// when it is neither
+function normEntry(s) {
+	var a = normAddr(s);
+	if (a) return { ip: a };
+	var d = normDomain(s);
+	return d ? { domain: d } : null;
+}
+
 // proxy | direct | block, as the router answers (lib/route.sh)
 function routeWord(to) {
 	return { proxy: _('tunnel'), direct: _('direct'), block: _('blocked') }[to];
@@ -173,6 +236,9 @@ function statusText(code) {
 	case 'provider_direct': return [ 'bad', _('✗ The rule does not work: the VPN provider sends it direct') ];
 	case 'provider_proxy': return [ 'bad', _('✗ The rule does not work: the VPN provider sends it through the tunnel') ];
 	case 'provider_block': return [ 'bad', _('✗ The rule does not work: the VPN provider blocks it') ];
+	case 'ipv6_blocked': return [ 'bad', _('✗ The rule does not work: IPv6 is off in the gatygo settings') ];
+	case 'ipv6_bypass': return [ 'bad', _('✗ The rule does not work: IPv6 goes around the VPN') ];
+	case 'local': return [ 'bad', _('✗ The rule does not work: the local network always goes direct') ];
 	}
 	return null;
 }
@@ -209,8 +275,9 @@ return view.extend({
 	ruleStatus: function(sid) {
 		var r = this.rules;
 		if (!r || !r.available || !r.api || r.pending) return null;
-		var d = uci.get('gatygo', sid, 'domain'), to = uci.get('gatygo', sid, 'to');
-		var hit = (r.rules || []).filter(function(x) { return x.domain == d && x.to == to; })[0];
+		// an address is looked up as the router reads it: the file may hold it as typed by hand
+		var d = uci.get('gatygo', sid, 'domain'), ip = d ? null : normAddr(uci.get('gatygo', sid, 'ip')), to = uci.get('gatygo', sid, 'to');
+		var hit = (r.rules || []).filter(function(x) { return (d ? x.domain == d : ip != null && x.ip == ip) && x.to == to; })[0];
 		return hit ? hit.status : null;
 	},
 
@@ -250,15 +317,38 @@ return view.extend({
 
 	renderRules: function() {
 		var self = this, r = this.rules || {};
-		var m = new form.Map('gatygo', null, _('VPN provider rules take priority. A domain covers its subdomains.'));
+		var m = new form.Map('gatygo', null, _('VPN provider rules take priority. A domain covers its subdomains.') + ' '
+			+ _('An address works where no site name is seen: Telegram, calls, games. For sites, add the domain.'));
 		var s = m.section(form.GridSection, 'rule');
 		var o;
 		s.anonymous = true;
 		s.addremove = true;
 		s.nodescriptions = true;
 
-		o = s.option(form.DummyValue, 'domain', _('Domain'));
-		o.textvalue = function(sid) { return E('span', { 'class': 'gg-rule-d' }, uci.get('gatygo', sid, 'domain') || ''); };
+		// the domains, then the addresses, each in the order they were added, under a heading of
+		// their own (none for a group without rules)
+		var isAddr = function(sid) { return !uci.get('gatygo', sid, 'domain') && !!uci.get('gatygo', sid, 'ip'); };
+		s.cfgsections = function() {
+			var all = form.GridSection.prototype.cfgsections.apply(this, arguments);
+			return all.filter(function(sid) { return !isAddr(sid); }).concat(all.filter(isAddr));
+		};
+		s.renderContents = function(cfgsections, nodes) {
+			var el = form.GridSection.prototype.renderContents.apply(this, arguments);
+			var heads = {};
+			el.querySelectorAll('tbody > tr[data-sid]').forEach(function(tr) {
+				var g = isAddr(tr.getAttribute('data-sid')) ? 'addr' : 'domain';
+				if (heads[g]) return;
+				heads[g] = true;
+				tr.parentNode.insertBefore(E('tr', { 'class': 'tr gg-grp' },
+					E('td', { 'class': 'td', 'colspan': tr.children.length }, g == 'addr' ? _('Addresses') : _('Domains'))), tr);
+			});
+			return el;
+		};
+
+		o = s.option(form.DummyValue, 'domain', _('Domain or address'));
+		o.textvalue = function(sid) {
+			return E('span', { 'class': 'gg-rule-d' }, uci.get('gatygo', sid, 'domain') || uci.get('gatygo', sid, 'ip') || '');
+		};
 
 		o = s.option(form.ListValue, 'to', _('Route'));
 		o.editable = true;
@@ -287,20 +377,22 @@ return view.extend({
 					'click': ui.createHandlerFn(this, 'handleRemove', sid) }, '×')));
 		};
 
-		// a row under the table: the domain, the direction, Add (GridSection's own Add opens a modal)
+		// a row under the table: the domain or address, the direction, Add (GridSection's own Add opens a modal)
 		s.renderSectionAdd = function() {
 			var map = this.map;
-			var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': _('domain') });
+			var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': _('domain or address') });
 			var dir = E('select', { 'class': 'cbi-input-select' }, [
 				E('option', { 'value': 'proxy' }, _('tunnel')), E('option', { 'value': 'direct' }, _('direct')) ]);
 			var err = E('div', { 'class': 'gg-err' });
 			var add = function() {
-				var d = normDomain(input.value);
-				if (!d) return dom.content(err, _('A domain is needed, for example example.com'));
-				if (uci.sections('gatygo', 'rule').some(function(x) { return x.domain == d; }))
+				var e = normEntry(input.value);
+				if (!e) return dom.content(err, _('A domain or an address is needed, for example example.com or 203.0.113.0/24'));
+				if (e.ip && uci.sections('gatygo', 'rule').some(function(x) { return x.ip && normAddr(x.ip) == e.ip; }))
+					return dom.content(err, _('This address is already listed'));
+				if (e.domain && uci.sections('gatygo', 'rule').some(function(x) { return x.domain == e.domain; }))
 					return dom.content(err, _('This domain is already listed'));
 				var sid = uci.add('gatygo', 'rule');
-				uci.set('gatygo', sid, 'domain', d);
+				uci.set('gatygo', sid, e.ip ? 'ip' : 'domain', e.ip || e.domain);
 				uci.set('gatygo', sid, 'to', dir.value);
 				return map.save(null, true);
 			};
@@ -313,13 +405,19 @@ return view.extend({
 	},
 
 	renderCheck: function() {
-		var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': 'example.com', 'aria-label': _('Domain') });
+		var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': 'example.com', 'aria-label': _('Domain or address') });
 		var res = E('div', { 'class': 'gg-check-res' });
 		var check = function() {
-			var d = normDomain(input.value);
-			if (!d) return dom.content(res, E('span', { 'class': 'gg-err' }, _('A domain is needed, for example example.com')));
+			var e = normEntry(input.value);
+			if (!e) return dom.content(res, E('span', { 'class': 'gg-err' }, _('A domain or an address is needed, for example example.com or 203.0.113.0/24')));
+			var d = e.ip || e.domain;
+			// why: the address never reaches the VPN (lib/route.sh)
 			return callRoute(d).then(function(a) {
-				dom.content(res, [ (a && a.to) ? d + ' → ' + routeWord(a.to) : _('Could not check') ]);
+				dom.content(res, [ !(a && a.to) ? _('Could not check')
+					: a.why == 'ipv6_blocked' ? _('%s → IPv6 is off in the gatygo settings').format(d)
+					: a.why == 'ipv6_bypass' ? _('%s → IPv6 goes around the VPN').format(d)
+					: a.why == 'local' ? _('%s → direct (local network)').format(d)
+					: d + ' → ' + routeWord(a.to) ]);
 			}).catch(function() { dom.content(res, _('Could not check')); });
 		};
 		var btn = this.checkBtn = E('button', { 'class': 'cbi-button cbi-button-action', 'click': ui.createHandlerFn(this, check) }, _('Check'));

@@ -75,6 +75,18 @@ msgid "✗ The rule does not work: the VPN provider blocks it"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: IPv6 is off in the gatygo settings"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: IPv6 goes around the VPN"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: the local network always goes direct"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Could not check"
 msgstr ""
 
@@ -87,7 +99,19 @@ msgid "VPN provider rules take priority. A domain covers its subdomains."
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "Domain"
+msgid "An address works where no site name is seen: Telegram, calls, games. For sites, add the domain."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Addresses"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Domains"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Domain or address"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
@@ -99,11 +123,15 @@ msgid "Now, in %s"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "domain"
+msgid "domain or address"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "A domain is needed, for example example.com"
+msgid "A domain or an address is needed, for example example.com or 203.0.113.0/24"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "This address is already listed"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
@@ -112,6 +140,18 @@ msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Add"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → IPv6 is off in the gatygo settings"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → IPv6 goes around the VPN"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → direct (local network)"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js

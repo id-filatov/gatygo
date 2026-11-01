@@ -77,6 +77,18 @@ msgid "✗ The rule does not work: the VPN provider blocks it"
 msgstr "✗ Правило не работает: VPN-провайдер блокирует"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: IPv6 is off in the gatygo settings"
+msgstr "✗ Правило не работает: IPv6 отключён в настройках gatygo"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: IPv6 goes around the VPN"
+msgstr "✗ Правило не работает: IPv6 идёт мимо VPN"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: the local network always goes direct"
+msgstr "✗ Правило не работает: локальная сеть всегда идёт напрямую"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Could not check"
 msgstr "Не удалось проверить"
 
@@ -89,8 +101,20 @@ msgid "VPN provider rules take priority. A domain covers its subdomains."
 msgstr "Правила VPN-провайдера в приоритете. Домен действует вместе с поддоменами."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "Domain"
-msgstr "Домен"
+msgid "An address works where no site name is seen: Telegram, calls, games. For sites, add the domain."
+msgstr "Адрес действует там, где не видно имени сайта: Telegram, звонки, игры. Для сайтов вписывайте домен."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Addresses"
+msgstr "Адреса"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Domains"
+msgstr "Домены"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Domain or address"
+msgstr "Домен или адрес"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Route"
@@ -101,12 +125,16 @@ msgid "Now, in %s"
 msgstr "Сейчас, в %s"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "domain"
-msgstr "домен"
+msgid "domain or address"
+msgstr "домен или адрес"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "A domain is needed, for example example.com"
-msgstr "Нужен домен, например example.com"
+msgid "A domain or an address is needed, for example example.com or 203.0.113.0/24"
+msgstr "Нужен домен или адрес, например example.com или 203.0.113.0/24"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "This address is already listed"
+msgstr "Этот адрес уже есть"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "This domain is already listed"
@@ -115,6 +143,18 @@ msgstr "Этот домен уже есть"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Add"
 msgstr "Добавить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → IPv6 is off in the gatygo settings"
+msgstr "%s → IPv6 отключён в настройках gatygo"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → IPv6 goes around the VPN"
+msgstr "%s → IPv6 идёт мимо VPN"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "%s → direct (local network)"
+msgstr "%s → напрямую (локальная сеть)"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Check"
