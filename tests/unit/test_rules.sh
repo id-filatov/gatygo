@@ -35,4 +35,15 @@ assert_exit 1 "not even the last one" uci -q get 'gatygo.@rule[4].domain'
 assert_eq "gatygo" "$(uci -q get gatygo.main)" "the main section stays"
 assert_eq '[]' "$(gatygo_rules_json)" "nothing to read afterwards"
 
+# --- address and subnet rules: option ip instead of domain, read in the canonical form
+: > "$UCI_STUB_FILE"; : > "$SYSLOG_STUB_FILE"
+_ri() { uci set "gatygo.@rule[$1]=rule"; uci set "gatygo.@rule[$1].ip=$2"; uci set "gatygo.@rule[$1].to=$3"; }
+_r 0 rare.example direct; _ri 1 203.0.113.7/24 proxy; _ri 2 2001:DB8::1 direct; _ri 3 203.0.113.0/24 direct; _ri 4 256.0.0.1 proxy
+_r 5 example.org proxy; uci set "gatygo.@rule[5].ip=198.51.100.7"
+assert_eq '[{"domain":"rare.example","to":"direct"},{"ip":"203.0.113.0/24","to":"proxy"},{"ip":"2001:db8::1","to":"direct"}]' \
+    "$(gatygo_rules_json)" "hand-edited address is normalized; a repeat after normalizing, a bad address and a domain+address rule are skipped"
+assert_eq "1 1 1" "$(grep -c 'listed twice' "$SYSLOG_STUB_FILE") $(grep -c 'not an address' "$SYSLOG_STUB_FILE") $(grep -c 'not both' "$SYSLOG_STUB_FILE")" "each skip is logged with why"
+_ri 6 192.0.2.1 block
+assert_eq "1" "$(gatygo_rules_json >/dev/null; grep -c "rule '192.0.2.1' skipped: the direction must be proxy or direct" "$SYSLOG_STUB_FILE")" "an address rule's direction is checked too"
+
 report

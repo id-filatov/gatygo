@@ -29,6 +29,7 @@ _populate() {
     uci set gatygo.main.hwid=$HWID
     uci set 'gatygo.@rule[0]=rule'; uci set 'gatygo.@rule[0].domain=rare.example'; uci set 'gatygo.@rule[0].to=direct'
     uci set 'gatygo.@rule[1]=rule'; uci set 'gatygo.@rule[1].domain=example.org'; uci set 'gatygo.@rule[1].to=proxy'
+    uci set 'gatygo.@rule[2]=rule'; uci set 'gatygo.@rule[2].ip=203.0.113.0/24'; uci set 'gatygo.@rule[2].to=direct'
     : > "$GATYGO_INIT_LOG"; : > "$SYSLOG_STUB_FILE"
 }
 # the package defaults as `uci show gatygo.main.` prints them
