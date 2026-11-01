@@ -52,6 +52,13 @@ done
 assert_eq "works nochange provider_direct provider_proxy provider_block" "$(jq -r '[.[].status] | join(" ")' "$tmp/count/out")" "the same statuses, counted"
 assert_eq "1" "$(wc -l < "$tmp/count/curl.n" | tr -d ' ')" "one curl for five rules"
 assert_exit 0 "at most three jq for five rules" test "$(wc -l < "$tmp/count/jq.n")" -le 3
+# address rules too: their statuses known without asking add no call, the others join the same curl
+UM=$(printf '%s' "$UR" | jq -c '. + [{"ip":"203.0.113.0/24","to":"direct"},{"ip":"198.51.100.7","to":"proxy"},{"ip":"10.8.0.0/24","to":"proxy"},{"ip":"2001:db8::/32","to":"proxy"},{"ip":"0.0.0.0/0","to":"direct"}]')
+rm -f "$tmp/count/curl.n" "$tmp/count/jq.n"
+( PATH="$tmp/count:$PATH"; gatygo_rules_status "$tmp/c0.json" "$UM" > "$tmp/count/out" )
+assert_eq "10" "$(jq '[.[].status | select(. != null)] | length' "$tmp/count/out")" "a status for each of ten rules, five of them addresses"
+assert_eq "1" "$(wc -l < "$tmp/count/curl.n" | tr -d ' ')" "one curl for ten rules, five of them addresses"
+assert_exit 0 "at most three jq for ten rules" test "$(wc -l < "$tmp/count/jq.n")" -le 3
 _down
 
 # --- the provider's inbound does not sniff (or not TLS): the LAN's connections carry no domain,
@@ -200,9 +207,12 @@ uci set gatygo.main.ipv6_block=0
 assert_eq '{"available":true,"to":"direct","why":"ipv6_bypass"}' "$(sh "$CLI" route 2001:DB8::5)" "route: IPv6 not blocked goes around the VPN"
 uci delete gatygo.main.ipv6_block
 assert_eq '{"available":true,"to":"direct","why":"local"}' "$(sh "$CLI" route 10.8.0.5)" "route: the local network"
-# a subnet is asked at the address its status would be: outside the user's narrower rules
+# a subnet is asked at the address its status would be: outside the user's narrower rules that xray
+# runs with (a rule saved but not applied yet is not one of them)
 uci set 'gatygo.@rule[5]=rule'; uci set 'gatygo.@rule[5].ip=203.0.112.0/24'; uci set 'gatygo.@rule[5].to=direct'
-assert_eq '{"available":true,"to":"direct","why":null}' "$(sh "$CLI" route 203.0.112.0/23)" "route: a subnet, outside a narrower user rule (203.0.113.0)"
+assert_eq '{"available":true,"to":"proxy","why":null}' "$(sh "$CLI" route 203.0.112.0/23)" "route: a narrower rule saved, not applied yet, does not count"
+printf '%s\n' '[{"domain":"rare.example","to":"direct"},{"ip":"203.0.112.0/24","to":"direct"}]' > "$GATYGO_STATE/rules.json"
+assert_eq '{"available":true,"to":"direct","why":null}' "$(sh "$CLI" route 203.0.112.0/23)" "route: a subnet, outside a narrower applied rule (203.0.113.0)"
 assert_eq '{"available":true,"to":"proxy","why":null}' "$(sh "$CLI" route 203.0.112.0/24)" "route: a subnet, at its first address"
 assert_eq '{"error":"not a domain or an address"}' "$(sh "$CLI" route not..valid)" "route: neither a domain nor an address"
 assert_exit 1 "route: neither fails" sh "$CLI" route not..valid

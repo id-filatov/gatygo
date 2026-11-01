@@ -7,7 +7,7 @@
 #   gatygo apply [wait]              rebuild the config from the cached subscription (Save & Apply)
 #   gatygo check [fresh]             JSON: do the usual services open through the tunnel
 #   gatygo ping [kept]               JSON: the response time of every country
-#   gatygo route <domain>            JSON: where the domain goes now (tunnel, direct, blocked)
+#   gatygo route <domain|address>    JSON: where the domain or address goes now (tunnel, direct, blocked)
 #   gatygo rules                     JSON: the user's rules and what each does in the current country
 #   gatygo status                    JSON for scripts and the LuCI page
 #   gatygo nodes                     JSON: outbounds with balancer selection and traffic
@@ -23,7 +23,7 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|start|running|run|dismiss|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain|address>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|start|running|run|dismiss|version" >&2
 	exit 1
 }
 
@@ -118,8 +118,9 @@ cmd_route() {
 		ipv6_blocked) _to=block ;;
 		*)
 			if jq -e '.inbounds[]? | select(.tag == "api")' "$GATYGO_STATE/xray.json" >/dev/null 2>&1; then
+				# the rules xray runs with (rules.json, as applied), not the saved ones
 				_narrower=''
-				case $_t in */*) _narrower=$(gatygo_route_narrower "$_t" $(gatygo_rules_json quiet | jq -r '.[].ip // empty')) ;; esac
+				case $_t in */*) _narrower=$(gatygo_route_narrower "$_t" $(jq -r '.[].ip // empty' "$GATYGO_STATE/rules.json" 2>/dev/null)) ;; esac
 				# shellcheck disable=SC2086
 				_to=$(gatygo_route_where "$GATYGO_STATE/xray.json" "$_t" $_narrower) || _to=''
 			fi ;;
@@ -129,7 +130,7 @@ cmd_route() {
 }
 
 # The user's rules as saved and what each does in the country in use: {available, api, pending,
-# profile, rules: [{domain, to, status}]} (statuses: lib/route.sh). No statuses (null) while xray
+# profile, rules: [{domain or ip, to, status}]} (statuses: lib/route.sh). No statuses (null) while xray
 # is not running (available) or its API does not answer or is not in its config (api), and while the installed config
 # does not carry the saved rules yet (pending: an update or Save & Apply is on its way).
 cmd_rules() {

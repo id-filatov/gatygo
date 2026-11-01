@@ -6,7 +6,8 @@
 # The user's rules only take traffic from the LAN's inbound (transform.jq): asked from an inbound
 # tag no rule names, xray answers with the provider's rules alone.
 # The requests are built by the shell itself (printf escapes, no process per byte) and one curl
-# sends all of them over one connection: the cost of the statuses hardly grows with the rules.
+# sends all of them over one connection, with a fixed handful of jq: the cost of the statuses
+# hardly grows with the rules (an address rule adds a short awk or two: addr.sh).
 # An address rule is asked with an address alone: those are the connections it takes (a site's
 # name, when xray sees it, goes by the domain rules and the provider's catch-all first).
 # Requires config.sh.
@@ -293,7 +294,7 @@ gatygo_rules_status() {
     _gatygo_w=$(mktemp -d)
     _gatygo_mode=$(_gatygo_route_conf "$1" "$_gatygo_w")
     printf '%s' "$2" | jq -r '.[] | if has("ip") then "\(.to) ip \(.ip)" else "\(.to) domain \(.domain)" end' > "$_gatygo_w/rules"
-    # the IPv4 address rules, for the narrower ones of each
+    # the address rules, for the narrower ones of each (gatygo_route_narrower keeps the IPv4 ones)
     _gatygo_v4=''
     while read -r _gatygo_to _gatygo_kd _gatygo_d; do
         [ "$_gatygo_kd" = ip ] && _gatygo_v4="$_gatygo_v4 $_gatygo_d"
