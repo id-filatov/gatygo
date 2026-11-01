@@ -91,26 +91,41 @@ cmd_ping() {
 	gatygo_ping_store "$(gatygo_ping_run "$GATYGO_STATE/subscription.json")" "$_sum"
 }
 
-# Where DOMAIN goes now: {available, to: proxy|direct|block|null}. available=false: xray is not
-# running; to=null: xray did not answer (or its config has no API). Not a domain: {error}, exit 1.
+# Where DOMAIN or an address (a subnet: at the address its rule's status is asked at) goes now:
+# {available, to: proxy|direct|block|null, why: null|local|ipv6_blocked|ipv6_bypass}.
+# available=false: xray is not running; to=null: xray did not answer (or its config has no API);
+# why: the address never reaches xray (lib/route.sh). Neither a domain nor an address: {error}, exit 1.
 cmd_route() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/rules.sh"
 	. "$GATYGO_LIB/route.sh"
 	gatygo_load_config
-	gatygo_rule_domain_ok "$1" || {
-		echo '{"error":"not a domain"}'
-		return 1
-	}
+	_t=$1 _why=''
+	if ! gatygo_rule_domain_ok "$_t"; then
+		_t=$(gatygo_addr_norm "$1") || {
+			echo '{"error":"not a domain or an address"}'
+			return 1
+		}
+		_why=$(gatygo_route_addr_why "$_t")
+	fi
 	gatygo_xray_running || {
-		echo '{"available":false,"to":null}'
+		echo '{"available":false,"to":null,"why":null}'
 		return 0
 	}
 	_to=''
-	if jq -e '.inbounds[]? | select(.tag == "api")' "$GATYGO_STATE/xray.json" >/dev/null 2>&1; then
-		_to=$(gatygo_route_where "$GATYGO_STATE/xray.json" "$1") || _to=''
-	fi
-	jq -nc --arg to "$_to" '{available: true, to: (if $to == "" then null else $to end)}'
+	case $_why in
+		local | ipv6_bypass) _to=direct ;;
+		ipv6_blocked) _to=block ;;
+		*)
+			if jq -e '.inbounds[]? | select(.tag == "api")' "$GATYGO_STATE/xray.json" >/dev/null 2>&1; then
+				_narrower=''
+				case $_t in */*) _narrower=$(gatygo_route_narrower "$_t" $(gatygo_rules_json quiet | jq -r '.[].ip // empty')) ;; esac
+				# shellcheck disable=SC2086
+				_to=$(gatygo_route_where "$GATYGO_STATE/xray.json" "$_t" $_narrower) || _to=''
+			fi ;;
+	esac
+	jq -nc --arg to "$_to" --arg why "$_why" '{available: true, to: (if $to == "" then null else $to end),
+		why: (if $why == "" then null else $why end)}'
 }
 
 # The user's rules as saved and what each does in the country in use: {available, api, pending,
