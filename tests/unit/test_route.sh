@@ -205,6 +205,7 @@ done
 printf '%s\n' "$UR" > "$GATYGO_STATE/rules.json"
 assert_eq '{"available":false,"to":null,"why":null}' "$(sh "$CLI" route rare.example)" "route: no VPN"
 assert_eq "false false null" "$(sh "$CLI" rules | jq -r '"\(.available) \(.pending) \(.rules[0].status)"')" "rules: no VPN, no statuses"
+assert_eq "true" "$(sh "$CLI" rules | jq '[.rules[] | has("by")] | all')" "rules: no statuses, every line still has a by"
 export UBUS_STUB_RUNNING=1
 _up "$tmp/c0.json"
 assert_eq '{"available":true,"to":"direct","why":null}' "$(sh "$CLI" route rare.example)" "route: the answer"

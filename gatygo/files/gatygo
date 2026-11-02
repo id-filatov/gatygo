@@ -159,7 +159,7 @@ cmd_rules() {
 	if [ "$_available$_api$_pending" = truetruefalse ]; then
 		_status=$(gatygo_rules_status "$GATYGO_STATE/xray.json" "$_rules")
 	else
-		_status=$(printf '%s' "$_rules" | jq -c 'map(. + {status: null})')
+		_status=$(printf '%s' "$_rules" | jq -c 'map(. + {status: null, by: null})')
 	fi
 	jq -nc --argjson available "$_available" --argjson api "$_api" --argjson pending "$_pending" \
 		--arg profile "$(cat "$GATYGO_STATE/profile" 2>/dev/null)" --argjson rules "$_status" \
