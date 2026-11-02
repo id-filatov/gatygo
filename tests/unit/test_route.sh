@@ -35,7 +35,7 @@ assert_exit 0 "xray answers on the API port" _up "$tmp/c0.json"
 assert_eq "direct" "$(gatygo_route_ask tproxy rare.example)" "the outbound tag xray picks"
 assert_eq "works nochange provider_direct provider_proxy provider_block" "$(_st "$tmp/c0.json" "$UR")" \
     "statuses: works, changes nothing, beaten by the provider's direct, tunnel and block"
-assert_eq '{"domain":"rare.example","to":"direct","status":"works"}' "$(gatygo_rules_status "$tmp/c0.json" "$UR" | jq -c '.[0]')" "a status line keeps the rule"
+assert_eq '{"domain":"rare.example","to":"direct","status":"works","by":null}' "$(gatygo_rules_status "$tmp/c0.json" "$UR" | jq -c '.[0]')" "a status line keeps the rule"
 assert_eq "block" "$(gatygo_route_to "$tmp/c0.json" tproxy ads.example.com)" "route: a domain the provider blocks"
 assert_eq "direct" "$(gatygo_route_to "$tmp/c0.json" tproxy rare.example)" "route: the user's direct rule"
 assert_eq "proxy" "$(gatygo_route_to "$tmp/c0.json" gatygo-probe rare.example)" "route: the provider's alone from another inbound"
@@ -123,7 +123,7 @@ URI='[{"ip":"203.0.113.0/24","to":"direct"},{"ip":"198.51.100.7","to":"proxy"},{
 _conf "$tmp/p0.json" "$tmp/ci.json" "$URI" "$NOLOCAL"; _up "$tmp/ci.json"
 assert_eq "works nochange provider_direct local nochange ipv6_blocked ipv6_blocked" "$(GATYGO_IPV6_BLOCK=1 _st "$tmp/ci.json" "$URI")" "address statuses, IPv6 blocked"
 assert_eq "ipv6_bypass nochange" "$(GATYGO_IPV6_BLOCK=0 _st "$tmp/ci.json" "$URI" | cut -d' ' -f6-)" "IPv6 not blocked: tunnel goes around, direct changes nothing"
-assert_eq '{"ip":"203.0.113.0/24","to":"direct","status":"works"}' "$(gatygo_rules_status "$tmp/ci.json" "$URI" | jq -c '.[0]')" "a status line keeps an address rule"
+assert_eq '{"ip":"203.0.113.0/24","to":"direct","status":"works","by":null}' "$(gatygo_rules_status "$tmp/ci.json" "$URI" | jq -c '.[0]')" "a status line keeps an address rule"
 assert_eq "local nochange" "$(GATYGO_IPV6_BLOCK=1 _st "$tmp/ci.json" '[{"ip":"fd00::/8","to":"proxy"},{"ip":"fe80::1","to":"direct"}]')" \
     "a local IPv6 network is not blocked with IPv6: always direct"
 _down
@@ -155,6 +155,35 @@ _conf "$tmp/p0.json" "$tmp/ad2.json" "$UA2" ".inbounds[0].sniffing.destOverride 
 assert_eq "provider_proxy nochange" "$(_st "$tmp/ad2.json" "$UA2")" "the provider's rules alone would send the address to the tunnel too: provider_proxy"
 _down
 : > "$NSLOOKUP_STUB_FILE"
+
+# --- block rules: ahead of every rule; a rule inside a blocked one names the block
+UB='[{"domain":"video.example.com","to":"block"},{"domain":"ads.example.com","to":"block"},{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"direct"},{"ip":"198.51.100.0/24","to":"block"},{"ip":"198.51.100.0/25","to":"proxy"},{"ip":"198.51.100.128/25","to":"proxy"},{"ip":"203.0.113.0/24","to":"block"},{"ip":"203.0.113.5","to":"direct"},{"ip":"10.8.0.0/24","to":"block"},{"ip":"2001:db8::/32","to":"block"}]'
+_conf "$tmp/p0.json" "$tmp/cb.json" "$UB"; _up "$tmp/cb.json"
+assert_eq "works nochange works blocked_by works blocked_by blocked_by works blocked_by local nochange" "$(_st "$tmp/cb.json" "$UB")" \
+    "block beats the provider's streaming rule, changes nothing on its ad, a narrower rule inside a block is blocked by it"
+assert_eq "rare.example 198.51.100.0/24 198.51.100.0/24 203.0.113.0/24" \
+    "$(gatygo_rules_status "$tmp/cb.json" "$UB" | jq -r '[.[] | select(.status == "blocked_by") | .by] | join(" ")')" "by: the block as the table shows it"
+assert_eq '{"domain":"video.example.com","to":"block","status":"works","by":null}' "$(gatygo_rules_status "$tmp/cb.json" "$UB" | jq -c '.[0]')" "every status line has a by"
+assert_eq "ipv6_bypass" "$(GATYGO_IPV6_BLOCK=0 gatygo_rules_status "$tmp/cb.json" "$UB" | jq -r '.[10].status')" "IPv6 around the VPN: a block there does not work"
+assert_eq "own_block proxy" "$(gatygo_route_to "$tmp/cb.json" tproxy video.example.com) $(gatygo_route_to "$tmp/cb.json" gatygo-probe video.example.com)" "route: ours from the LAN, the provider's alone from another inbound"
+assert_eq "gatygo-block" "$(gatygo_route_ask check sub.rare.example)" "the services check sees the block"
+rm -f "$tmp/count/curl.n" "$tmp/count/jq.n"
+( PATH="$tmp/count:$PATH"; gatygo_rules_status "$tmp/cb.json" "$UB" > "$tmp/count/out" )
+assert_eq "1" "$(wc -l < "$tmp/count/curl.n" | tr -d ' ')" "one curl with block rules too"
+assert_exit 0 "at most three jq with block rules too" test "$(wc -l < "$tmp/count/jq.n")" -le 3
+_down
+# routeOnly: a domain rule blocked by an address block, found by the domain's address
+UBR='[{"ip":"203.0.113.0/24","to":"block"},{"domain":"other.example","to":"direct"}]'
+_conf "$tmp/p0.json" "$tmp/cbr.json" "$UBR" '.inbounds[0].sniffing.routeOnly = true'
+echo "other.example 203.0.113.9" > "$NSLOOKUP_STUB_FILE"; _up "$tmp/cbr.json"
+assert_eq "blocked_by 203.0.113.0/24" "$(gatygo_rules_status "$tmp/cbr.json" "$UBR" | jq -r '.[1] | "\(.status) \(.by)"')" "by: an address block found by the domain's address"
+_down
+: > "$NSLOOKUP_STUB_FILE"
+# the subscription has a gatygo-block of its own: ours is told by the rules, not by the name
+jq '.outbounds += [{"tag":"gatygo-block","protocol":"freedom"}]' "$tmp/p0.json" > "$tmp/p0t.json"
+_conf "$tmp/p0t.json" "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]'; _up "$tmp/cbt.json"
+assert_eq "works blocked_by" "$(_st "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]')" "tag taken: still our block"
+_down
 
 # --- the commands
 assert_eq '{"error":"not a domain or an address"}' "$(sh "$CLI" route bad..domain)" "route: not a domain"
@@ -216,6 +245,9 @@ assert_eq '{"available":true,"to":"direct","why":null}' "$(sh "$CLI" route 203.0
 assert_eq '{"available":true,"to":"proxy","why":null}' "$(sh "$CLI" route 203.0.112.0/24)" "route: a subnet, at its first address"
 assert_eq '{"error":"not a domain or an address"}' "$(sh "$CLI" route not..valid)" "route: neither a domain nor an address"
 assert_exit 1 "route: neither fails" sh "$CLI" route not..valid
+# a site inside a blocked domain: blocked, as the provider's block reads
+_down; cp "$tmp/cb.json" "$GATYGO_STATE/xray.json"; _up "$tmp/cb.json"
+assert_eq '{"available":true,"to":"block","why":null}' "$(sh "$CLI" route sub.rare.example)" "route: a site inside a blocked domain"
 _down
 unset UBUS_STUB_RUNNING
 

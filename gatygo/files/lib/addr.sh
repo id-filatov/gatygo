@@ -159,3 +159,21 @@ gatygo_addr_probe() {
         print v4str(c)
     }'
 }
+
+# gatygo_addr_holder ADDR [SUBNET...] — IPv4 only (ADDR a single canonical address): the narrowest
+# SUBNET that holds ADDR, the first of equally narrow ones; exit 1 if none does
+gatygo_addr_holder() {
+    _gatygo_ah=$1; shift
+    awk -v a="$_gatygo_ah" -v subs="$*" "$_GATYGO_ADDR_AWK"'
+    BEGIN {
+        v4net(a); c = r[1]
+        n = split(subs, B, " "); best = ""
+        for (i = 1; i <= n; i++) {
+            if (index(B[i], ":")) continue
+            v4net(B[i])
+            if (c >= r[1] && c <= r[2] && (best == "" || r[2] - r[1] < size)) { best = B[i]; size = r[2] - r[1] }
+        }
+        if (best == "") exit 1
+        print best
+    }'
+}

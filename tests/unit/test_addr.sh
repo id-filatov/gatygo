@@ -48,4 +48,11 @@ assert_eq "$(printf '%s\n' $GATYGO_LOCAL6 | paste -sd, - | sed 's/,/, /g')" \
     "$(gatygo_nft_ruleset | sed -n 's/^.*ip6 daddr != { \(.*\) } counter drop$/\1/p')" "the IPv6 block leaves GATYGO_LOCAL6 alone"
 assert_exit 0 "the IPv6 local ranges are GATYGO_LOCAL6's" sh -c '. "$GATYGO_LIB/config.sh"; . "$GATYGO_LIB/addr.sh"; GATYGO_LOCAL6="2001:db8::/32"; gatygo_addr_local 2001:db8:1::/48 && ! gatygo_addr_local fe80::1'
 
+# the block that holds an address: the narrowest, the first of equal ones
+assert_eq "203.0.113.0/24" "$(gatygo_addr_holder 203.0.113.5 198.51.100.0/24 203.0.113.0/24 0.0.0.0/0)" "holder: the narrowest"
+assert_eq "203.0.113.0/25" "$(gatygo_addr_holder 203.0.113.5 203.0.113.0/24 203.0.113.0/25)" "holder: narrower wins over order"
+assert_eq "203.0.113.5" "$(gatygo_addr_holder 203.0.113.5 203.0.113.0/24 203.0.113.5)" "holder: a single address is the narrowest"
+assert_exit 1 "holder: none" gatygo_addr_holder 192.0.2.1 203.0.113.0/24
+assert_exit 1 "holder: none given" gatygo_addr_holder 192.0.2.1
+
 report

@@ -123,6 +123,8 @@ cmd_route() {
 				case $_t in */*) _narrower=$(gatygo_route_narrower "$_t" $(jq -r '.[].ip // empty' "$GATYGO_STATE/rules.json" 2>/dev/null)) ;; esac
 				# shellcheck disable=SC2086
 				_to=$(gatygo_route_where "$GATYGO_STATE/xray.json" "$_t" $_narrower) || _to=''
+				# the user's block reads as any block
+				[ "$_to" != own_block ] || _to=block
 			fi ;;
 	esac
 	jq -nc --arg to "$_to" --arg why "$_why" '{available: true, to: (if $to == "" then null else $to end),
@@ -130,7 +132,7 @@ cmd_route() {
 }
 
 # The user's rules as saved and what each does in the country in use: {available, api, pending,
-# profile, rules: [{domain or ip, to, status}]} (statuses: lib/route.sh). No statuses (null) while xray
+# profile, rules: [{domain or ip, to, status, by}]} (statuses and by: lib/route.sh). No statuses (null) while xray
 # is not running (available) or its API does not answer or is not in its config (api), and while the installed config
 # does not carry the saved rules yet (pending: an update or Save & Apply is on its way).
 cmd_rules() {

@@ -158,22 +158,24 @@ _gatygo_route_send() {
 # _gatygo_route_conf XRAY_JSON DIR — write DIR/conf (the protocol of every outbound, "-" for the
 # first one: xray's default) and print what the LAN's connections carry for the rules to see:
 # domain; both (a domain and its address: routeOnly); address (the inbound does not sniff the
-# domain of an HTTPS connection, so no domain rule can take it)
+# domain of an HTTPS connection, so no domain rule can take it). gatygo's own blackhole, the one
+# the user's rules lead to (transform.jq), is listed as "own", not "blackhole".
 _gatygo_route_conf() {
-    jq -r '([.inbounds[]? | select(.tag == "tproxy") | .sniffing][0] // {}) as $s
+    jq -r '[.routing.rules[]? | select((.ruleTag // "") | startswith("gatygo-rule-")) | .outboundTag // empty] as $mine
+        | ([.inbounds[]? | select(.tag == "tproxy") | .sniffing][0] // {}) as $s
         | ($s.enabled == true and (($s.destOverride // []) | any(. == "fakedns" or (. == "tls" and $s.metadataOnly != true)))) as $dom
         | (if $dom then (if $s.routeOnly == true then "both" else "domain" end) else "address" end),
           "- \(.outbounds[0].protocol // "")",
-          (.outbounds[]? | "\(.tag) \(.protocol)")' "$1" > "$2/conf" 2>/dev/null || return 1
+          (.outbounds[]? | "\(.tag) \(if .protocol == "blackhole" and (.tag | IN($mine[])) then "own" else .protocol end)")' "$1" > "$2/conf" 2>/dev/null || return 1
     head -n 1 "$2/conf"
 }
 
-# _gatygo_route_dirs DIR — DIR/answers as directions in DIR/dirs: "<n> proxy|direct|block|!"
-# (freedom = direct, blackhole = block, anything else the tunnel)
+# _gatygo_route_dirs DIR — DIR/answers as directions in DIR/dirs: "<n> proxy|direct|block|own_block|!"
+# (freedom = direct, blackhole = block, gatygo's own blackhole = own_block, anything else the tunnel)
 _gatygo_route_dirs() {
     awk 'FILENAME == ARGV[1] { if (FNR > 1) p[$1] = $2; next }
         { x = ($2 == "!") ? "" : p[$2]
-          print $1, (x == "") ? "!" : (x == "freedom") ? "direct" : (x == "blackhole") ? "block" : "proxy" }' \
+          print $1, (x == "") ? "!" : (x == "freedom") ? "direct" : (x == "blackhole") ? "block" : (x == "own") ? "own_block" : "proxy" }' \
         "$1/conf" "$1/answers" > "$1/dirs"
 }
 
@@ -200,12 +202,12 @@ _gatygo_route_one() {
     _gatygo_route_send "$_gatygo_w" 1
     _gatygo_route_dirs "$_gatygo_w"
     read -r _gatygo_i _gatygo_dir < "$_gatygo_w/dirs"
-    case $_gatygo_dir in proxy | direct | block) printf '%s\n' "$_gatygo_dir" ;; *) return 1 ;; esac
+    case $_gatygo_dir in proxy | direct | block | own_block) printf '%s\n' "$_gatygo_dir" ;; *) return 1 ;; esac
 }
 
-# gatygo_route_to XRAY_JSON INBOUND DOMAIN [IPV4…] — print proxy, direct or block: the protocol of
-# the outbound xray picks; with no route, xray's own default, the first outbound. Exit 1 when the
-# call failed.
+# gatygo_route_to XRAY_JSON INBOUND DOMAIN [IPV4…] — print proxy, direct, block or own_block (the
+# user's block rule): the protocol of the outbound xray picks; with no route, xray's own default,
+# the first outbound. Exit 1 when the call failed.
 gatygo_route_to() {
     _gatygo_w=$(mktemp -d)
     _gatygo_route_conf "$1" "$_gatygo_w" >/dev/null && shift && _gatygo_route_one "$@"
@@ -279,48 +281,87 @@ gatygo_route_api() {
     jq -e '.inbounds[]? | select(.tag == "api")' "$1" >/dev/null 2>&1 && gatygo_route_ask api example.com >/dev/null
 }
 
-# gatygo_rules_status XRAY_JSON RULES_JSON — print [{domain or ip, to, status}] for the rules, in
+# _gatygo_route_by KIND VALUE [ADDR...] — the user's block rule a blocked_by rule of KIND (domain or
+# ip) and VALUE is under, as the table shows it: the most specific block domain over a domain, else
+# the narrowest IPv4 block over the ADDR it was asked with (a domain asked without any: its own,
+# from the router's DNS, as xray resolves it). The blocks: _gatygo_bd, _gatygo_v4b. Exit 1: none.
+_gatygo_route_by() {
+    _gatygo_rk=$1 _gatygo_rv=$2
+    shift 2
+    if [ "$_gatygo_rk" = domain ]; then
+        _gatygo_rbest=''
+        for _gatygo_rb in $_gatygo_bd; do
+            case $_gatygo_rv in
+                "$_gatygo_rb" | *."$_gatygo_rb") [ "${#_gatygo_rb}" -gt "${#_gatygo_rbest}" ] && _gatygo_rbest=$_gatygo_rb ;;
+            esac
+        done
+        [ -n "$_gatygo_rbest" ] && { printf '%s\n' "$_gatygo_rbest"; return 0; }
+        # shellcheck disable=SC2046
+        [ $# -gt 0 ] || set -- $(gatygo_route_ips "$_gatygo_rv")
+    fi
+    for _gatygo_ra; do
+        # shellcheck disable=SC2086
+        gatygo_addr_holder "$_gatygo_ra" $_gatygo_v4b && return 0
+    done
+    return 1
+}
+
+# gatygo_rules_status XRAY_JSON RULES_JSON — print [{domain or ip, to, status, by}] for the rules, in
 # their order. U: where the connection goes now, from the LAN's inbound; P: where it would go
 # without the user's rules. status: provider_<U> when U is not the rule's direction (the provider's
 # rule came first), nochange when P already was, works otherwise; null when xray did not answer.
+# A block rule's U is gatygo's own blackhole (own_block): nochange when the provider blocks it too,
+# works otherwise. Any other rule U takes there is under a block of the user's: blocked_by, and by
+# names that block (_gatygo_route_by; found none: no status). by is null for every other status.
 # A domain rule is asked with its domain. When the LAN's connections carry no domain (no TLS
 # sniffing), no domain rule can take them: asked with the address alone, nochange, or
 # provider_<U> when the provider's rules alone send the address there too (a user's address rule
 # may be what took it). An address rule is asked at one address of it: the first one outside the
 # local network and the user's narrower address rules (none: nochange, the narrower ones decide);
-# local, ipv6_blocked and ipv6_bypass when xray never sees its traffic (a direct rule there:
-# nochange, it goes direct anyway; ipv6_blocked whatever the direction).
+# for a block rule only the narrower blocks count, the others come after it in xray. local,
+# ipv6_blocked and ipv6_bypass when xray never sees its traffic (nochange where that is the
+# rule's own direction anyway: direct for local and ipv6_bypass, block for ipv6_blocked).
 gatygo_rules_status() {
     _gatygo_w=$(mktemp -d)
     _gatygo_mode=$(_gatygo_route_conf "$1" "$_gatygo_w")
     printf '%s' "$2" | jq -r '.[] | if has("ip") then "\(.to) ip \(.ip)" else "\(.to) domain \(.domain)" end' > "$_gatygo_w/rules"
-    # the address rules, for the narrower ones of each (gatygo_route_narrower keeps the IPv4 ones)
-    _gatygo_v4=''
+    # the address rules, for the narrower ones of each (gatygo_route_narrower keeps the IPv4 ones),
+    # and the blocks, for the narrower ones of a block and for by
+    _gatygo_v4='' _gatygo_v4b='' _gatygo_bd=''
     while read -r _gatygo_to _gatygo_kd _gatygo_d; do
         [ "$_gatygo_kd" = ip ] && _gatygo_v4="$_gatygo_v4 $_gatygo_d"
+        [ "$_gatygo_to" = block ] || continue
+        if [ "$_gatygo_kd" = ip ]; then _gatygo_v4b="$_gatygo_v4b $_gatygo_d"; else _gatygo_bd="$_gatygo_bd $_gatygo_d"; fi
     done < "$_gatygo_w/rules"
     _gatygo_k=0
-    : > "$_gatygo_w/pre"
+    : > "$_gatygo_w/pre"; : > "$_gatygo_w/asked"
     while read -r _gatygo_to _gatygo_kd _gatygo_d; do
         _gatygo_k=$((_gatygo_k + 1))
+        _gatygo_ips=''
         if [ "$_gatygo_kd" = ip ]; then
             # a status known without asking, or the address to ask at
             _gatygo_pre=-
             case $(gatygo_route_addr_why "$_gatygo_d") in
-                local) [ "$_gatygo_to" = proxy ] && _gatygo_pre=local || _gatygo_pre=nochange ;;
-                ipv6_blocked) _gatygo_pre=ipv6_blocked ;;
-                ipv6_bypass) [ "$_gatygo_to" = proxy ] && _gatygo_pre=ipv6_bypass || _gatygo_pre=nochange ;;
+                local) [ "$_gatygo_to" = direct ] && _gatygo_pre=nochange || _gatygo_pre=local ;;
+                ipv6_blocked) [ "$_gatygo_to" = block ] && _gatygo_pre=nochange || _gatygo_pre=ipv6_blocked ;;
+                ipv6_bypass) [ "$_gatygo_to" = direct ] && _gatygo_pre=nochange || _gatygo_pre=ipv6_bypass ;;
                 *)
+                    _gatygo_nw=$_gatygo_v4
+                    [ "$_gatygo_to" = block ] && _gatygo_nw=$_gatygo_v4b
                     # shellcheck disable=SC2046,SC2086
-                    _gatygo_ips=$(gatygo_addr_probe "$_gatygo_d" $(gatygo_route_narrower "$_gatygo_d" $_gatygo_v4)) || _gatygo_pre=nochange ;;
+                    _gatygo_ips=$(gatygo_addr_probe "$_gatygo_d" $(gatygo_route_narrower "$_gatygo_d" $_gatygo_nw)) || _gatygo_pre=nochange ;;
             esac
             echo "$_gatygo_k $_gatygo_pre" >> "$_gatygo_w/pre"
+            # shellcheck disable=SC2086
+            echo $_gatygo_ips >> "$_gatygo_w/asked"
             [ "$_gatygo_pre" = - ] || continue
             _gatygo_dm=-
         else
-            _gatygo_ips='' _gatygo_dm=$_gatygo_d
+            _gatygo_dm=$_gatygo_d
             [ "$_gatygo_mode" = domain ] || _gatygo_ips=$(gatygo_route_ips "$_gatygo_d")
             [ "$_gatygo_mode" != address ] || _gatygo_dm=-
+            # shellcheck disable=SC2086
+            echo $_gatygo_ips >> "$_gatygo_w/asked"
         fi
         # shellcheck disable=SC2086
         _gatygo_route_request "$_gatygo_w/$((2 * _gatygo_k - 1)).req" tproxy "$_gatygo_dm" $_gatygo_ips
@@ -335,13 +376,29 @@ gatygo_rules_status() {
           uok = (u != "" && u != "!"); pok = (p != "" && p != "!")
           if (pre[FNR] != "" && pre[FNR] != "-") s = pre[FNR]
           else if (!uok) s = "null"
+          else if (u == "own_block") {
+              if ($1 != "block") s = "blocked_by"
+              else if (pok) s = (p == "block") ? "nochange" : "works"
+          }
           else if ($2 == "domain" && mode == "address") {
               if (u == $1) s = "nochange"
               else if (pok) s = (p == u) ? "provider_" u : "nochange"
           }
           else if (u != $1) s = "provider_" u
           else if (pok) s = (p == $1) ? "nochange" : "works"
-          print $1, $2, $3, s }' "$_gatygo_w/dirs" "$_gatygo_w/pre" "$_gatygo_w/rules" \
-        | jq -Rnc '[inputs | split(" ") | {(.[1]): .[2], to: .[0], status: (if .[3] == "null" then null else .[3] end)}]'
+          print $1, $2, $3, s }' "$_gatygo_w/dirs" "$_gatygo_w/pre" "$_gatygo_w/rules" > "$_gatygo_w/st"
+    _gatygo_k=0
+    while read -r _gatygo_to _gatygo_kd _gatygo_d _gatygo_rs; do
+        _gatygo_k=$((_gatygo_k + 1))
+        _gatygo_by=null
+        if [ "$_gatygo_rs" = blocked_by ]; then
+            # shellcheck disable=SC2046
+            _gatygo_by=$(_gatygo_route_by "$_gatygo_kd" "$_gatygo_d" $(sed -n "${_gatygo_k}p" "$_gatygo_w/asked")) \
+                || { _gatygo_rs=null; _gatygo_by=null; }
+        fi
+        echo "$_gatygo_to $_gatygo_kd $_gatygo_d $_gatygo_rs $_gatygo_by"
+    done < "$_gatygo_w/st" \
+        | jq -Rnc '[inputs | split(" ") | {(.[1]): .[2], to: .[0], status: (if .[3] == "null" then null else .[3] end),
+            by: (if .[4] == "null" then null else .[4] end)}]'
     rm -rf "$_gatygo_w"
 }
