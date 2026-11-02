@@ -3,12 +3,13 @@
 # Only the entry points and service blocks change. outbounds, routing.rules,
 # routing.balancers, routing.domainStrategy, dns and burstObservatory pass through
 # unchanged (outbounds only gain streamSettings.sockopt.mark); the user's own rules go in
-# among routing.rules (user_rules).
+# among routing.rules (block_rules, user_rules), and with block rules a blackhole of gatygo's own
+# goes last among the outbounds.
 #
 # Arguments:
 #   --argjson tproxy_port N   --argjson dns_port N   --argjson mark N
 #   --arg loglevel S          --argjson check_port N   --arg check_pass S
-#   --argjson user_rules [{domain or ip, to: "proxy"|"direct"}]   (lib/rules.sh)
+#   --argjson user_rules [{domain or ip, to: "proxy"|"direct"|"block"}]   (lib/rules.sh)
 
 def sniffing_from_socks:
   ([.inbounds[]? | select(.protocol == "socks") | .sniffing] | first)
@@ -39,9 +40,32 @@ def tunnel_target($cfg; $catch):
   else [($cfg.outbounds // [])[] | select(.protocol | IN("freedom", "blackhole", "dns") | not) | {outboundTag: .tag}] | first
   end;
 
-# The user's rules as xray rules: domains, more specific first, then addresses, IPv4 before IPv6,
-# narrower subnets first (a single address is /32 or /128), an equal mask in the order of the
-# settings: a domain rule wins over an address rule for the same connection. The provider's rules take
+# The user's rules in the order xray is to try them: domains, more specific first, then addresses,
+# IPv4 before IPv6, narrower subnets first (a single address is /32 or /128), an equal mask in the
+# order of the settings: a domain rule wins over an address rule for the same connection.
+def in_rule_order:
+  ([.[] | select(has("domain"))] | sort_by(-(.domain | split(".") | length)))
+  + ([.[] | select(has("ip"))]
+     | sort_by(.ip | contains(":") as $v6
+         | [$v6, -(if contains("/") then split("/")[1] | tonumber elif $v6 then 128 else 32 end)]));
+
+# The tag of gatygo's own blackhole: "gatygo-block", or the first of gatygo-block-2, -3, ... that
+# the subscription does not use.
+def own_block_tag($cfg):
+  [($cfg.outbounds // [])[] | .tag] as $tags
+  | first(("gatygo-block", (range(2; infinite) | "gatygo-block-\(.)")) | select(IN($tags[]) | not));
+
+# The user's block rules as xray rules, to the blackhole $tag: they go ahead of every rule but our
+# own service ones, the provider's address rules too, so no address condition; from the LAN and
+# the services check only, as the other user rules.
+def block_rules($tag):
+  [$user_rules[] | select(.to == "block")] | in_rule_order
+  | map(if has("ip") then { type: "field", inboundTag: ["tproxy", "check"], ip: [.ip] }
+        else { type: "field", inboundTag: ["tproxy", "check"], domain: ["domain:" + .domain] }
+        end
+        + { outboundTag: $tag });
+
+# The user's tunnel and direct rules as xray rules, in_rule_order. The provider's rules take
 # priority: these go after its explicit ones and before its catch-all, and only take traffic
 # from the LAN and the services check (a TestRoute from another inbound tag sees the provider's
 # rules alone: lib/route.sh). "direct" goes to the first freedom outbound; a rule with nowhere to
@@ -54,22 +78,23 @@ def user_rules($cfg):
   | tunnel_target($cfg; if $catch then $rules[-1] else null end) as $proxy
   | ([($cfg.outbounds // [])[] | select(.protocol == "freedom") | {outboundTag: .tag}] | first) as $direct
   | (($catch | not) and (($cfg.routing.domainStrategy // "") | ascii_downcase) == "ipifnonmatch") as $second
-  | ([$user_rules[] | select(has("domain"))] | sort_by(-(.domain | split(".") | length)))
-    + ([$user_rules[] | select(has("ip"))]
-       | sort_by(.ip | contains(":") as $v6
-           | [$v6, -(if contains("/") then split("/")[1] | tonumber elif $v6 then 128 else 32 end)]))
+  | [$user_rules[] | select(.to != "block")] | in_rule_order
   | map((if .to == "proxy" then $proxy else $direct end) as $target
       | select($target != null)
       | if has("ip") then { type: "field", inboundTag: ["tproxy", "check"], ip: [.ip] }
         else { type: "field", inboundTag: ["tproxy", "check"], domain: ["domain:" + .domain] }
           + (if $second then { ip: ["0.0.0.0/0", "::/0"] } else {} end)
         end
-        + $target)
-  # xray wants every rule tag unique; the tag names the rule in its log ("Hit route rule")
-  | to_entries | map(.value + { ruleTag: "gatygo-rule-\(.key + 1)" });
+        + $target);
 
 . as $in
 | del(.remarks, .meta)
+| own_block_tag($in) as $own
+| block_rules($own) as $blocks
+# xray wants every rule tag unique; the tag names the rule in its log ("Hit route rule"). One
+# numbering for all the user's rules, the blocks first, as they go in.
+| ($blocks + user_rules($in) | to_entries | map(.value + { ruleTag: "gatygo-rule-\(.key + 1)" })) as $tagged
+| ($blocks | length) as $nb
 | .inbounds = [
     # 127.0.0.1: the nft rule delivers the LAN's packets here (firewall.sh); dns-in takes
     # redirected packets, whose destination is the router's LAN address
@@ -87,11 +112,13 @@ def user_rules($cfg):
     { tag: "check", protocol: "socks", listen: "127.0.0.1", port: $check_port,
       settings: { auth: "password", accounts: [{ user: "gatygo", pass: $check_pass }], udp: false } }
   ]
+# gatygo's blackhole last: the first outbound is where xray sends what no rule takes
 | .outbounds = ((.outbounds // []) | map(with_mark)) + [{ tag: "dns-out", protocol: "dns" }]
+    + (if $nb > 0 then [{ tag: $own, protocol: "blackhole" }] else [] end)
 | .routing.rules = [
     { type: "field", inboundTag: ["dns-in"], outboundTag: "dns-out" },
     { type: "field", inboundTag: ["api"], outboundTag: "api" }
-  ] + ((.routing.rules // []) as $rules | user_rules($in) as $mine
+  ] + $tagged[:$nb] + ((.routing.rules // []) as $rules | $tagged[$nb:] as $mine
       | if ($mine | length) == 0 then $rules
         elif has_catch_all($rules) then $rules[:-1] + $mine + [$rules[-1]]
         else $rules + $mine

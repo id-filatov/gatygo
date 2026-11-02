@@ -196,6 +196,33 @@ assert_exit 0 "no catch-all: domain and address rules at the end" jq -e --slurpf
     '.routing.rules[2:] == $o[0].routing.rules + [.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))]' "$tmp/nci.json"
 assert_exit 0 "xray run -test accepts it (no catch-all, address rules)" xray run -test -c "$tmp/nci.json"
 
+# --- block rules: right after our own, to a blackhole of our own, last among the outbounds
+UB='[{"domain":"video.example.com","to":"block"},{"ip":"198.51.100.0/24","to":"block"},{"domain":"sub.video.example.com","to":"block"},{"domain":"rare.example","to":"direct"}]'
+_t "$tmp/in-0.json" "$tmp/ub.json" "$UB"
+assert_exit 0 "xray run -test accepts block rules" xray run -test -c "$tmp/ub.json"
+assert_eq '{"tag":"gatygo-block","protocol":"blackhole"}' "$(jq -c '.outbounds[-1]' "$tmp/ub.json")" "our blackhole is the last outbound"
+assert_eq "dns-out" "$(jq -r '.outbounds[-2].tag' "$tmp/ub.json")" "after dns-out"
+assert_eq "$(jq -r '.outbounds[0].tag' "$tmp/in-0.json")" "$(jq -r '.outbounds[0].tag' "$tmp/ub.json")" "the first outbound (xray's default) stays first"
+assert_eq '[["domain:sub.video.example.com"],["domain:video.example.com"],["198.51.100.0/24"]]' \
+    "$(jq -c '[.routing.rules[2:5][] | (.domain // .ip)]' "$tmp/ub.json")" "blocks right after dns-in and api: domains more specific first, then addresses"
+assert_eq '["gatygo-block","gatygo-block","gatygo-block"]' "$(jq -c '[.routing.rules[2:5][] | .outboundTag]' "$tmp/ub.json")" "to our blackhole"
+assert_eq '["tproxy","check"]' "$(jq -c '.routing.rules[2].inboundTag' "$tmp/ub.json")" "the LAN and the services check only"
+assert_eq '["gatygo-rule-1","gatygo-rule-2","gatygo-rule-3","gatygo-rule-4"]' "$(_mine_f "$tmp/ub.json" '.ruleTag')" "one numbering, blocks first"
+assert_exit 0 "the provider's rules follow, then the other user rule, then the catch-all" jq -e --slurpfile o "$tmp/in-0.json" \
+    '.routing.rules[5:] == $o[0].routing.rules[:-1] + [.routing.rules[] | select(.ruleTag == "gatygo-rule-4")] + [$o[0].routing.rules[-1]]' "$tmp/ub.json"
+_t "$tmp/in-0.json" "$tmp/nb.json" "$UR"
+assert_eq "0" "$(jq '[.outbounds[] | select(.tag | startswith("gatygo-block"))] | length' "$tmp/nb.json")" "no block rule: no blackhole of ours"
+_t "$tmp/nc-in.json" "$tmp/ncb.json" "$UB"
+assert_eq 'null' "$(jq -c '.routing.rules[2].ip' "$tmp/ncb.json")" "no catch-all with IPIfNonMatch: a domain block takes no address condition"
+assert_exit 0 "xray run -test accepts it (no catch-all)" xray run -test -c "$tmp/ncb.json"
+jq '.outbounds += [{"tag":"gatygo-block","protocol":"freedom"}]' "$tmp/in-0.json" > "$tmp/tk-in.json"
+_t "$tmp/tk-in.json" "$tmp/tk.json" "$UB"
+assert_eq "gatygo-block-2 gatygo-block-2" "$(jq -r '"\(.outbounds[-1].tag) \(.routing.rules[2].outboundTag)"' "$tmp/tk.json")" "a tag the subscription has is not reused"
+assert_exit 0 "xray run -test accepts it (tag taken)" xray run -test -c "$tmp/tk.json"
+jq '.routing.domainStrategy = "IPOnDemand"' "$tmp/in-0.json" > "$tmp/od-in.json"
+_t "$tmp/od-in.json" "$tmp/od.json" "$UB"
+assert_exit 0 "xray run -test accepts it (IPOnDemand)" xray run -test -c "$tmp/od.json"
+
 gatygo_transform "$tmp/in-0.json" "$tmp/none-a.json" 12345 5353 255 warning 10808 s3cret '[]'
 gatygo_transform "$tmp/in-0.json" "$tmp/none-b.json" 12345 5353 255 warning 10808 s3cret
 assert_eq "$(sha256sum < "$tmp/none-b.json")" "$(sha256sum < "$tmp/none-a.json")" "no user rules: the same bytes as without them"
