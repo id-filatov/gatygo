@@ -381,6 +381,13 @@ return view.extend({
 		o.load = function(sid) {
 			return isBlock(sid) ? 'block' : form.ListValue.prototype.load.apply(this, arguments);
 		};
+		// a rule section written by hand with `to 'block'` shows as a block, but the router skips it
+		// (lib/rules.sh): Save makes it the block section it shows
+		o.parse = function(sid) {
+			if (!isBlock(sid) && uci.get('gatygo', sid, 'to') == 'block' && this.formvalue(sid) == 'block')
+				return Promise.resolve(this.write(sid, 'block'));
+			return form.ListValue.prototype.parse.apply(this, arguments);
+		};
 		// to block and back the rule changes its type: a section of the other one replaces it, at the
 		// end of its group (LuCI does not reorder sections in a save that also deletes one)
 		o.write = function(sid, v) {
