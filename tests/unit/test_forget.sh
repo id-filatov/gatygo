@@ -30,6 +30,7 @@ _populate() {
     uci set 'gatygo.@rule[0]=rule'; uci set 'gatygo.@rule[0].domain=rare.example'; uci set 'gatygo.@rule[0].to=direct'
     uci set 'gatygo.@rule[1]=rule'; uci set 'gatygo.@rule[1].domain=example.org'; uci set 'gatygo.@rule[1].to=proxy'
     uci set 'gatygo.@rule[2]=rule'; uci set 'gatygo.@rule[2].ip=203.0.113.0/24'; uci set 'gatygo.@rule[2].to=direct'
+    uci set 'gatygo.@block[0]=block'; uci set 'gatygo.@block[0].domain=other.example'
     : > "$GATYGO_INIT_LOG"; : > "$SYSLOG_STUB_FILE"
 }
 # the package defaults as `uci show gatygo.main.` prints them
@@ -52,6 +53,7 @@ assert_eq "$(_defaults | sed "s/^gatygo.main.hwid=\$/gatygo.main.hwid=$HWID/" | 
     "the settings are the package defaults, the device ID kept"
 assert_exit 1 "the user's rules go with the subscription" uci -q get 'gatygo.@rule[0]'
 assert_eq "" "$(uci show gatygo.@rule)" "every one of them"
+assert_exit 1 "block rules go too" uci -q get 'gatygo.@block[0]'
 assert_eq "1" "$(grep -c '\[info\] subscription removed$' "$SYSLOG_STUB_FILE")" "one log line says so"
 assert_exit 1 "the link never reaches the log" grep -q SECRETTOKEN "$SYSLOG_STUB_FILE"
 

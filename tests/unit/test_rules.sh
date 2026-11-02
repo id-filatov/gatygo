@@ -46,4 +46,21 @@ assert_eq "1 1 1" "$(grep -c 'listed twice' "$SYSLOG_STUB_FILE") $(grep -c 'not 
 _ri 6 192.0.2.1 block
 assert_eq "1" "$(gatygo_rules_json >/dev/null; grep -c "rule '192.0.2.1' skipped: the direction must be proxy or direct" "$SYSLOG_STUB_FILE")" "an address rule's direction is checked too"
 
+# --- block rules: sections of their own, read before the rules; a block wins over a repeat
+: > "$UCI_STUB_FILE"; : > "$SYSLOG_STUB_FILE"
+_b() { uci set "gatygo.@block[$1]=block"; uci set "gatygo.@block[$1].$2=$3"; }
+_r 0 sub.rare.example direct; _r 1 video.example.com proxy
+_b 0 domain rare.example; _b 1 ip 203.0.113.7/24; _b 2 domain video.example.com; _b 3 domain bad..domain
+_b 4 domain other.example; uci set "gatygo.@block[4].ip=198.51.100.7"
+uci set gatygo.main=gatygo
+assert_eq '[{"domain":"rare.example","to":"block"},{"ip":"203.0.113.0/24","to":"block"},{"domain":"video.example.com","to":"block"},{"domain":"sub.rare.example","to":"direct"}]' \
+    "$(gatygo_rules_json)" "blocks first, normalized; a rule repeating a block, a bad block and a domain+address block are skipped"
+assert_eq "1 1 1" "$(grep -c 'listed twice' "$SYSLOG_STUB_FILE") $(grep -c 'not a domain' "$SYSLOG_STUB_FILE") $(grep -c 'not both' "$SYSLOG_STUB_FILE")" "each skip is logged with why"
+uci set "gatygo.@block[0].to=proxy"
+assert_eq '{"domain":"rare.example","to":"block"}' "$(gatygo_rules_json quiet | jq -c '.[0]')" "a block section's own direction is not read"
+gatygo_rules_clear
+assert_exit 1 "no block section is left" uci -q get 'gatygo.@block[0]'
+assert_exit 1 "no rule section is left" uci -q get 'gatygo.@rule[0]'
+assert_eq "gatygo" "$(uci -q get gatygo.main)" "the main section stays"
+
 report
