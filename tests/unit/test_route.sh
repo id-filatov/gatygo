@@ -184,6 +184,15 @@ jq '.outbounds += [{"tag":"gatygo-block","protocol":"freedom"}]' "$tmp/p0.json" 
 _conf "$tmp/p0t.json" "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]'; _up "$tmp/cbt.json"
 assert_eq "works blocked_by" "$(_st "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]')" "tag taken: still our block"
 _down
+# no TLS sniffing: a domain block cannot act (no name), an address block takes the domain's address;
+# the domain block changes nothing, a rule under it is blocked by the address block
+UAB='[{"domain":"rare.example","to":"block"},{"ip":"203.0.113.0/24","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]'
+_conf "$tmp/p0.json" "$tmp/cab.json" "$UAB" '.inbounds[0].sniffing.destOverride = ["http"]'
+printf 'rare.example 203.0.113.10\nsub.rare.example 203.0.113.11\n' > "$NSLOOKUP_STUB_FILE"; _up "$tmp/cab.json"
+assert_eq "nochange works blocked_by 203.0.113.0/24" "$(gatygo_rules_status "$tmp/cab.json" "$UAB" | jq -r '[.[].status] + [.[2].by] | join(" ")')" \
+    "no TLS sniffing: a domain block is never what cuts it, the address block is"
+_down
+: > "$NSLOOKUP_STUB_FILE"
 # IPOnDemand: xray resolves the name itself for the address block ahead of every rule (the
 # fixture's dns.hosts), and the status says so
 UOD='[{"ip":"192.0.2.0/24","to":"block"},{"domain":"portal.example.org","to":"proxy"}]'

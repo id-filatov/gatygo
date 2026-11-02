@@ -313,6 +313,8 @@ _gatygo_route_by() {
 # A block rule's U is gatygo's own blackhole (own_block): nochange when the provider blocks it too,
 # works otherwise. Any other rule U takes there is under a block of the user's: blocked_by, and by
 # names that block (_gatygo_route_by; found none: no status). by is null for every other status.
+# Without TLS sniffing a domain block never takes a connection: a domain rule U = own_block is under
+# an address block (a domain block there changes nothing).
 # A domain rule is asked with its domain. When the LAN's connections carry no domain (no TLS
 # sniffing), no domain rule can take them: asked with the address alone, nochange, or
 # provider_<U> when the provider's rules alone send the address there too (a user's address rule
@@ -376,13 +378,15 @@ gatygo_rules_status() {
           uok = (u != "" && u != "!"); pok = (p != "" && p != "!")
           if (pre[FNR] != "" && pre[FNR] != "-") s = pre[FNR]
           else if (!uok) s = "null"
+          else if ($2 == "domain" && mode == "address") {
+              # no name to match: a user block that takes it is an address block
+              if (u == "own_block") s = ($1 == "block") ? "nochange" : "blocked_by"
+              else if (u == $1) s = "nochange"
+              else if (pok) s = (p == u) ? "provider_" u : "nochange"
+          }
           else if (u == "own_block") {
               if ($1 != "block") s = "blocked_by"
               else if (pok) s = (p == "block") ? "nochange" : "works"
-          }
-          else if ($2 == "domain" && mode == "address") {
-              if (u == $1) s = "nochange"
-              else if (pok) s = (p == u) ? "provider_" u : "nochange"
           }
           else if (u != $1) s = "provider_" u
           else if (pok) s = (p == $1) ? "nochange" : "works"
@@ -392,8 +396,11 @@ gatygo_rules_status() {
         _gatygo_k=$((_gatygo_k + 1))
         _gatygo_by=null
         if [ "$_gatygo_rs" = blocked_by ]; then
+            # no TLS sniffing: no domain block can take a connection, only an address block
+            _gatygo_byk=$_gatygo_kd
+            [ "$_gatygo_mode" != address ] || _gatygo_byk=ip
             # shellcheck disable=SC2046
-            _gatygo_by=$(_gatygo_route_by "$_gatygo_kd" "$_gatygo_d" $(sed -n "${_gatygo_k}p" "$_gatygo_w/asked")) \
+            _gatygo_by=$(_gatygo_route_by "$_gatygo_byk" "$_gatygo_d" $(sed -n "${_gatygo_k}p" "$_gatygo_w/asked")) \
                 || { _gatygo_rs=null; _gatygo_by=null; }
         fi
         echo "$_gatygo_to $_gatygo_kd $_gatygo_d $_gatygo_rs $_gatygo_by"
