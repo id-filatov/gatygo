@@ -21,9 +21,9 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 - A server moved to a new IP under the same name: the next update reconnects xray.
 - LAN DNS goes through xray, the router's own traffic is untouched.
 - Routing, balancer and geo files come from the subscription only; no built-in rules.
-- Your own rules (tunnel or direct) in Advanced → My rules: a domain, or an IPv4 or IPv6 address
-  or subnet. They apply after the VPN provider's rules; the page shows what each one does in the
-  current country.
+- Your own rules (tunnel, direct or block) in Advanced → My rules: a domain, or an IPv4 or IPv6
+  address or subnet. Tunnel and direct apply after the VPN provider's rules, block before any
+  rule; the page shows what each one does in the current country. Block works while the VPN is on.
 - An address rule works where no site name is seen (Telegram, calls, games); for sites, use the
   domain. gatygo does not take IPv6 or the local network; a rule's status says so.
 - Connection caps against OOM.

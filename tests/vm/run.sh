@@ -213,6 +213,32 @@ check "address rule: a nameless connection from the LAN takes it ($TAG)" "ip net
     logread -e xray | tail -n 200 | grep -F -q 'Hit route rule: [$TAG] so taking detour [direct]'"
 vm 'uci -q delete gatygo.@rule[0]; uci set gatygo.main.loglevel=warning; uci commit gatygo; /etc/init.d/gatygo reload; sleep 5
     i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
+
+echo "== 8a. block rules"
+# ahead of every rule: a name sniffed from TLS, the provider's own streaming domain, a nameless
+# address; a rule inside a blocked domain is blocked by it. xray's debug log names the rule.
+vm 'uci set gatygo.main.loglevel=debug
+    b() { uci add gatygo block >/dev/null; uci set gatygo.@block[-1].$1=$2; }
+    b domain downloads.openwrt.org; b domain video.example.com; b ip 1.1.1.1
+    uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].domain=sub.video.example.com; uci set gatygo.@rule[-1].to=direct
+    uci commit gatygo; /etc/init.d/gatygo reload'
+check "block rules: applied" 'i=0; until gatygo rules | jq -e ".pending == false and .rules[0].status == \"works\"" >/dev/null; do i=$((i + 1)); [ $i -lt 90 ] || exit 1; sleep 1; done'
+expect "block rules: blocks first, each works, the rule inside one is blocked by it" "works works works blocked_by video.example.com" \
+    'gatygo rules | jq -r "[.rules[].status] + [.rules[3].by] | join(\" \")"'
+expect "block rules: gatygo's blackhole, last" "gatygo-block blackhole" 'jq -r ".outbounds[-1] | \"\(.tag) \(.protocol)\"" /etc/gatygo/xray.json'
+TAGD=$(vm 'jq -r "[.routing.rules[] | select(.domain == [\"domain:downloads.openwrt.org\"]) | .ruleTag][0]" /etc/gatygo/xray.json')
+TAGA=$(vm 'jq -r "[.routing.rules[] | select(.ip == [\"1.1.1.1\"]) | .ruleTag][0]" /etc/gatygo/xray.json')
+# the name is sniffed from the TLS handshake: no DNS in the netns needed, and 192.0.2.1 answers nobody
+check "block: a TLS connection to the blocked name is cut at once, not left to time out ($TAGD)" "ip netns exec c1 sh -c 't0=\$(date +%s); curl -s -o /dev/null -m 8 --resolve downloads.openwrt.org:443:192.0.2.1 https://downloads.openwrt.org/; rc=\$?; t1=\$(date +%s); [ \$rc -ne 0 ] && [ \$rc -ne 28 ] && [ \$((t1 - t0)) -lt 3 ]' && sleep 1 &&
+    logread -e xray | tail -n 200 | grep -F -q 'Hit route rule: [$TAGD] so taking detour [gatygo-block]'"
+check "block: a nameless connection to a blocked address ($TAGA)" "ip netns exec c1 sh -c '(echo hello; sleep 2) | /tmp/tmo 4 nc 1.1.1.1 80 >/dev/null 2>&1'; sleep 1
+    logread -e xray | tail -n 200 | grep -F -q 'Hit route rule: [$TAGA] so taking detour [gatygo-block]'"
+check "block: the blocked name still resolves for the LAN" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
+expect "route: a site inside a blocked domain" "block" 'ubus -S call gatygo route "{\"domain\":\"sub.video.example.com\"}" | jq -r .to'
+vm 'while uci -q delete gatygo.@block[0]; do :; done; while uci -q delete gatygo.@rule[0]; do :; done
+    uci set gatygo.main.loglevel=warning; uci commit gatygo; /etc/init.d/gatygo reload; sleep 5
+    i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
+expect "block rules gone: no blackhole of gatygo's left" "0" 'jq "[.outbounds[] | select(.tag == \"gatygo-block\")] | length" /etc/gatygo/xray.json'
 # a cap set in the settings reaches the rules with Save & Apply; over it the device's next connection
 # is refused at once (curl 7) instead of being taken by xray (192.0.2.1 answers nobody: curl 28)
 vm 'uci set gatygo.main.conn_per_device=2; uci commit gatygo; reload_config; sleep 5'
