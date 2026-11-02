@@ -215,6 +215,14 @@ assert_eq "0" "$(jq '[.outbounds[] | select(.tag | startswith("gatygo-block"))] 
 _t "$tmp/nc-in.json" "$tmp/ncb.json" "$UB"
 assert_eq 'null' "$(jq -c '.routing.rules[2].ip' "$tmp/ncb.json")" "no catch-all with IPIfNonMatch: a domain block takes no address condition"
 assert_exit 0 "xray run -test accepts it (no catch-all)" xray run -test -c "$tmp/ncb.json"
+assert_exit 0 "no catch-all: blocks first, the provider's rules, the other user rule last" jq -e --slurpfile o "$tmp/nc-in.json" \
+    '.routing.rules[2:5] == [.routing.rules[] | select(.outboundTag == "gatygo-block")]
+        and .routing.rules[5:] == $o[0].routing.rules + [.routing.rules[] | select(.ruleTag == "gatygo-rule-4")]' "$tmp/ncb.json"
+jq '.routing.domainStrategy = "AsIs"' "$tmp/in-0.json" > "$tmp/as-in.json"
+_t "$tmp/as-in.json" "$tmp/asb.json" "$UB"
+assert_exit 0 "AsIs: blocks first, the provider's rules, the other user rule, the catch-all" jq -e --slurpfile o "$tmp/as-in.json" \
+    '.routing.rules[2:5] == [.routing.rules[] | select(.outboundTag == "gatygo-block")]
+        and .routing.rules[5:] == $o[0].routing.rules[:-1] + [.routing.rules[] | select(.ruleTag == "gatygo-rule-4")] + [$o[0].routing.rules[-1]]' "$tmp/asb.json"
 jq '.outbounds += [{"tag":"gatygo-block","protocol":"freedom"}]' "$tmp/in-0.json" > "$tmp/tk-in.json"
 _t "$tmp/tk-in.json" "$tmp/tk.json" "$UB"
 assert_eq "gatygo-block-2 gatygo-block-2" "$(jq -r '"\(.outbounds[-1].tag) \(.routing.rules[2].outboundTag)"' "$tmp/tk.json")" "a tag the subscription has is not reused"

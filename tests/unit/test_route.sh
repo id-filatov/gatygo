@@ -184,6 +184,16 @@ jq '.outbounds += [{"tag":"gatygo-block","protocol":"freedom"}]' "$tmp/p0.json" 
 _conf "$tmp/p0t.json" "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]'; _up "$tmp/cbt.json"
 assert_eq "works blocked_by" "$(_st "$tmp/cbt.json" '[{"domain":"rare.example","to":"block"},{"domain":"sub.rare.example","to":"proxy"}]')" "tag taken: still our block"
 _down
+# IPOnDemand: xray resolves the name itself for the address block ahead of every rule (the
+# fixture's dns.hosts), and the status says so
+UOD='[{"ip":"192.0.2.0/24","to":"block"},{"domain":"portal.example.org","to":"proxy"}]'
+_conf "$tmp/p0.json" "$tmp/cod.json" "$UOD" '.routing.domainStrategy = "IPOnDemand"'
+echo "portal.example.org 192.0.2.10" > "$NSLOOKUP_STUB_FILE"; _up "$tmp/cod.json"
+assert_eq "own_block" "$(gatygo_route_to "$tmp/cod.json" tproxy portal.example.org)" "IPOnDemand: xray takes the name to the address block"
+assert_eq "works blocked_by 192.0.2.0/24" "$(gatygo_rules_status "$tmp/cod.json" "$UOD" | jq -r '[.[0].status, .[1].status, .[1].by] | join(" ")')" \
+    "IPOnDemand: the status says what xray does, by the name's address"
+_down
+: > "$NSLOOKUP_STUB_FILE"
 
 # --- the commands
 assert_eq '{"error":"not a domain or an address"}' "$(sh "$CLI" route bad..domain)" "route: not a domain"
