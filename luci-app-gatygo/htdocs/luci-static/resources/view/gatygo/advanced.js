@@ -228,9 +228,9 @@ function routeWord(to) {
 	return { proxy: _('tunnel'), direct: _('direct'), block: _('blocked') }[to];
 }
 
-// a rule's status (lib/route.sh): [kind, text]
-function statusText(code) {
-	switch (code) {
+// a rule's status, the router's line for it ({status, by}: lib/route.sh): [kind, text]
+function statusText(st) {
+	switch (st && st.status) {
 	case 'works': return [ 'works', _('✓ The rule works') ];
 	case 'nochange': return [ 'nochange', _('— The rule changes nothing') ];
 	case 'provider_direct': return [ 'bad', _('✗ The rule does not work: the VPN provider sends it direct') ];
@@ -239,6 +239,7 @@ function statusText(code) {
 	case 'ipv6_blocked': return [ 'bad', _('✗ The rule does not work: IPv6 is off in the gatygo settings') ];
 	case 'ipv6_bypass': return [ 'bad', _('✗ The rule does not work: IPv6 goes around the VPN') ];
 	case 'local': return [ 'bad', _('✗ The rule does not work: the local network always goes direct') ];
+	case 'blocked_by': return [ 'bad', _('✗ The rule does not work: blocked by the rule %s').format(st.by) ];
 	}
 	return null;
 }
@@ -271,29 +272,32 @@ return view.extend({
 	},
 
 	// What the router reads from section SID (lib/rules.sh): {domain} or {ip} in the form it
-	// compares, or null for a section it skips (both, neither, a bad value or direction). The file
-	// may hold an address as typed by hand.
+	// compares, and its direction (to), or null for a section it skips (both, neither, a bad value
+	// or direction). A block section's direction is its type. The file may hold an address as
+	// typed by hand.
 	ruleOf: function(sid) {
-		var d = uci.get('gatygo', sid, 'domain'), ip = uci.get('gatygo', sid, 'ip'), to = uci.get('gatygo', sid, 'to');
-		if ((d && ip) || (to != 'proxy' && to != 'direct')) return null;
-		if (d) return normDomain(d) === d ? { domain: d } : null;
+		var x = uci.get('gatygo', sid) || {}, blk = x['.type'] == 'block';
+		var d = x.domain, ip = x.ip, to = blk ? 'block' : x.to;
+		if ((d && ip) || (!blk && to != 'proxy' && to != 'direct')) return null;
+		if (d) return normDomain(d) === d ? { domain: d, to: to } : null;
 		var a = normAddr(ip);
-		return a ? { ip: a } : null;
+		return a ? { ip: a, to: to } : null;
 	},
 
-	// The status of the rule in section SID: only for a rule as saved and applied (a direction
-	// changed on the page, or a row not applied yet, has none), and only while xray can tell. Of a
-	// domain or an address listed twice the router keeps the first: the repeat has none either.
+	// The router's line for the rule in section SID ({status, by}): only for a rule as saved and
+	// applied (a direction changed on the page, or a row not applied yet, has none), and only while
+	// xray can tell. Of a domain or an address listed twice the router keeps the first, reading
+	// every block section before the rule sections: the repeat has none either.
 	ruleStatus: function(sid) {
 		var r = this.rules;
 		if (!r || !r.available || !r.api || r.pending) return null;
 		var same = function(a, b) { return a && b && a.domain == b.domain && a.ip == b.ip; };
 		var mine = this.ruleOf(sid), self = this;
-		var first = uci.sections('gatygo', 'rule').filter(function(x) { return same(self.ruleOf(x['.name']), mine); })[0];
-		if (!mine || first['.name'] != sid) return null;
-		var to = uci.get('gatygo', sid, 'to');
-		var hit = (r.rules || []).filter(function(x) { return same({ domain: x.domain, ip: x.ip }, mine) && x.to == to; })[0];
-		return hit ? hit.status : null;
+		if (!mine) return null;
+		var first = uci.sections('gatygo', 'block').concat(uci.sections('gatygo', 'rule'))
+			.filter(function(x) { return same(self.ruleOf(x['.name']), mine); })[0];
+		if (first['.name'] != sid) return null;
+		return (r.rules || []).filter(function(x) { return same({ domain: x.domain, ip: x.ip }, mine) && x.to == mine.to; })[0] || null;
 	},
 
 	paintStatus: function(el, sid, blank) {
@@ -332,19 +336,21 @@ return view.extend({
 
 	renderRules: function() {
 		var self = this, r = this.rules || {};
-		var m = new form.Map('gatygo', null, _('VPN provider rules take priority. A domain covers its subdomains.') + ' '
-			+ _('An address works where no site name is seen: Telegram, calls, games. For sites, add the domain.'));
+		var m = new form.Map('gatygo', null, _('VPN provider rules take priority, but block rules come first of all. A domain covers its subdomains.'));
 		var s = m.section(form.GridSection, 'rule');
 		var o;
 		s.anonymous = true;
 		s.addremove = true;
 		s.nodescriptions = true;
 
-		// the domains, then the addresses, each in the order they were added, under a heading of
-		// their own (none for a group without rules)
+		// the rule and the block sections (lib/rules.sh) in one table: the domains, then the
+		// addresses, each in the order they were added, under a heading of their own (none for a
+		// group without rules)
 		var isAddr = function(sid) { return !uci.get('gatygo', sid, 'domain') && !!uci.get('gatygo', sid, 'ip'); };
+		var isBlock = function(sid) { return (uci.get('gatygo', sid) || {})['.type'] == 'block'; };
 		s.cfgsections = function() {
-			var all = form.GridSection.prototype.cfgsections.apply(this, arguments);
+			var all = uci.sections('gatygo').filter(function(x) { return x['.type'] == 'rule' || x['.type'] == 'block'; })
+				.map(function(x) { return x['.name']; });
 			return all.filter(function(sid) { return !isAddr(sid); }).concat(all.filter(isAddr));
 		};
 		s.renderContents = function(cfgsections, nodes) {
@@ -369,7 +375,26 @@ return view.extend({
 		o.editable = true;
 		o.value('proxy', _('tunnel'));
 		o.value('direct', _('direct'));
+		o.value('block', _('block'));
 		o.default = 'proxy';
+		// a block section has no direction option: its type is the direction
+		o.load = function(sid) {
+			return isBlock(sid) ? 'block' : form.ListValue.prototype.load.apply(this, arguments);
+		};
+		// to block and back the rule changes its type: a section of the other one replaces it, at the
+		// end of its group (LuCI does not reorder sections in a save that also deletes one)
+		o.write = function(sid, v) {
+			var blk = isBlock(sid);
+			if ((v == 'block') == blk) {
+				if (!blk) uci.set('gatygo', sid, 'to', v);
+				return;
+			}
+			var key = uci.get('gatygo', sid, 'domain') ? 'domain' : 'ip';
+			var nsid = uci.add('gatygo', v == 'block' ? 'block' : 'rule');
+			uci.set('gatygo', nsid, key, uci.get('gatygo', sid, key));
+			if (v != 'block') uci.set('gatygo', nsid, 'to', v);
+			uci.remove('gatygo', sid);
+		};
 		// a row added from the row below has no widget yet when the form is parsed: keep its value
 		o.retain = true;
 		// a direction not saved yet: the status shown is of the other one
@@ -397,18 +422,20 @@ return view.extend({
 			var map = this.map;
 			var input = E('input', { 'class': 'cbi-input-text', 'type': 'text', 'placeholder': _('domain or address') });
 			var dir = E('select', { 'class': 'cbi-input-select' }, [
-				E('option', { 'value': 'proxy' }, _('tunnel')), E('option', { 'value': 'direct' }, _('direct')) ]);
+				E('option', { 'value': 'proxy' }, _('tunnel')), E('option', { 'value': 'direct' }, _('direct')),
+				E('option', { 'value': 'block' }, _('block')) ]);
 			var err = E('div', { 'class': 'gg-err' });
 			var add = function() {
 				var e = normEntry(input.value);
 				if (!e) return dom.content(err, _('A domain or an address is needed, for example example.com or 203.0.113.0/24'));
-				if (e.ip && uci.sections('gatygo', 'rule').some(function(x) { return x.ip && normAddr(x.ip) == e.ip; }))
+				var listed = uci.sections('gatygo', 'rule').concat(uci.sections('gatygo', 'block'));
+				if (e.ip && listed.some(function(x) { return x.ip && normAddr(x.ip) == e.ip; }))
 					return dom.content(err, _('This address is already listed'));
-				if (e.domain && uci.sections('gatygo', 'rule').some(function(x) { return x.domain == e.domain; }))
+				if (e.domain && listed.some(function(x) { return x.domain == e.domain; }))
 					return dom.content(err, _('This domain is already listed'));
-				var sid = uci.add('gatygo', 'rule');
+				var sid = uci.add('gatygo', dir.value == 'block' ? 'block' : 'rule');
 				uci.set('gatygo', sid, e.ip ? 'ip' : 'domain', e.ip || e.domain);
-				uci.set('gatygo', sid, 'to', dir.value);
+				if (dir.value != 'block') uci.set('gatygo', sid, 'to', dir.value);
 				return map.save(null, true);
 			};
 			input.addEventListener('keydown', function(ev) { if (ev.key == 'Enter') { ev.preventDefault(); add(); } });
@@ -545,6 +572,15 @@ return view.extend({
 		o.default = 'warning';
 
 		return m.render();
+	},
+
+	// The settings and the rules are two forms of one config sharing the uci state. LuCI saves the
+	// forms of a page at once: each would send what the other staged, and a section the rules form
+	// creates (a rule turned into a block or back) would be added twice. One after the other.
+	handleSave: function(ev) {
+		return Array.prototype.reduce.call(document.getElementById('maincontent').querySelectorAll('.cbi-map'), function(p, el) {
+			return p.then(function() { return dom.callClassMethod(el, 'save'); });
+		}, Promise.resolve());
 	},
 
 	render: function(data) {

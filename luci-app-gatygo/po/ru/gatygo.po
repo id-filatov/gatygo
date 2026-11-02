@@ -89,6 +89,10 @@ msgid "✗ The rule does not work: the local network always goes direct"
 msgstr "✗ Правило не работает: локальная сеть всегда идёт напрямую"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "✗ The rule does not work: blocked by the rule %s"
+msgstr "✗ Правило не работает: заблокировано правилом %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Could not check"
 msgstr "Не удалось проверить"
 
@@ -97,12 +101,8 @@ msgid "The check works while the VPN is on"
 msgstr "Проверка работает, когда VPN включён"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "VPN provider rules take priority. A domain covers its subdomains."
-msgstr "Правила VPN-провайдера в приоритете. Домен действует вместе с поддоменами."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "An address works where no site name is seen: Telegram, calls, games. For sites, add the domain."
-msgstr "Адрес действует там, где не видно имени сайта: Telegram, звонки, игры. Для сайтов вписывайте домен."
+msgid "VPN provider rules take priority, but block rules come first of all. A domain covers its subdomains."
+msgstr "Правила VPN-провайдера в приоритете, но правила блокировки главнее всего. Домен действует вместе с поддоменами."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Addresses"
@@ -119,6 +119,10 @@ msgstr "Домен или адрес"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Route"
 msgstr "Куда"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "block"
+msgstr "блок"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Now, in %s"
