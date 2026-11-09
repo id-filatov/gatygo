@@ -295,6 +295,13 @@ printf "GATYGO_URLS_FOR='http://127.0.0.1:9/x'\nGATYGO_URLS_FALLBACK='$P/sub'\nG
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "another link's fallback is not used"
 assert_eq "fetch_failed" "$(_last CODE)" "CODE=fetch_failed"
 
+# a spare gets one try: an outage does not hold the update (and the page) for long
+printf "GATYGO_URLS_FOR='http://127.0.0.1:1/sub'\nGATYGO_URLS_FALLBACK='$P/sub-broken'\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED=''\n" > "$GATYGO_STATE/sub-urls.env"
+uci set gatygo.main.sub_url=http://127.0.0.1:1/sub
+_b0=$(curl -fs $P/log | jq '[.[] | select(.path == "/sub-broken")] | length')
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "the link and the fallback fail"
+assert_eq "1" "$(( $(curl -fs $P/log | jq '[.[] | select(.path == "/sub-broken")] | length') - _b0 ))" "the fallback is asked once, without retries"
+
 # a failed update moves nothing
 uci set gatygo.main.sub_url=$P/sub-move-maxdev
 _u0=$(sha256sum < "$GATYGO_STATE/sub-urls.env")

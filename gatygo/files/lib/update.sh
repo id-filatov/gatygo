@@ -152,8 +152,8 @@ gatygo_update() {
     _gatygo_w=$(mktemp -d)
     mkdir -p "$_gatygo_w/geo"
 
-    # 1. fetch: the link, then the spare addresses kept for it (lib/suburl.sh). The outcome
-    # recorded on failure is the link's own.
+    # 1. fetch: the link, then the spare addresses kept for it (lib/suburl.sh), one try each:
+    # the page stays locked while an update runs. The outcome recorded on failure is the link's own.
     _gatygo_used=$GATYGO_SUB_URL
     _gatygo_code=$(gatygo_fetch "$GATYGO_SUB_URL" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr")
     if [ $? -ne 0 ]; then
@@ -161,7 +161,7 @@ gatygo_update() {
         _gatygo_spares=$(gatygo_suburl_spares "$GATYGO_SUB_URL")
         while read -r _gatygo_kind _gatygo_spare; do
             [ -n "$_gatygo_spare" ] || continue
-            if gatygo_fetch "$_gatygo_spare" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr" >/dev/null; then
+            if gatygo_fetch "$_gatygo_spare" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr" 0 >/dev/null; then
                 _gatygo_used=$_gatygo_spare
                 gatygo_log info "subscription downloaded from the $_gatygo_kind address"
                 break

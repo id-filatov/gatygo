@@ -89,6 +89,23 @@ assert_eq "$_before" "$(_all)" "commit failed: the file still belongs to the lin
 assert_eq "1" "$(grep -c 'could not save the new subscription address' "$SYSLOG_STUB_FILE")" "and the log says so"
 uci set gatygo.main.sub_url="$M"
 
+# --- a move announced in a spare's answer: the spare that answered is the safety net, not the dead link
+_hdr https://sub.example.org/s/7 "" ""
+_rec "$M" "$B"
+assert_eq "https://sub.example.org/s/7|$B" "$(uci get gatygo.main.sub_url)|$(_u PREVIOUS)" "moved from a spare's answer: that spare is the previous address"
+uci set gatygo.main.sub_url="$M"
+
+# --- a provider's text with a line that looks like an address variable does not hide the real one
+{
+    echo "GATYGO_ANNOUNCE=$(gatygo_shquote "$(printf "news\nGATYGO_NEW_URL='https://forged.example.com/x'")")"
+    echo "GATYGO_NEW_URL=$(gatygo_shquote https://sub.example.net/s/8)"
+    echo "GATYGO_NEW_DOMAIN=''"
+    echo "GATYGO_FALLBACK_URL=''"
+} > "$tmp/h.env"
+_rec "$M" "$M"
+assert_eq "https://sub.example.net/s/8" "$(uci get gatygo.main.sub_url)" "the real new-url is used"
+uci set gatygo.main.sub_url="$M"
+
 # --- the link was changed by hand while the update ran: the old provider's move does not undo it
 H=https://hand.example.org/s/9
 uci set gatygo.main.sub_url="$H"
@@ -120,9 +137,13 @@ printf "GATYGO_URLS_FOR=%s\nGATYGO_URLS_FALLBACK=%s\nGATYGO_URLS_PREVIOUS=%s\nGA
     "$(gatygo_shquote "$M")" "$(gatygo_shquote "$B")" "$(gatygo_shquote "$N")" > "$F"
 assert_eq "1790000000" "$(gatygo_suburl_moved "$M")" "moved: the time for its link"
 assert_eq "" "$(gatygo_suburl_moved "$N")" "moved: nothing for another link"
+_sha=$(sha256sum < "$F")
 gatygo_suburl_dismiss
 assert_eq "" "$(gatygo_suburl_moved "$M")" "dismissed: no notice"
-assert_eq "$M|$B|$N|" "$(_all)" "dismiss keeps the rest"
+assert_eq "$_sha" "$(sha256sum < "$F")" "hiding does not rewrite the addresses (an update may be writing them)"
+printf "GATYGO_URLS_FOR=%s\nGATYGO_URLS_FALLBACK=%s\nGATYGO_URLS_PREVIOUS=%s\nGATYGO_URLS_MOVED='1790000500'\n" \
+    "$(gatygo_shquote "$M")" "$(gatygo_shquote "$B")" "$(gatygo_shquote "$N")" > "$F"
+assert_eq "1790000500" "$(gatygo_suburl_moved "$M")" "a later move shows again"
 
 # --- an update that changes nothing does not write the file (flash wear)
 _hdr "" "" "$B"

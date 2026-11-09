@@ -5,7 +5,8 @@
 # $GATYGO_STATE/sub-urls.env belongs to one link, GATYGO_URLS_FOR. It keeps the fallback-url of
 # the last good answer, the previous link after a move (until the new link has answered once: a
 # move to a dead address must not cut the router off), and when the provider last moved the
-# subscription (the page's "new address" notice; emptied when the notice is hidden). A link
+# subscription (the page's "new address" notice). Hiding the notice writes that time to
+# sub-urls.dismissed instead: sub-urls.env is only ever written by an update. A link
 # changed by hand (the settings page, `gatygo connect`) is not the one the file is for: its
 # spares are never tried and no notice is shown, so a dead new link never pulls in the old
 # provider's subscription.
@@ -84,9 +85,10 @@ gatygo_suburl_spares() {
 gatygo_suburl_record() {
     [ "$(uci -q get gatygo.main.sub_url 2>/dev/null)" = "$1" ] || return 0
     _gatygo_su_load "$1"
-    _gatygo_su_nu=$(_gatygo_env_get "$3" GATYGO_NEW_URL)
-    _gatygo_su_nd=$(_gatygo_env_get "$3" GATYGO_NEW_DOMAIN)
-    _gatygo_su_nf=$(_gatygo_env_get "$3" GATYGO_FALLBACK_URL)
+    # sourced, not read line by line: the provider's texts in the file may span several lines
+    _gatygo_su_nu=$(. "$3" 2>/dev/null; printf '%s' "${GATYGO_NEW_URL:-}")
+    _gatygo_su_nd=$(. "$3" 2>/dev/null; printf '%s' "${GATYGO_NEW_DOMAIN:-}")
+    _gatygo_su_nf=$(. "$3" 2>/dev/null; printf '%s' "${GATYGO_FALLBACK_URL:-}")
     _gatygo_su_keep=''
     if [ -n "$_gatygo_su_nf" ]; then
         _gatygo_su_keep=$(gatygo_http_url "$_gatygo_su_nf") || gatygo_log warn "ignored fallback-url: not an http(s) address"
@@ -101,7 +103,8 @@ gatygo_suburl_record() {
     [ "$2" = "$1" ] || _gatygo_su_was=$_gatygo_su_prev
     if [ -n "$_gatygo_su_to" ] && [ "$_gatygo_su_to" != "$1" ]; then
         if uci set "gatygo.main.sub_url=$_gatygo_su_to" 2>/dev/null && uci commit gatygo 2>/dev/null; then
-            _gatygo_su_write "$_gatygo_su_to" "$_gatygo_su_keep" "$1" "$(date +%s)"
+            # the address that answered is the safety net: the link itself, or the spare
+            _gatygo_su_write "$_gatygo_su_to" "$_gatygo_su_keep" "$2" "$(date +%s)"
             gatygo_log info "the provider moved the subscription to a new address"
             return 0
         fi
@@ -113,16 +116,24 @@ gatygo_suburl_record() {
 }
 
 # gatygo_suburl_moved MAIN — when the provider moved the subscription to MAIN (unix time), if the
-# notice is not hidden; nothing otherwise
+# notice of that move is not hidden; nothing otherwise. Asked on every status poll: reads only
+# what it needs.
 gatygo_suburl_moved() {
-    _gatygo_su_load "$1"
-    [ -z "$_gatygo_su_moved" ] || printf '%s\n' "$_gatygo_su_moved"
+    _gatygo_su_f="$GATYGO_STATE/sub-urls.env"
+    [ -f "$_gatygo_su_f" ] || return 0
+    [ "$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_FOR)" = "$1" ] || return 0
+    _gatygo_su_moved=$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_MOVED)
+    [ -n "$_gatygo_su_moved" ] || return 0
+    [ "$_gatygo_su_moved" != "$(cat "$GATYGO_STATE/sub-urls.dismissed" 2>/dev/null)" ] || return 0
+    printf '%s\n' "$_gatygo_su_moved"
 }
 
-# gatygo_suburl_dismiss — hide the "new address" notice; the spares stay
+# gatygo_suburl_dismiss — hide the "new address" notice of the last move; the next move shows again
 gatygo_suburl_dismiss() {
     _gatygo_su_f="$GATYGO_STATE/sub-urls.env"
     [ -f "$_gatygo_su_f" ] || return 0
-    _gatygo_su_write "$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_FOR)" "$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_FALLBACK)" \
-        "$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_PREVIOUS)" ''
+    _gatygo_su_moved=$(_gatygo_env_get "$_gatygo_su_f" GATYGO_URLS_MOVED)
+    [ -n "$_gatygo_su_moved" ] || return 0
+    printf '%s\n' "$_gatygo_su_moved" > "$GATYGO_STATE/sub-urls.dismissed.tmp" && chmod 600 "$GATYGO_STATE/sub-urls.dismissed.tmp" \
+        && mv "$GATYGO_STATE/sub-urls.dismissed.tmp" "$GATYGO_STATE/sub-urls.dismissed"
 }
