@@ -129,7 +129,7 @@ var CSS = [
 	'.gg-row.is-busy .gg-row-ms::after { content:""; position:absolute; right:0; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
 	'.gg-pick { margin-top:16px; padding-top:16px; border-top:1px solid var(--gg-line); }',
 	'.gg-pick .gg-list { flex:none; min-height:0; overflow:visible; padding:0; }',
-	'.gg-pick.is-open .gg-list { margin:0 -16px; padding:10px 16px; background:var(--gg-side); border-block:1px solid var(--gg-line); }',
+	'.gg-pick.is-open .gg-list { margin:0 -24px; padding:10px 24px; background:var(--gg-side); border-block:1px solid var(--gg-line); }',
 	'.gg-pick .gg-side-foot { padding:8px 0 0; border-top:0; }',
 	'.gg-card-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-top:18px; padding-top:12px; border-top:1px solid var(--gg-line); }',
 	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }',
@@ -158,6 +158,7 @@ var CSS = [
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
 	'  .gg-facts { gap:10px; } .gg-facts div { flex-direction:column; gap:1px; } .gg-facts dt { width:auto; font-size:12px; }',
+	'  .gg-pick.is-open .gg-list { margin:0 -16px; padding:10px 16px; }',
 	'  .gg-checks { grid-template-columns:1fr; } .gg-check { padding-right:10px; } .gg-check-name, .gg-check-ms { white-space:nowrap; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
 	'  .gg-gear { width:44px; height:44px; }',
@@ -819,7 +820,8 @@ return view.extend({
 			var f = splitFlag(p.remarks), on = (p.remarks == selected), ms = times[p.remarks], hasMs = measuring || (p.remarks in times);
 			var desc = (p.description != null) ? String(p.description) : '';
 			return E('button', { 'class': 'gg-row' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : '') + (hasMs ? ' has-ms' : ''), 'type': 'button',
-				'aria-pressed': on ? 'true' : 'false', 'aria-expanded': chev ? String(chev == 'up') : null, 'disabled': dis,
+				// the fold opens and closes the list: a disclosure, and usable during an update
+				'aria-pressed': chev ? null : (on ? 'true' : 'false'), 'aria-expanded': chev ? String(chev == 'up') : null, 'disabled': chev ? null : dis,
 				'title': desc ? f.name + '\n' + desc : f.name, 'data-key': 'chip:' + p.remarks,
 				'click': ui.createHandlerFn(this, 'handleRow', p.remarks, chev || '') }, [
 				E('span', { 'class': 'gg-row-flag' }, [ f.flag ]),
