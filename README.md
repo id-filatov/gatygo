@@ -21,6 +21,9 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 - A server moved to a new IP under the same name: the next update reconnects xray.
 - LAN DNS goes through xray, the router's own traffic is untouched.
 - Routing, balancer and geo files come from the subscription only; no built-in rules.
+- Shows what the VPN provider sends with the subscription: tile descriptions, announcements,
+  links to its site and support, the expiry notice. Follows a moved subscription (`new-url`,
+  `new-domain`); tries `fallback-url` when the link does not answer.
 - Your own rules (tunnel, direct or block) in Advanced → My rules: a domain, or an IPv4 or IPv6
   address or subnet. Tunnel and direct apply after the VPN provider's rules, block before any
   rule; the page shows what each one does in the current country. Block works while the VPN is on.

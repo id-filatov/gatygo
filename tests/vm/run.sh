@@ -89,6 +89,14 @@ check "check: the password is kept 0600" 'test "$(ls -l /etc/gatygo/check.secret
 # the fixture's relays do not exist: what is checked is the run itself, a line for every country
 check "ping: a run gives every country of the page a line" 'n=$(gatygo status | jq ".profiles | length"); gatygo ping | jq -e --argjson n "$n" ".measuring == false and .time > 0 and \$n > 0 and (.profiles | length) == \$n and (.profiles | all(has(\"ms\")))" >/dev/null'
 expect "ping: ubus gives the kept result at once" "false true" 'n=$(gatygo status | jq ".profiles | length"); ubus -S call gatygo ping | jq -r --argjson n "$n" "\"\(.measuring) \((.profiles | length) == \$n)\""'
+# the provider's messages and a move of the subscription (tests/mock/sub_server.py)
+expect "provider: the panel's announcement" "Planned maintenance — use code 'GO' ✓" 'ubus -S call gatygo status | jq -r .provider.announce'
+expect "provider: no coloured announcement on /sub" "null" 'ubus -S call gatygo status | jq -c .provider.info'
+vm 'uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub-move; uci commit gatygo'
+check "move: an update follows new-url" 'gatygo update >/dev/null 2>&1; test "$(uci get gatygo.main.sub_url)" = http://10.0.2.2:8787/sub-moved'
+check "move: status notes when" 'ubus -S call gatygo status | jq -e ".url_moved > 0" >/dev/null'
+expect "move: the page hides the notice" "null" 'ubus -S call gatygo newurl_dismiss >/dev/null; ubus -S call gatygo status | jq -c .url_moved'
+vm 'uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo'
 check "menu and acl installed" 'test -f /usr/share/luci/menu.d/luci-app-gatygo.json && test -f /usr/share/rpcd/acl.d/luci-app-gatygo.json'
 check "LuCI serves the page after login" 'curl -s -c /tmp/ck -o /dev/null -d "luci_username=root&luci_password='"$LUCI_PASSWORD"'" http://127.0.0.1/cgi-bin/luci/ && curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/services/gatygo | grep -q "gatygo/main"'
 for v in main advanced; do
