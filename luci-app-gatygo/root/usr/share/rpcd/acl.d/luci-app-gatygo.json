@@ -9,7 +9,7 @@
 		},
 		"write": {
 			"ubus": {
-				"gatygo": [ "update", "select", "connect", "forget", "upgrade" ],
+				"gatygo": [ "update", "select", "connect", "forget", "upgrade", "newurl_dismiss" ],
 				"luci": [ "setInitAction" ],
 				"uci": [ "revert" ]
 			},

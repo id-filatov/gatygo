@@ -51,6 +51,7 @@ case $1 in
         [ "${GATYGO_CLI_APPLY_RC:-0}" = 0 ] && echo '{"v":"new"}' > "$GATYGO_STATE/xray.json"
         exit "${GATYGO_CLI_APPLY_RC:-0}"
         ;;
+    newurl) ;;
     version) if [ -n "$GATYGO_CLI_VERSION" ]; then echo "$GATYGO_CLI_VERSION"; else cat "$GATYGO_LIB/version"; fi ;;
     *) exit 1 ;;
 esac

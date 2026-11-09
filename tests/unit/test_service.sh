@@ -96,6 +96,26 @@ assert_eq "false null" "$(sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')"
 assert_eq "true null" "$(UBUS_STUB_RUNNING=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: running"
 assert_eq "false 137" "$(UBUS_STUB_CRASHED=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: crashed, with the exit code"
 
+# --- CLI: status hands the page the provider's messages and when the address moved
+. "$GATYGO_LIB/headers.sh"
+gatygo_parse_headers "$FIXTURES/headers-full.txt" > "$GATYGO_STATE/headers.env"
+uci set gatygo.main.sub_url=https://sub.example.com/s/1
+printf "GATYGO_URLS_FOR='https://sub.example.com/s/1'\nGATYGO_URLS_FALLBACK=''\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED='1790000000'\n" > "$GATYGO_STATE/sub-urls.env"
+assert_eq '{"announce":"Planned maintenance — use code '"'"'GO'"'"' ✓","site":"https://example.com","support":"https://support.example.com/chat","info":{"text":"Japan is in the list now. Press Update now.","color":"green","button_text":"More","button_link":"https://example.com/news"},"expire_notice":{"link":"https://example.com/renew"}}' \
+    "$(sh "$CLI" status | jq -c .provider)" "status: the provider's messages"
+assert_eq "1790000000" "$(sh "$CLI" status | jq .url_moved)" "status: when the address moved"
+assert_exit 0 "newurl dismiss" sh "$CLI" newurl dismiss
+assert_eq "" "$(sh "$CLI" newurl dismiss 2>&1)" "dismiss prints nothing"
+assert_eq "null" "$(sh "$CLI" status | jq .url_moved)" "dismissed: no notice"
+printf "GATYGO_URLS_FOR='https://other.example.com/s'\nGATYGO_URLS_FALLBACK=''\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED='1790000000'\n" > "$GATYGO_STATE/sub-urls.env"
+assert_eq "null" "$(sh "$CLI" status | jq .url_moved)" "another link's move is not shown"
+gatygo_parse_headers "$FIXTURES/headers-minimal.txt" > "$GATYGO_STATE/headers.env"
+assert_eq '{"announce":null,"site":null,"support":null,"info":null,"expire_notice":null}' "$(sh "$CLI" status | jq -c .provider)" "status: nothing from the provider"
+printf "GATYGO_INFO_TEXT='Hi'\nGATYGO_INFO_COLOR='red'\nGATYGO_EXPIRE_NOTICE='1'\n" > "$GATYGO_STATE/headers.env"
+assert_eq '{"info":{"text":"Hi","color":"red","button_text":null,"button_link":null},"expire_notice":{"link":null}}' \
+    "$(sh "$CLI" status | jq -c '.provider | {info, expire_notice}')" "status: no button, no renew link"
+rm -f "$GATYGO_STATE/headers.env" "$GATYGO_STATE/sub-urls.env"; uci delete gatygo.main.sub_url
+
 # --- CLI: updating / log
 printf 'Wed Sep  9 14:00:0%s 2026 %s\n' 1 'daemon.info xray[1]: one' 2 'daemon.info gatygo[2]: two' 3 'daemon.err xray[1]: three' > "$SYSLOG_STUB_FILE"
 assert_eq "gatygo: two

@@ -6,7 +6,7 @@ GATYGO=${GATYGO_BIN:-/usr/bin/gatygo}
 
 case $1 in
 	list)
-		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true},"rules":{},"route":{"domain":"domain"},"upgrade":{"action":"action"}}'
+		echo '{"status":{},"log":{"lines":32},"update":{},"select":{"profile":"profile"},"connect":{"url":"url"},"forget":{},"check":{"fresh":true},"ping":{"fresh":true},"rules":{},"route":{"domain":"domain"},"upgrade":{"action":"action"},"newurl_dismiss":{}}'
 		;;
 	call)
 		case $2 in
@@ -101,6 +101,11 @@ case $1 in
 						;;
 					*) echo '{"error":"unknown action"}' ;;
 				esac
+				;;
+			# hide the "new address" notice of a subscription the provider moved
+			newurl_dismiss)
+				"$GATYGO" newurl dismiss >/dev/null 2>&1
+				echo '{}'
 				;;
 			*) echo '{"error":"unknown method"}' ;;
 		esac
