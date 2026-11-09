@@ -6,10 +6,11 @@
 'require uci';
 'require ui';
 
-// The main page: one block. The connection state with the country in it and the on/off and
-// update buttons, the subscription facts, whether the usual services open through the tunnel,
-// and every profile of the subscription as a button with its response time. Settings and the log
-// live on the Advanced page behind the gear.
+// The main page: one block. On a wide screen every profile of the subscription is a row of a side
+// list (its flag, name, the provider's description, the response time); the rest is beside it:
+// the connection state with the country in it and the on/off and update buttons, the subscription
+// facts, whether the usual services open through the tunnel. On a phone it is one column with the
+// list folded to the profile in use. Settings and the log live on the Advanced page behind the gear.
 
 var callStatus = rpc.declare({ object: 'gatygo', method: 'status', expect: { } });
 var callUpdate = rpc.declare({ object: 'gatygo', method: 'update', expect: { started: false } });
@@ -25,6 +26,7 @@ var CSS = [
 	'  --gg-accent:var(--primary-color-high); --gg-accent-tint:hsl(210 80% 96%); --gg-on:var(--success-color-medium); --gg-off:hsl(0 0% 62%); --gg-bad:hsl(0 72% 50%); --gg-good:hsl(150 60% 27%); --gg-slow:hsl(30 85% 31%);',
 	'  --gg-warn-ink:hsl(32 90% 26%); --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%);',
 	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%); --gg-heart:hsl(350 70% 45%); --gg-heart-tint:hsl(350 90% 95%);',
+	'  --gg-side:color-mix(in srgb, var(--gg-line-2) 45%, var(--background-color-low));',
 	'  --gg-ease:cubic-bezier(.23,1,.32,1); font-variant-numeric:tabular-nums; min-width:0; overflow-wrap:anywhere; }',
 	'[data-darkmode="true"] .gg { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-line:hsl(0 0% 27%); --gg-line-2:hsl(0 0% 21%);',
 	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%); --gg-good:hsl(150 45% 62%); --gg-slow:hsl(38 75% 62%);',
@@ -32,7 +34,9 @@ var CSS = [
 	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); --gg-heart:hsl(350 85% 74%); --gg-heart-tint:hsl(350 35% 19%); }',
 	'.gg-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }',
 	'.gg-card { margin-top:14px; padding:20px 24px 24px; border:1px solid var(--border-color-medium); border-radius:8px; background:var(--background-color-low); }',
-	'.gg-card-head { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) auto; grid-template-areas:"main facts gear"; gap:16px 40px; align-items:start; }',
+	'.gg-card.has-side { display:grid; grid-template-columns:350px minmax(0,1fr); padding:0; overflow:hidden; }',
+	'.gg-main { position:relative; min-width:0; padding:20px 24px 24px; }',
+	'.gg-card-head { display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"main gear"; gap:16px 40px; align-items:start; }',
 	'.gg-card-main { grid-area:main; min-width:0; }',
 	'.gg-state { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:0 0 8px; font-size:22px; line-height:1.25; font-weight:600; letter-spacing:-.01em; color:var(--gg-ink); }',
 	'.gg-state small { font-size:15px; font-weight:400; letter-spacing:0; color:var(--gg-ink-2); }',
@@ -45,16 +49,16 @@ var CSS = [
 	'.gg-state-country { display:inline-flex; align-items:center; gap:8px; min-width:0; }',
 	'.gg-state-country.is-idle { color:var(--gg-ink-2); font-weight:500; }',
 	'.gg-meta { margin:0; max-width:72ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
-	'.gg-facts { grid-area:facts; display:flex; flex-direction:column; gap:8px; margin:4px 0 0; min-width:0; }',
+	'.gg-facts { display:flex; flex-direction:column; gap:8px; margin:16px 0 0; padding-top:14px; border-top:1px solid var(--gg-line); min-width:0; }',
 	'.gg-facts div { display:flex; gap:12px; align-items:baseline; }',
 	'.gg-facts dt { flex:none; width:96px; font-size:13px; font-weight:400; color:var(--gg-ink-3); }',
 	'.gg-facts dd { margin:0; font-size:13px; color:var(--gg-ink); }',
 	'.gg-facts dd.bad { color:var(--gg-bad-ink); font-weight:600; }',
 	'.gg-gear { grid-area:gear; justify-self:end; display:grid; place-items:center; width:36px; height:36px; margin:-6px -8px 0 0; border-radius:6px; color:var(--gg-ink-2); transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-gear svg { transition:transform 400ms var(--gg-ease); }',
-	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-chip:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-donate:hover { filter:brightness(.96) saturate(1.1); } }',
+	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-row:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-donate:hover { filter:brightness(.96) saturate(1.1); } }',
 	'.gg-gear:active { transform:scale(.94); }',
-	'.gg-gear:focus-visible, .gg-chip:focus-visible, .gg-icon-btn:focus-visible, .gg-donate:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-gear:focus-visible, .gg-row:focus-visible, .gg-icon-btn:focus-visible, .gg-donate:focus-visible, .gg .cbi-button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
 	'.gg-alert { display:flex; align-items:flex-start; gap:12px; margin-top:16px; padding:12px 14px; border:1px solid var(--gg-warn-line); border-radius:6px; background:var(--gg-warn-tint); }',
 	'.gg-alert.bad { border-color:var(--gg-bad-line); background:var(--gg-bad-tint); }',
 	'.gg-alert-icon { flex:none; margin-top:1px; color:var(--gg-warn-ink); }',
@@ -91,26 +95,31 @@ var CSS = [
 	'.gg-icon-btn:disabled { cursor:default; } .gg-icon-btn:disabled svg { animation:gg-spin .9s linear infinite; }',
 	'.gg-icon-btn:not(:disabled):active { transform:scale(.94); }',
 	'.gg-check-hint { grid-column:1 / -1; margin:2px 0 0; font-size:12px; line-height:1.5; color:var(--gg-warn-ink); }',
-	'.gg-card-pick { margin-top:20px; padding-top:20px; border-top:1px solid var(--gg-line); }',
-	'.gg-chips { display:flex; flex-wrap:wrap; gap:8px; }',
-	'.gg-chip { position:relative; display:inline-flex; align-items:center; gap:8px; height:38px; margin:0; padding:0 14px 0 10px; border:1px solid var(--gg-line); border-radius:6px; background:var(--background-color-high); color:var(--gg-ink); font:inherit; font-size:13px; line-height:1; cursor:pointer; transition:border-color 150ms var(--gg-ease), background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
-	'.gg-chip-flag { font-size:18px; line-height:1; }',
-	'.gg-chip:not(:disabled):not(.is-on):active { transform:scale(.97); }',
-	'.gg-chip.is-on { border-color:var(--gg-accent); background:var(--gg-accent-tint); box-shadow:inset 0 0 0 1px var(--gg-accent); font-weight:600; }',
-	'.gg-chip.is-on, .gg-chip:disabled { cursor:default; }',
-	'.gg-chip:disabled { color:var(--gg-ink); opacity:1; }',
-	'.gg-chip:disabled:not(.is-on) { opacity:.5; }',
-	'.gg-chip.is-busy:not(.has-ms) { padding-right:34px; }',
-	'.gg-chip.is-busy:not(.has-ms)::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
+	'.gg-side { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--gg-side); border-right:1px solid var(--gg-line); }',
+	'.gg-list { position:relative; display:flex; flex-direction:column; gap:6px; flex:1 1 0; min-height:420px; overflow:auto; padding:10px; overscroll-behavior:contain; }',
+	'.gg-side-foot { display:flex; flex-direction:column; gap:2px; padding:9px 16px 10px; border-top:1px solid var(--gg-line); font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
+	'.gg-side-foot p { margin:0; } .gg-side-foot .gg-hint { color:var(--gg-ink-3); } .gg-measure { display:inline-flex; align-items:center; justify-content:space-between; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
+	'.gg-row { position:relative; display:flex; align-items:center; gap:12px; flex:none; width:100%; min-height:52px; margin:0; padding:7px 12px 7px 10px; border:1px solid var(--gg-line); border-radius:8px; background:var(--background-color-high); color:var(--gg-ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; transition:border-color 150ms var(--gg-ease), background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
+	'.gg-row-flag { flex:none; width:24px; font-size:20px; line-height:1; text-align:center; }',
+	'.gg-row-text { display:flex; flex-direction:column; gap:1px; flex:1 1 0; min-width:0; line-height:1.3; }',
+	'.gg-row-name { font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+	'.gg-row-desc { font-size:12px; color:var(--gg-ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }',
+	'.gg-row-chev { flex:none; color:var(--gg-ink-3); }',
+	'.gg-row:not(:disabled):not(.is-on):active { transform:scale(.98); }',
+	'.gg-row.is-on { border-color:var(--gg-accent); background:var(--gg-accent-tint); box-shadow:inset 0 0 0 1px var(--gg-accent); } .gg-row.is-on .gg-row-name { font-weight:600; }',
+	'.gg-row:disabled { cursor:default; color:var(--gg-ink); opacity:1; } .gg-row:disabled:not(.is-on) { opacity:.5; }',
+	'.gg-row.is-busy:not(.has-ms) { padding-right:34px; }',
+	'.gg-row.is-busy:not(.has-ms)::after { content:""; position:absolute; right:12px; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
 	'@keyframes gg-spin { to { transform:rotate(360deg); } }',
-	'.gg-chip.has-ms { padding-right:12px; } .gg-chip-name { min-width:0; }',
-	'.gg-chip-ms { display:inline-flex; align-items:center; justify-content:flex-end; min-width:40px; margin-left:2px; font-size:12px; font-weight:400; color:var(--gg-ink-3); }',
-	'.gg-chip-ms.good { color:var(--gg-good); } .gg-chip-ms.slow { color:var(--gg-slow); }',
-	'.gg-chip-ms.wait::before { content:""; width:30px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--gg-line-2) 25%, var(--gg-line) 50%, var(--gg-line-2) 75%) 0 0 / 200% 100%; animation:gg-shimmer 1.1s linear infinite; }',
-	'.gg-chip.is-busy .gg-chip-ms { position:relative; color:transparent; } .gg-chip.is-busy .gg-chip-ms.wait::before { display:none; }',
-	'.gg-chip.is-busy .gg-chip-ms::after { content:""; position:absolute; right:0; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
-	'.gg-chips-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px 24px; margin-top:12px; font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
-	'.gg-chips-foot p { margin:0; } .gg-measure { display:inline-flex; align-items:center; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
+	'.gg-row-ms { display:inline-flex; align-items:center; justify-content:flex-end; flex:none; min-width:44px; font-size:12px; font-weight:400; color:var(--gg-ink-3); }',
+	'.gg-row-ms.good { color:var(--gg-good); } .gg-row-ms.slow { color:var(--gg-slow); }',
+	'.gg-row-ms.wait::before { content:""; width:30px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--gg-line-2) 25%, var(--gg-line) 50%, var(--gg-line-2) 75%) 0 0 / 200% 100%; animation:gg-shimmer 1.1s linear infinite; }',
+	'.gg-row.is-busy .gg-row-ms { position:relative; color:transparent; } .gg-row.is-busy .gg-row-ms.wait::before { display:none; }',
+	'.gg-row.is-busy .gg-row-ms::after { content:""; position:absolute; right:0; width:12px; height:12px; border-radius:50%; border:2px solid var(--gg-accent); border-right-color:transparent; animation:gg-spin .7s linear infinite; }',
+	'.gg-pick { margin-top:16px; padding-top:16px; border-top:1px solid var(--gg-line); }',
+	'.gg-pick .gg-list { flex:none; min-height:0; overflow:visible; padding:0; }',
+	'.gg-pick.is-open .gg-list { margin:0 -16px; padding:10px 16px; background:var(--gg-side); border-block:1px solid var(--gg-line); }',
+	'.gg-pick .gg-side-foot { padding:8px 0 0; border-top:0; }',
 	'.gg-card-foot { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; margin-top:18px; padding-top:12px; border-top:1px solid var(--gg-line); }',
 	'.gg-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }',
 	'.gg .cbi-button { transition:transform 120ms var(--gg-ease); }',
@@ -130,23 +139,21 @@ var CSS = [
 	'.gg-field-error { margin:10px 0 0; max-width:72ch; font-size:13px; line-height:1.5; color:var(--gg-bad-ink); }',
 	'@media (max-width:860px) {',
 	'  .gg-card { position:relative; }',
-	'  .gg-card-head { grid-template-columns:minmax(0,1fr); grid-template-areas:"main" "facts"; gap:8px; }',
+	'  .gg-card-head { grid-template-columns:minmax(0,1fr); grid-template-areas:"main"; gap:8px; }',
 	'  .gg-card-main { padding-right:40px; }',
 	'  .gg-gear { position:absolute; top:8px; right:8px; margin:0; grid-area:auto; }',
-	'  .gg-facts { margin-top:8px; }',
 	'  .gg-card-check { grid-template-columns:minmax(0,1fr); }',
 	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
 	'  .gg-checks { grid-template-columns:1fr; } .gg-check { padding-right:10px; } .gg-check-name, .gg-check-ms { white-space:nowrap; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
-	'  .gg-chips { flex-direction:column; gap:6px; } .gg-chip { height:44px; } .gg-chip-name { flex:1 1 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:left; }',
 	'  .gg-gear { width:44px; height:44px; }',
 	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
 	'  .gg-actions .cbi-button { flex:1 1 auto; }',
 	'  .gg-field { flex-direction:column; align-items:stretch; } .gg-field input { width:auto; flex:none; }',
 	'  .gg-upgrade { display:flex; width:fit-content; margin:6px 0 0 auto; } }',
-	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before, .gg-chip-ms.wait::before, .gg-step.now .gg-step-ic { animation:none; } .gg-gear:hover svg { transform:none; } }'
+	'@media (prefers-reduced-motion:reduce) { .gg *, .gg *::after { transition-duration:0ms !important; } .gg-dot.warn, .gg-check-ms.wait::before, .gg-row-ms.wait::before, .gg-step.now .gg-step-ic { animation:none; } .gg-gear:hover svg { transform:none; } }'
 ].join('\n');
 
 // Tabler icons (MIT). width/height are attributes: an icon never grows when the styles are missing.
@@ -164,7 +171,9 @@ var ICONS = {
 	upgrade: [ 20, 2, 'M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2', 'M7 11l5 5l5 -5', 'M12 4l0 12' ],
 	check: [ 20, 2, 'M5 12l5 5l10 -10' ],
 	heart: [ 13, 2.2, 'M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572' ],
-	arrow: [ 12, 2.2, 'M17 7l-10 10', 'M8 7l9 0l0 9' ]
+	arrow: [ 12, 2.2, 'M17 7l-10 10', 'M8 7l9 0l0 9' ],
+	chevronDown: [ 18, 2, 'M6 9l6 6l6 -6' ],
+	chevronUp: [ 18, 2, 'M6 15l6 -6l6 6' ]
 };
 
 // The services check shows each service with its brand icon on a tint of its colour; a service
@@ -262,6 +271,9 @@ return view.extend({
 	upgradeSeen: false,    // this page saw an upgrade run: its end reloads the page (the new version's page)
 	upgradeTimer: null,
 	panel: null,
+	narrow: null,          // matchMedia of the phone layout: one column, the list folded
+	listOpen: false,       // the phone's list is unfolded
+	sideScroll: null,      // where the side list was scrolled to; null = not shown yet
 
 	// no form on this page: no Save & Apply footer
 	handleSaveApply: null,
@@ -276,20 +288,37 @@ return view.extend({
 	// the user holds: the focused control and a half-typed link.
 	repaint: function() {
 		var st = this.status;
-		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, this.ping, this.upgradeAsk, Math.floor(Date.now() / 60000) ],
+		var key = JSON.stringify([ st, this.busy, this.busyProfile, this.urlError, this.check, this.checking, this.ping, this.upgradeAsk,
+			!!(this.narrow && this.narrow.matches), this.listOpen, Math.floor(Date.now() / 60000) ],
 			function(k, v) { return (k == 'uptime' && v != null) ? Math.floor(v / 60) : v; });
 		if (key == this.painted) return;
 		this.painted = key;
 
 		var active = document.activeElement, focus = (active && this.panel.contains(active)) ? active.getAttribute('data-key') : null;
 		var url = this.panel.querySelector('.gg-url'), draft = url ? url.value : null;
+		// not placed yet (the first paint waits for the page): placeSide still has to do it
+		var list = this.panel.querySelector('.gg-side .gg-list');
+		if (list && list.isConnected && this.sideScroll != null) this.sideScroll = list.scrollTop;
 		dom.content(this.panel, this.renderPanel(st));
 		url = this.panel.querySelector('.gg-url');
 		if (url && draft != null) url.value = draft;
+		this.placeSide();
 		if (focus) {
 			var el = this.panel.querySelector('[data-key="' + focus.replace(/["\\]/g, '\\$&') + '"]');
 			if (el && !el.disabled) el.focus();
 		}
+	},
+
+	// The side list keeps its scroll through a repaint; the first time it shows the profile in use.
+	// Before the panel is on the page it has no size: then once it is.
+	placeSide: function() {
+		var list = this.panel.querySelector('.gg-side .gg-list');
+		if (!list) return;
+		if (!list.isConnected) return window.requestAnimationFrame(L.bind(this.placeSide, this));
+		if (this.sideScroll != null) { list.scrollTop = this.sideScroll; return; }
+		var on = list.querySelector('.gg-row.is-on');
+		if (on) list.scrollTop = Math.max(0, on.offsetTop - list.clientHeight / 3);
+		this.sideScroll = list.scrollTop;
 	},
 
 	refresh: function() {
@@ -398,6 +427,17 @@ return view.extend({
 			if (r && r.result == 'busy')
 				ui.addNotification(null, E('p', _('An update is running. Try again in a minute.')), 'warning');
 		}));
+	},
+
+	// A profile in the list. On a phone the fold opens and closes the list; choosing another
+	// profile closes it too.
+	handleRow: function(profile, chev, ev) {
+		if (chev) {
+			this.listOpen = (chev == 'down');
+			return this.repaint();
+		}
+		this.listOpen = false;
+		return this.handleSelect(profile, ev);
 	},
 
 	handleUpdate: function(ev) {
@@ -698,7 +738,7 @@ return view.extend({
 		// E() writes every non-null attribute, so a boolean false would still disable the control
 		var dis = (!!this.busy || updating || upgrading) ? '' : null;
 		var problem = (hasConfig && this.busy != 'select' && !upgrading) ? this.problem(st, running) : null;
-		var main = [], facts = [];
+		var main = [];
 
 		if (upgrading) {
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot warn' }), _('Updating'),
@@ -739,34 +779,28 @@ return view.extend({
 				: state ? '' : _('Your home network is using the regular internet. Start connects to the selected country right away.')));
 		}
 
-		if (hasConfig) {
-			var info = st.userinfo || {}, used = (+info.upload || 0) + (+info.download || 0), total = +info.total || 0, exp = +info.expire || 0;
-			if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, [ st.title ]) ]));
-			if (used || total)
-				facts.push(E('div', {}, [ E('dt', {}, _('Traffic')), E('dd', { 'class': (total && used >= total) ? 'bad' : null },
-					total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))) ]));
-			if (exp) {
-				var days = Math.floor((exp - Date.now() / 1000) / 86400);
-				facts.push(E('div', {}, [ E('dt', {}, _('Expires')), E('dd', { 'class': (days < 0) ? 'bad' : null },
-					new Date(exp * 1000).toLocaleDateString() + ', ' + (days >= 0 ? N_(days, 'in %d day', 'in %d days').format(days) : _('expired %s').format(fmtAgo(exp)))) ]));
-			}
-		}
-
-		// the response time of a country: its fastest server, from the router and not through the VPN
+		// the response time of a profile: its fastest server, from the router and not through the VPN
 		var pg = this.ping || {}, measuring = (pg.measuring === true), times = Object.create(null);
 		(Array.isArray(pg.profiles) ? pg.profiles : []).forEach(function(p) { times[p.remarks] = p.ms; });
 
 		var selected = (this.busy == 'select') ? this.busyProfile : st.profile_used;
-		var chips = profiles.map(L.bind(function(p) {
+		// one profile of the subscription: its flag, name, the provider's description and the
+		// response time; chev ('down' | 'up') makes it the phone's fold of the list
+		var row = L.bind(function(p, chev) {
 			var f = splitFlag(p.remarks), on = (p.remarks == selected), ms = times[p.remarks], hasMs = measuring || (p.remarks in times);
-			return E('button', { 'class': 'gg-chip' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : '') + (hasMs ? ' has-ms' : ''), 'type': 'button',
-				'aria-pressed': on ? 'true' : 'false', 'disabled': dis, 'title': p.description || null,
-				'data-key': 'chip:' + p.remarks, 'click': ui.createHandlerFn(this, 'handleSelect', p.remarks) },
-				[ f.flag ? E('span', { 'class': 'gg-chip-flag' }, f.flag) : '', E('span', { 'class': 'gg-chip-name' }, [ f.name ]),
-					hasMs ? E('span', { 'class': 'gg-chip-ms' + (measuring ? ' wait' : ms == null ? '' : ms <= 60 ? ' good' : ms >= 120 ? ' slow' : ''),
-						'title': measuring ? null : (ms == null) ? _('No reply from this server') : _('Response time from your router to this server') },
-						measuring ? '' : (ms == null) ? '—' : _('%d ms').format(ms)) : '' ]);
-		}, this));
+			var desc = (p.description != null) ? String(p.description) : '';
+			return E('button', { 'class': 'gg-row' + (on ? ' is-on' : '') + (on && this.busy == 'select' ? ' is-busy' : '') + (hasMs ? ' has-ms' : ''), 'type': 'button',
+				'aria-pressed': on ? 'true' : 'false', 'aria-expanded': chev ? String(chev == 'up') : null, 'disabled': dis,
+				'title': desc ? f.name + '\n' + desc : f.name, 'data-key': 'chip:' + p.remarks,
+				'click': ui.createHandlerFn(this, 'handleRow', p.remarks, chev || '') }, [
+				E('span', { 'class': 'gg-row-flag' }, [ f.flag ]),
+				// as text, never as HTML: names and descriptions come from the subscription
+				E('span', { 'class': 'gg-row-text' }, [ E('span', { 'class': 'gg-row-name' }, [ f.name ]), desc ? E('span', { 'class': 'gg-row-desc' }, [ desc ]) : '' ]),
+				hasMs ? E('span', { 'class': 'gg-row-ms' + (measuring ? ' wait' : ms == null ? '' : ms <= 60 ? ' good' : ms >= 120 ? ' slow' : ''),
+					'title': measuring ? null : (ms == null) ? _('No reply from this server') : _('Response time from your router to this server') },
+					[ measuring ? '' : (ms == null) ? '—' : _('%d ms').format(ms) ]) : '',
+				chev ? icon((chev == 'up') ? 'chevronUp' : 'chevronDown', 'gg-row-chev') : '' ]);
+		}, this);
 
 		var measure = '';
 		var silent = !measuring && pg.time != null && profiles.length > 0 && profiles.every(function(p) { return times[p.remarks] == null; });
@@ -777,6 +811,23 @@ return view.extend({
 					: _('Response time measured %s').format(fmtAgo(+pg.time))),
 				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': measuring ? '' : null, 'title': _('Measure again'), 'aria-label': _('Measure again'),
 					'data-key': 'remeasure', 'click': ui.createHandlerFn(this, 'handlePing') }, icon('refresh')) ]);
+		}
+		var sideFoot = E('div', { 'class': 'gg-side-foot' }, [ measure,
+			E('p', { 'class': 'gg-hint' }, running ? _('Switching drops connections for a few seconds.') : _('Start connects to the selected one.')) ]);
+
+		// the list: a panel of its own on a wide screen; on a phone, folded to the profile in use
+		// under the buttons (open when that profile is not in the list)
+		var list = (hasConfig && profiles.length) ? profiles : [], narrow = !!(this.narrow && this.narrow.matches), side = '', pick = '';
+		if (list.length && !narrow) {
+			side = E('div', { 'class': 'gg-side' }, [
+				E('div', { 'class': 'gg-list', 'role': 'group', 'aria-label': _('Country') }, list.map(function(p) { return row(p); })), sideFoot ]);
+		}
+		else if (list.length) {
+			var cur = list.filter(function(p) { return p.remarks == selected; })[0], open = this.listOpen || !cur;
+			pick = E('div', { 'class': 'gg-pick' + (open ? ' is-open' : '') }, open
+				? [ E('div', { 'class': 'gg-list', 'role': 'group', 'aria-label': _('Country') },
+					list.map(function(p) { return row(p, (cur && p.remarks == cur.remarks) ? 'up' : null); })), sideFoot ]
+				: [ row(cur, 'down') ]);
 		}
 
 		var button = L.bind(function(cls, label, handler, arg) {
@@ -789,29 +840,41 @@ return view.extend({
 				running ? button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') : button('cbi-button-apply', _('Start'), 'handleInit', 'start'),
 				button('cbi-button-action', _('Update now'), 'handleUpdate') ]));
 
-		return E('section', { 'class': 'gg-card' }, [
+		var body = [
 			E('div', { 'class': 'gg-card-head' }, [
 				E('div', { 'class': 'gg-card-main' }, main),
-				facts.length ? E('dl', { 'class': 'gg-facts' }, facts) : '',
 				E('a', { 'class': 'gg-gear', 'href': L.url('admin/services/gatygo/advanced'), 'title': _('Advanced: settings, nodes, log'),
 					'aria-label': _('Advanced: settings, nodes, log'), 'data-key': 'gear' }, icon('gear'))
 			]),
 			this.renderUpgrade(up, dis),
 			problem ? this.renderAlert(problem, dis) : '',
+			pick,
+			hasConfig ? this.renderFacts(st) : '',
 			(hasConfig && running && this.busy != 'select') ? this.renderCheck(silent, others) : '',
-			(hasConfig && chips.length) ? E('div', { 'class': 'gg-card-pick' }, [
-				E('div', { 'class': 'gg-chips', 'role': 'group', 'aria-label': _('Country') }, chips),
-				E('div', { 'class': 'gg-chips-foot' }, [
-					E('p', {}, running ? _('Tap a country to switch. Connections drop for a few seconds.') : _('Tap a country to choose where Start connects.')),
-					measure ])
-			]) : '',
 			E('div', { 'class': 'gg-card-foot' }, [
 				E('a', { 'class': 'gg-donate', 'href': 'https://filatov.page', 'target': '_blank', 'rel': 'noopener', 'data-key': 'donate' }, [ icon('heart'), _('Donate'), icon('arrow', 'gg-ext') ]),
 				E('p', { 'class': 'gg-sign' }, [ mark(), E('b', {}, 'gatygo'), st.version || '',
 					(up.available && !upgrading) ? E('button', { 'class': 'gg-upgrade', 'type': 'button', 'disabled': dis, 'data-key': 'upgrade',
 						'click': ui.createHandlerFn(this, 'handleUpgradeAsk') }, [ icon('download'), _('Update'), E('span', { 'class': 'gg-upgrade-sep' }), E('span', { 'class': 'gg-upgrade-v' }, [ up.latest ]) ]) : '' ])
 			])
-		]);
+		];
+		return side ? E('section', { 'class': 'gg-card has-side' }, [ side, E('div', { 'class': 'gg-main' }, body) ])
+			: E('section', { 'class': 'gg-card' }, body);
+	},
+
+	// The subscription: its name, how much traffic is used and until when it runs
+	renderFacts: function(st) {
+		var info = st.userinfo || {}, used = (+info.upload || 0) + (+info.download || 0), total = +info.total || 0, exp = +info.expire || 0, facts = [];
+		if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, [ st.title ]) ]));
+		if (used || total)
+			facts.push(E('div', {}, [ E('dt', {}, _('Traffic')), E('dd', { 'class': (total && used >= total) ? 'bad' : null },
+				total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))) ]));
+		if (exp) {
+			var days = Math.floor((exp - Date.now() / 1000) / 86400);
+			facts.push(E('div', {}, [ E('dt', {}, _('Expires')), E('dd', { 'class': (days < 0) ? 'bad' : null },
+				new Date(exp * 1000).toLocaleDateString() + ', ' + (days >= 0 ? N_(days, 'in %d day', 'in %d days').format(days) : _('expired %s').format(fmtAgo(exp)))) ]));
+		}
+		return facts.length ? E('dl', { 'class': 'gg-facts' }, facts) : '';
 	},
 
 	render: function(data) {
@@ -819,6 +882,10 @@ return view.extend({
 		this.status = st;
 		this.link = uci.get('gatygo', 'main', 'sub_url') || null;
 		this.panel = E('div', {});
+		// the phone layout follows the width: a turn of the phone or a resize repaints
+		this.narrow = window.matchMedia('(max-width: 860px)');
+		var relayout = L.bind(function() { this.painted = null; this.repaint(); }, this);
+		if (this.narrow.addEventListener) this.narrow.addEventListener('change', relayout); else this.narrow.addListener(relayout);
 		// from the Advanced page's Update button: the confirmation right away
 		var q = new URLSearchParams(location.search);
 		if (q.get('upgrade') == '1') {

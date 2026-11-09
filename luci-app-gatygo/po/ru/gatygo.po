@@ -794,6 +794,62 @@ msgid "Your home network is using the regular internet. Start connects to the se
 msgstr "Домашняя сеть работает через обычный интернет. «Запустить» сразу подключит к выбранной стране."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "No reply from this server"
+msgstr "Этот сервер не отвечает"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Response time from your router to this server"
+msgstr "Время отклика от роутера до этого сервера"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Measuring response time…"
+msgstr "Измерение времени отклика…"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "No server answered: your provider has an outage, or the router has no internet."
+msgstr "Ни один сервер не ответил: у провайдера сбой или у роутера нет интернета."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Response time measured %s"
+msgstr "Время отклика измерено %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Measure again"
+msgstr "Измерить снова"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Switching drops connections for a few seconds."
+msgstr "При переключении соединения прервутся на пару секунд."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Start connects to the selected one."
+msgstr "«Запустить» подключит к выбранному."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Country"
+msgstr "Страна"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Stop"
+msgstr "Остановить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Start"
+msgstr "Запустить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update now"
+msgstr "Обновить сейчас"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Advanced: settings, nodes, log"
+msgstr "Дополнительно: настройки, узлы, журнал"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Donate"
+msgstr "Поддержать"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Subscription"
 msgstr "Подписка"
 
@@ -823,59 +879,3 @@ msgstr[2] "через %d дней"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "expired %s"
 msgstr "истекла %s"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "No reply from this server"
-msgstr "Этот сервер не отвечает"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Response time from your router to this server"
-msgstr "Время отклика от роутера до этого сервера"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Measuring response time…"
-msgstr "Измерение времени отклика…"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "No server answered: your provider has an outage, or the router has no internet."
-msgstr "Ни один сервер не ответил: у провайдера сбой или у роутера нет интернета."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Response time measured %s"
-msgstr "Время отклика измерено %s"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Measure again"
-msgstr "Измерить снова"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Stop"
-msgstr "Остановить"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Start"
-msgstr "Запустить"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update now"
-msgstr "Обновить сейчас"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Advanced: settings, nodes, log"
-msgstr "Дополнительно: настройки, узлы, журнал"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Country"
-msgstr "Страна"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Tap a country to switch. Connections drop for a few seconds."
-msgstr "Нажмите страну, чтобы переключиться. Соединения прервутся на несколько секунд."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Tap a country to choose where Start connects."
-msgstr "Нажмите страну, чтобы выбрать, куда подключит «Запустить»."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Donate"
-msgstr "Поддержать"
