@@ -850,6 +850,45 @@ msgid "Donate"
 msgstr "Поддержать"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your subscription has ended"
+msgstr "Подписка закончилась"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your subscription ends in %d day"
+msgid_plural "Your subscription ends in %d days"
+msgstr[0] "Подписка закончится через %d день"
+msgstr[1] "Подписка закончится через %d дня"
+msgstr[2] "Подписка закончится через %d дней"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your subscription ends in less than a day"
+msgstr "Подписка закончится меньше чем через сутки"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Renew"
+msgstr "Продлить"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Provider’s website"
+msgstr "Сайт провайдера"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Support"
+msgstr "Поддержка"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Your provider moved the subscription to a new address on %s"
+msgstr "Провайдер сменил адрес подписки %s"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "new address"
+msgstr "новый адрес"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Hide"
+msgstr "Скрыть"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Subscription"
 msgstr "Подписка"
 

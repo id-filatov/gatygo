@@ -20,6 +20,7 @@ var callCheck = rpc.declare({ object: 'gatygo', method: 'check', params: [ 'fres
 var callPing = rpc.declare({ object: 'gatygo', method: 'ping', params: [ 'fresh' ], expect: { } });
 var callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 var callUpgrade = rpc.declare({ object: 'gatygo', method: 'upgrade', params: [ 'action' ], expect: { } });
+var callNewurlDismiss = rpc.declare({ object: 'gatygo', method: 'newurl_dismiss', expect: { } });
 
 var CSS = [
 	'.gg { --gg-ink:var(--text-color-highest); --gg-ink-2:hsl(0 0% 32%); --gg-ink-3:hsl(0 0% 45%); --gg-line:hsl(0 0% 86%); --gg-line-2:hsl(0 0% 92%);',
@@ -27,11 +28,13 @@ var CSS = [
 	'  --gg-warn-ink:hsl(32 90% 26%); --gg-warn-tint:hsl(42 95% 93%); --gg-warn-line:hsl(40 75% 76%);',
 	'  --gg-bad-ink:hsl(0 70% 38%); --gg-bad-tint:hsl(0 85% 96%); --gg-bad-line:hsl(0 65% 84%); --gg-heart:hsl(350 70% 45%); --gg-heart-tint:hsl(350 90% 95%);',
 	'  --gg-side:color-mix(in srgb, var(--gg-line-2) 45%, var(--background-color-low));',
+	'  --gg-info-ink:hsl(210 80% 36%); --gg-info-tint:hsl(210 85% 96%); --gg-info-line:hsl(210 70% 84%);',
 	'  --gg-ease:cubic-bezier(.23,1,.32,1); font-variant-numeric:tabular-nums; min-width:0; overflow-wrap:anywhere; }',
 	'[data-darkmode="true"] .gg { --gg-ink-2:hsl(0 0% 74%); --gg-ink-3:hsl(0 0% 62%); --gg-line:hsl(0 0% 27%); --gg-line-2:hsl(0 0% 21%);',
 	'  --gg-accent-tint:hsl(210 30% 20%); --gg-off:hsl(0 0% 48%); --gg-bad:hsl(0 75% 58%); --gg-good:hsl(150 45% 62%); --gg-slow:hsl(38 75% 62%);',
 	'  --gg-warn-ink:hsl(40 85% 68%); --gg-warn-tint:hsl(38 45% 15%); --gg-warn-line:hsl(38 40% 28%);',
-	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); --gg-heart:hsl(350 85% 74%); --gg-heart-tint:hsl(350 35% 19%); }',
+	'  --gg-bad-ink:hsl(0 85% 76%); --gg-bad-tint:hsl(0 40% 16%); --gg-bad-line:hsl(0 40% 30%); --gg-heart:hsl(350 85% 74%); --gg-heart-tint:hsl(350 35% 19%);',
+	'  --gg-info-ink:hsl(210 85% 72%); --gg-info-tint:hsl(210 35% 17%); --gg-info-line:hsl(210 35% 30%); }',
 	'.gg-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }',
 	'.gg-card { margin-top:14px; padding:20px 24px 24px; border:1px solid var(--border-color-medium); border-radius:8px; background:var(--background-color-low); }',
 	'.gg-card.has-side { display:grid; grid-template-columns:350px minmax(0,1fr); padding:0; overflow:hidden; }',
@@ -54,6 +57,11 @@ var CSS = [
 	'.gg-facts dt { flex:none; width:96px; font-size:13px; font-weight:400; color:var(--gg-ink-3); }',
 	'.gg-facts dd { margin:0; font-size:13px; color:var(--gg-ink); }',
 	'.gg-facts dd.bad { color:var(--gg-bad-ink); font-weight:600; }',
+	'.gg-facts dd.gg-sub { display:flex; flex-wrap:wrap; align-items:center; gap:4px 0; }',
+	'.gg-ilink { display:inline-grid; place-items:center; width:26px; height:26px; margin-left:6px; border-radius:6px; background:var(--gg-info-tint); color:var(--gg-accent); }',
+	'.gg-ilink:hover { color:var(--gg-accent); filter:brightness(.97); } .gg-ilink:focus-visible, .gg-moved button:focus-visible { outline:2px solid var(--gg-accent); outline-offset:2px; }',
+	'.gg-moved { display:inline-flex; align-items:center; gap:2px; height:22px; margin-left:8px; padding:0 2px 0 9px; border-radius:11px; background:var(--gg-info-tint); color:var(--gg-accent); font-size:11px; font-weight:600; line-height:1; white-space:nowrap; }',
+	'.gg-moved button { display:grid; place-items:center; width:18px; height:18px; margin:0; padding:0; border:0; border-radius:50%; background:none; color:inherit; cursor:pointer; }',
 	'.gg-gear { grid-area:gear; justify-self:end; display:grid; place-items:center; width:36px; height:36px; margin:-6px -8px 0 0; border-radius:6px; color:var(--gg-ink-2); transition:background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-gear svg { transition:transform 400ms var(--gg-ease); }',
 	'@media (hover:hover) and (pointer:fine) { .gg-gear:hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-gear:hover svg { transform:rotate(60deg); } .gg-row:not(:disabled):not(.is-on):hover { border-color:var(--gg-ink-3); } .gg-icon-btn:not(:disabled):hover { background:var(--gg-line-2); color:var(--gg-ink); } .gg-donate:hover { filter:brightness(.96) saturate(1.1); } }',
@@ -65,6 +73,9 @@ var CSS = [
 	'.gg-alert.bad .gg-alert-icon { color:var(--gg-bad-ink); }',
 	'.gg-alert.good { border-color:color-mix(in srgb, var(--gg-on) 40%, transparent); background:color-mix(in srgb, var(--gg-on) 10%, transparent); }',
 	'.gg-alert.good .gg-alert-icon { color:var(--gg-good); }',
+	'.gg-alert.info { border-color:var(--gg-info-line); background:var(--gg-info-tint); } .gg-alert.info .gg-alert-icon { color:var(--gg-info-ink); }',
+	'.gg-alert.plain { border-color:var(--gg-line); background:var(--gg-side); } .gg-alert.plain .gg-alert-icon { color:var(--gg-ink-3); }',
+	'.gg-alert .is-pre { white-space:pre-line; } .gg-alert-title + .gg-alert-text.is-pre, .gg-alert-text.is-pre:first-child { margin-top:0; color:var(--gg-ink); }',
 	'.gg-alert-body { flex:1 1 0; min-width:0; }',
 	'.gg-alert-title { margin:0; font-size:14px; line-height:1.4; font-weight:600; color:var(--gg-ink); }',
 	'.gg-alert-text { margin:2px 0 0; max-width:80ch; font-size:13px; line-height:1.5; color:var(--gg-ink-2); }',
@@ -146,6 +157,7 @@ var CSS = [
 	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
+	'  .gg-facts { gap:10px; } .gg-facts div { flex-direction:column; gap:1px; } .gg-facts dt { width:auto; font-size:12px; }',
 	'  .gg-checks { grid-template-columns:1fr; } .gg-check { padding-right:10px; } .gg-check-name, .gg-check-ms { white-space:nowrap; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
 	'  .gg-gear { width:44px; height:44px; }',
@@ -173,6 +185,11 @@ var ICONS = {
 	heart: [ 13, 2.2, 'M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572' ],
 	arrow: [ 12, 2.2, 'M17 7l-10 10', 'M8 7l9 0l0 9' ],
 	chevronDown: [ 18, 2, 'M6 9l6 6l6 -6' ],
+	message: [ 14, 1.9, 'M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1' ],
+	speakerphone: [ 20, 1.8, 'M18 8a3 3 0 0 1 0 6', 'M10 8v11a1 1 0 0 1 -1 1h-1a1 1 0 0 1 -1 -1v-5', 'M12 8h0l4.524 -3.77a.9 .9 0 0 1 1.476 .692v12.156a.9 .9 0 0 1 -1.476 .692l-4.524 -3.77h-8a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h8' ],
+	info: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 9h.01', 'M11 12h1v4h1' ],
+	clock: [ 20, 2, 'M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0', 'M12 7v5l3 3' ],
+	x: [ 12, 2.4, 'M18 6l-12 12', 'M6 6l12 12' ],
 	chevronUp: [ 18, 2, 'M6 15l6 -6l6 6' ]
 };
 
@@ -440,6 +457,11 @@ return view.extend({
 		return this.handleSelect(profile, ev);
 	},
 
+	// the "new address" notice: gone for every browser once hidden
+	handleMovedDismiss: function(ev) {
+		return callNewurlDismiss().then(L.bind(this.refresh, this));
+	},
+
 	handleUpdate: function(ev) {
 		return this.run('update', callUpdate().then(function(started) {
 			if (!started)
@@ -523,7 +545,8 @@ return view.extend({
 					: _('xray exit code %d').format(st.crashed), crash.log ].filter(Boolean).join('\n'),
 				action: { label: _('Turn off'), handler: 'handleInit', arg: 'stop' } };
 		}
-		if (exp && exp * 1000 < Date.now())
+		// the provider's own expiry notice (sub-expire) takes the place of this one
+		if (exp && exp * 1000 < Date.now() && !(st.provider && st.provider.expire_notice))
 			return { bad: true, state: _('Subscription expired'), title: _('Your subscription ended on %s').format(new Date(exp * 1000).toLocaleDateString()),
 				text: _('The VPN servers no longer accept this router, so sites may not open. Renew the subscription with your provider, then press Update now.') };
 		if (total && used >= total)
@@ -584,19 +607,24 @@ return view.extend({
 		return p;
 	},
 
+	// p: {title, text, detail, action: {label, handler, arg} | {label, href, external}}; bad, or
+	// kind ('' warn, 'bad', 'good', 'info', 'plain') with its icon; pre keeps the line breaks of a
+	// text from the provider
 	renderAlert: function(p, dis) {
-		var action = '';
+		var action = '', kind = (p.kind != null) ? p.kind : (p.bad ? 'bad' : '');
+		// labels as text, never as HTML: a provider's button says what the provider sent
 		if (p.action && p.action.href)
-			action = E('a', { 'class': 'cbi-button cbi-button-neutral', 'href': p.action.href }, p.action.label);
+			action = E('a', { 'class': 'cbi-button ' + (p.action.external ? 'cbi-button-action' : 'cbi-button-neutral'), 'href': p.action.href,
+				'target': p.action.external ? '_blank' : null, 'rel': p.action.external ? 'noopener noreferrer' : null, 'data-key': 'alert-link' }, [ p.action.label ]);
 		else if (p.action)
 			action = E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'disabled': dis, 'data-key': 'alert-action',
-				'click': (p.action.arg != null) ? ui.createHandlerFn(this, p.action.handler, p.action.arg) : ui.createHandlerFn(this, p.action.handler) }, p.action.label);
-		return E('div', { 'class': 'gg-alert' + (p.bad ? ' bad' : ''), 'role': p.bad ? 'alert' : 'status' }, [
-			icon(p.bad ? 'bad' : 'warn', 'gg-alert-icon'),
+				'click': (p.action.arg != null) ? ui.createHandlerFn(this, p.action.handler, p.action.arg) : ui.createHandlerFn(this, p.action.handler) }, [ p.action.label ]);
+		return E('div', { 'class': 'gg-alert' + (kind ? ' ' + kind : ''), 'role': (kind == 'bad') ? 'alert' : 'status' }, [
+			icon(p.icon || ((kind == 'bad') ? 'bad' : 'warn'), 'gg-alert-icon'),
 			E('div', { 'class': 'gg-alert-body' }, [
 				// as text, never as HTML: country names, messages and xray's log come from outside
-				E('p', { 'class': 'gg-alert-title' }, [ p.title ]),
-				p.text ? E('p', { 'class': 'gg-alert-text' }, [ p.text ]) : '',
+				p.title ? E('p', { 'class': 'gg-alert-title' }, [ p.title ]) : '',
+				p.text ? E('p', { 'class': 'gg-alert-text' + (p.pre ? ' is-pre' : '') }, [ p.text ]) : '',
 				p.detail ? E('p', { 'class': 'gg-detail' }, [ p.detail ]) : ''
 			]),
 			action ? E('div', { 'class': 'gg-alert-actions' }, action) : ''
@@ -848,8 +876,10 @@ return view.extend({
 			]),
 			this.renderUpgrade(up, dis),
 			problem ? this.renderAlert(problem, dis) : '',
+			hasConfig ? this.renderProviderAlert(st, dis) : '',
 			pick,
 			hasConfig ? this.renderFacts(st) : '',
+			hasConfig ? this.renderAnnounce(st) : '',
 			(hasConfig && running && this.busy != 'select') ? this.renderCheck(silent, others) : '',
 			E('div', { 'class': 'gg-card-foot' }, [
 				E('a', { 'class': 'gg-donate', 'href': 'https://filatov.page', 'target': '_blank', 'rel': 'noopener', 'data-key': 'donate' }, [ icon('heart'), _('Donate'), icon('arrow', 'gg-ext') ]),
@@ -862,10 +892,47 @@ return view.extend({
 			: E('section', { 'class': 'gg-card' }, body);
 	},
 
+	// The provider's coloured announcement (sub-info), or in its place the provider's notice that
+	// the subscription ends within 3 days or has ended (sub-expire)
+	renderProviderAlert: function(st, dis) {
+		var pv = st.provider || {}, exp = +(st.userinfo || {}).expire || 0, left = exp - Date.now() / 1000;
+		var link = function(url, label) { return (label && /^https?:\/\//i.test(url || '')) ? { href: url, label: label, external: true } : null; };
+		if (pv.expire_notice && exp && left <= 3 * 86400) {
+			var d = Math.floor(left / 86400);
+			return this.renderAlert({ kind: (left <= 0) ? 'bad' : '', icon: 'clock',
+				title: (left <= 0) ? _('Your subscription has ended') : (d >= 1) ? N_(d, 'Your subscription ends in %d day', 'Your subscription ends in %d days').format(d)
+					: _('Your subscription ends in less than a day'),
+				action: link(pv.expire_notice.link, _('Renew')) }, dis);
+		}
+		var info = pv.info;
+		if (!info || !info.text) return '';
+		return this.renderAlert({ kind: { red: 'bad', green: 'good' }[info.color] || 'info', icon: 'info', text: info.text, pre: true,
+			action: link(info.button_link, info.button_text) }, dis);
+	},
+
+	// The provider's announcement, as it was sent
+	renderAnnounce: function(st) {
+		var a = (st.provider || {}).announce;
+		return a ? this.renderAlert({ kind: 'plain', icon: 'speakerphone', text: a, pre: true }, null) : '';
+	},
+
 	// The subscription: its name, how much traffic is used and until when it runs
 	renderFacts: function(st) {
 		var info = st.userinfo || {}, used = (+info.upload || 0) + (+info.download || 0), total = +info.total || 0, exp = +info.expire || 0, facts = [];
-		if (st.title) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', {}, [ st.title ]) ]));
+		// the provider's name, its site and support, and that it moved the subscription (hidden by ×)
+		var pv = st.provider || {}, sub = [];
+		var web = function(url) { return /^https?:\/\//i.test(url || ''); };
+		var ilink = function(url, ic, label, key) {
+			return E('a', { 'class': 'gg-ilink', 'href': url, 'target': '_blank', 'rel': 'noopener noreferrer', 'title': label, 'aria-label': label, 'data-key': key }, icon(ic));
+		};
+		if (st.title) sub.push(E('span', {}, [ st.title ]));
+		if (web(pv.site)) sub.push(ilink(pv.site, 'world', _('Provider’s website'), 'site'));
+		if (web(pv.support)) sub.push(ilink(pv.support, 'message', _('Support'), 'support'));
+		if (st.url_moved)
+			sub.push(E('span', { 'class': 'gg-moved', 'title': _('Your provider moved the subscription to a new address on %s').format(new Date(st.url_moved * 1000).toLocaleDateString()) }, [
+				_('new address'), E('button', { 'type': 'button', 'title': _('Hide'), 'aria-label': _('Hide'), 'data-key': 'moved-dismiss',
+					'click': ui.createHandlerFn(this, 'handleMovedDismiss') }, icon('x')) ]));
+		if (sub.length) facts.push(E('div', {}, [ E('dt', {}, _('Subscription')), E('dd', { 'class': 'gg-sub' }, sub) ]));
 		if (used || total)
 			facts.push(E('div', {}, [ E('dt', {}, _('Traffic')), E('dd', { 'class': (total && used >= total) ? 'bad' : null },
 				total ? _('%s of %s used').format(fmtBytes(used), fmtBytes(total)) : _('%s used, no limit').format(fmtBytes(used))) ]));
