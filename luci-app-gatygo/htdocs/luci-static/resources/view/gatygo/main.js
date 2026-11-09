@@ -322,7 +322,8 @@ return view.extend({
 		this.placeSide();
 		if (focus) {
 			var el = this.panel.querySelector('[data-key="' + focus.replace(/["\\]/g, '\\$&') + '"]');
-			if (el && !el.disabled) el.focus();
+			// no scrolling: the side list and the page keep where they were
+			if (el && !el.disabled) el.focus({ preventScroll: true });
 		}
 	},
 
@@ -459,7 +460,7 @@ return view.extend({
 
 	// the "new address" notice: gone for every browser once hidden
 	handleMovedDismiss: function(ev) {
-		return callNewurlDismiss().then(L.bind(this.refresh, this));
+		return this.run('dismiss', callNewurlDismiss());
 	},
 
 	handleUpdate: function(ev) {
@@ -855,7 +856,8 @@ return view.extend({
 			pick = E('div', { 'class': 'gg-pick' + (open ? ' is-open' : '') }, open
 				? [ E('div', { 'class': 'gg-list', 'role': 'group', 'aria-label': _('Country') },
 					list.map(function(p) { return row(p, (cur && p.remarks == cur.remarks) ? 'up' : null); })), sideFoot ]
-				: [ row(cur, 'down') ]);
+				// folded, the outage sentence stays: the services check leaves it to this line
+				: [ row(cur, 'down'), silent ? E('div', { 'class': 'gg-side-foot' }, [ measure ]) : '' ]);
 		}
 
 		var button = L.bind(function(cls, label, handler, arg) {
