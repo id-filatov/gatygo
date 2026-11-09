@@ -19,6 +19,18 @@ gatygo_log() {
     return 0
 }
 
+# gatygo_http_url VALUE — print VALUE and exit 0 when it is an http:// or https:// address (the
+# scheme in any case) with something after it and no blank or control character; else exit 1.
+# Links from the network reach the page only through this: no javascript:, data: or app schemes.
+gatygo_http_url() {
+    case $1 in
+        [Hh][Tt][Tt][Pp]://?* | [Hh][Tt][Tt][Pp][Ss]://?*) ;;
+        *) return 1 ;;
+    esac
+    case $1 in *[[:space:][:cntrl:]]*) return 1 ;; esac
+    printf '%s\n' "$1"
+}
+
 # gatygo_shquote STR — print STR as a single-quoted POSIX shell literal, safe to source.
 gatygo_shquote() {
     printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"

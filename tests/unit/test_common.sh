@@ -25,6 +25,16 @@ eval "_back=$(gatygo_shquote "$_nl")"
 assert_eq "$_nl" "$_back" "newline survives"
 assert_eq "''" "$(gatygo_shquote "")" "empty string quotes to ''"
 
+# gatygo_http_url: an http(s) address without spaces or control characters, or nothing
+for _u in https://example.com/sub HTTP://example.com https://t.me/example_support; do
+    assert_eq "$_u" "$(gatygo_http_url "$_u")" "http_url accepts $_u"
+done
+_tab=$(printf 'https://example.com/a\tb')
+for _u in 'javascript:alert(1)' 'tg://resolve?domain=x' ftp://example.com //example.com https:// 'https://exa mple.com' "$_tab" ''; do
+    assert_eq "" "$(gatygo_http_url "$_u")" "http_url refuses '$_u'"
+    assert_exit 1 "http_url exits 1 on '$_u'" gatygo_http_url "$_u"
+done
+
 # --- portability: OpenWrt's busybox sleep takes whole seconds only ("sleep: invalid number '0.5'")
 assert_eq "" "$(grep -rn 'sleep [0-9]*\.[0-9]' /src/gatygo/files)" "no fractional sleep in the package"
 
