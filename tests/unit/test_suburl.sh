@@ -89,6 +89,16 @@ assert_eq "$_before" "$(_all)" "commit failed: the file still belongs to the lin
 assert_eq "1" "$(grep -c 'could not save the new subscription address' "$SYSLOG_STUB_FILE")" "and the log says so"
 uci set gatygo.main.sub_url="$M"
 
+# --- the link was changed by hand while the update ran: the old provider's move does not undo it
+H=https://hand.example.org/s/9
+uci set gatygo.main.sub_url="$H"
+_before=$(cat "$F")
+_hdr "$N" "" "$B"
+_rec "$M" "$M"
+assert_eq "$H" "$(uci get gatygo.main.sub_url)" "a link changed by hand during the update stays"
+assert_eq "$_before" "$(cat "$F")" "and the old link's file is left alone"
+uci set gatygo.main.sub_url="$M"
+
 # --- spares: the fallback, then the previous address, only for the link they came with
 printf "GATYGO_URLS_FOR=%s\nGATYGO_URLS_FALLBACK=%s\nGATYGO_URLS_PREVIOUS=%s\nGATYGO_URLS_MOVED=''\n" \
     "$(gatygo_shquote "$M")" "$(gatygo_shquote "$B")" "$(gatygo_shquote "$N")" > "$F"

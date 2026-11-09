@@ -79,7 +79,10 @@ gatygo_suburl_spares() {
 # drops the previous link once MAIN itself has answered, and follows a move (new-url first, then
 # new-domain) by writing the new link to the settings. No reload is triggered: the next update
 # uses the new link. Always exit 0; what is ignored and why goes to the log.
+# A link changed by hand while the update ran (Save & Apply waits for it) is left alone: the old
+# link's answer neither moves it nor writes the file.
 gatygo_suburl_record() {
+    [ "$(uci -q get gatygo.main.sub_url 2>/dev/null)" = "$1" ] || return 0
     _gatygo_su_load "$1"
     _gatygo_su_nu=$(_gatygo_env_get "$3" GATYGO_NEW_URL)
     _gatygo_su_nd=$(_gatygo_env_get "$3" GATYGO_NEW_DOMAIN)
