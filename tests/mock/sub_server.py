@@ -10,6 +10,10 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
   GET /sub-norouting  same, without the routing header (no geo file URLs)
   GET /sub-nohwid   same as /sub but the x-hwid header is not required
   GET /sub-broken   HTTP 500
+  GET /sub-moved, /sub-move, /sub-movebroken, /sub-move-maxdev, /sub-domain, /sub-badmove,
+      /sub-fallback, /sub-msgs
+                    same as /sub plus the headers in VARIANTS (a header named there replaces the
+                    /sub one): the provider moving the subscription, a spare address, its messages
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
   GET /log          JSON list of received requests [{"path":..., "headers":{...}}]
@@ -30,6 +34,30 @@ ROUTING = "app://routing/add/" + base64.b64encode(json.dumps({
     "Geoipurl": PUBLIC_URL + "/geo/geoip.dat",
     "RemoteDNSType": "DoH", "DomainStrategy": "IPIfNonMatch"}).encode()).decode()
 
+# path -> headers added to (or replacing) the /sub ones
+VARIANTS = {
+    "/sub-moved": [],
+    "/sub-move": [("new-url", PUBLIC_URL + "/sub-moved")],
+    "/sub-movebroken": [("new-url", PUBLIC_URL + "/sub-broken")],
+    "/sub-move-maxdev": [("new-url", PUBLIC_URL + "/sub-moved"), ("x-hwid-max-devices-reached", "true")],
+    "/sub-domain": [("new-domain", "localhost")],
+    "/sub-badmove": [("new-url", "javascript:alert(1)"), ("new-domain", "evil.example/x")],
+    "/sub-fallback": [("fallback-url", PUBLIC_URL + "/sub")],
+    "/sub-msgs": [
+        ("announce", b64("Maintenance on <b>12 Nov</b> 03:00–04:00 <img src=x onerror=alert(1)>")),
+        ("support-url", "https://example.com/support"),
+        ("profile-web-page-url", "https://example.com"),
+        ("sub-info-text", b64(("Japan and Brazil are in the list now. Press Update now to see them. " * 4)[:200])),
+        ("sub-info-color", "red"),
+        ("sub-info-button-text", b64("Read more")),
+        ("sub-info-button-link", "https://example.com/news"),
+        ("sub-expire", "true"),
+        ("sub-expire-button-link", "https://example.com/renew"),
+        # a far expiry: the fixture's has passed, and an expiry notice would hide sub-info
+        ("subscription-userinfo", "upload=1024; download=123456789; total=0; expire=4102444800"),
+    ],
+}
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):  # keep test output quiet
         pass
@@ -45,7 +73,7 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         LOG.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}})
         ua = self.headers.get("User-Agent", "")
-        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid"):
+        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid") or self.path in VARIANTS:
             if not ua.startswith("gatygo/") or (self.path != "/sub-nohwid" and not self.headers.get("x-hwid")):
                 self._send(200, base64.b64encode(b"vless://00000000-0000-4000-8000-000000000000@relay-1.example.com:443#tile\n"),
                            [("Content-Type", "text/plain; charset=utf-8")])
@@ -60,6 +88,9 @@ class H(BaseHTTPRequestHandler):
                 hdrs.append(("routing", ROUTING))
             if self.path == "/sub-maxdev":
                 hdrs.append(("x-hwid-max-devices-reached", "true"))
+            extra = VARIANTS.get(self.path, [])
+            names = {k.lower() for k, _ in extra}
+            hdrs = [h for h in hdrs if h[0].lower() not in names] + extra
             self._send(200, BODY, hdrs)
         elif self.path == "/sub-broken":
             self._send(500, b"boom", [("Content-Type", "text/plain")])

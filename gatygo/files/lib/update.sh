@@ -13,6 +13,7 @@
 . "${GATYGO_LIB:-/usr/lib/gatygo}/core.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/relay.sh"
 . "${GATYGO_LIB:-/usr/lib/gatygo}/rules.sh"
+. "${GATYGO_LIB:-/usr/lib/gatygo}/suburl.sh"
 
 GATYGO_INIT=${GATYGO_INIT:-/etc/init.d/gatygo}
 
@@ -151,11 +152,27 @@ gatygo_update() {
     _gatygo_w=$(mktemp -d)
     mkdir -p "$_gatygo_w/geo"
 
-    # 1. fetch
+    # 1. fetch: the link, then the spare addresses kept for it (lib/suburl.sh). The outcome
+    # recorded on failure is the link's own.
+    _gatygo_used=$GATYGO_SUB_URL
     _gatygo_code=$(gatygo_fetch "$GATYGO_SUB_URL" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr")
     if [ $? -ne 0 ]; then
-        gatygo_result error fetch_failed "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
-        rm -rf "$_gatygo_w"; return 1
+        _gatygo_used=''
+        _gatygo_spares=$(gatygo_suburl_spares "$GATYGO_SUB_URL")
+        while read -r _gatygo_kind _gatygo_spare; do
+            [ -n "$_gatygo_spare" ] || continue
+            if gatygo_fetch "$_gatygo_spare" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr" >/dev/null; then
+                _gatygo_used=$_gatygo_spare
+                gatygo_log info "subscription downloaded from the $_gatygo_kind address"
+                break
+            fi
+        done <<EOF
+$_gatygo_spares
+EOF
+        if [ -z "$_gatygo_used" ]; then
+            gatygo_result error fetch_failed "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
+            rm -rf "$_gatygo_w"; return 1
+        fi
     fi
     # 2. validate
     gatygo_parse_headers "$_gatygo_w/hdr" > "$_gatygo_w/headers.env"
@@ -194,6 +211,8 @@ gatygo_update() {
     _gatygo_install "$_gatygo_w/body" "$GATYGO_STATE/subscription.json" 600
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"
+    # the spares for next time, and a move of the subscription to a new address
+    gatygo_suburl_record "$GATYGO_SUB_URL" "$_gatygo_used" "$GATYGO_STATE/headers.env"
     _gatygo_restarted=0
     # a replaced core restarts xray too: the init script makes the core a part of the instance
     if [ "$GATYGO_SWAP_RESULT" = changed ] || [ "$_gatygo_core" = installed ]; then _gatygo_restarted=1; _gatygo_reload

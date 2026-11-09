@@ -100,7 +100,6 @@ gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "wrong format (unknown UA
 case $(_last MESSAGE) in *User-Agent*) _t_ok ;; *) _t_bad "message hints at the User-Agent: $(_last MESSAGE)" ;; esac
 assert_eq "not_recognised" "$(_last CODE)" "CODE=not_recognised"
 uci delete gatygo.main.user_agent
-assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -c '127.0.0.1')" "system log and stderr never contain the subscription host"
 
 # --- geo refresh when due: identical content -> no restart
 touch -d '2026-01-01 00:00:00' "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
@@ -258,6 +257,67 @@ _sub=$(uci get gatygo.main.sub_url); uci delete gatygo.main.sub_url; uci delete 
 assert_exit 0 "apply without a link: nothing to do" sh "$CLI" apply
 assert_eq "$_x" "$(sha256sum < "$GATYGO_STATE/xray.json")" "the config is left alone"
 uci set gatygo.main.sub_url="$_sub"
+
+# --- the provider moves the subscription; spare addresses when the link does not answer (lib/suburl.sh)
+_urls() { _gatygo_env_get "$GATYGO_STATE/sub-urls.env" "$1"; }
+_sub=$(uci get gatygo.main.sub_url)
+P=http://127.0.0.1:8789
+uci set gatygo.main.sub_url=$P/sub-move
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "an update with new-url succeeds"
+assert_eq "$P/sub-moved" "$(uci get gatygo.main.sub_url)" "new-url: the link is the new address"
+assert_eq "$P/sub-move" "$(_urls GATYGO_URLS_PREVIOUS)" "the old link is kept as the previous address"
+_moved=$(_urls GATYGO_URLS_MOVED)
+case $_moved in '' | *[!0-9]*) _t_bad "the move is noted with its time: '$_moved'" ;; *) _t_ok ;; esac
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the next update goes to the new address"
+assert_eq "|$_moved" "$(_urls GATYGO_URLS_PREVIOUS)|$(_urls GATYGO_URLS_MOVED)" "it answered: the previous address goes, the move stays noted"
+
+# a move to an address that does not answer: the previous one keeps the router updated
+uci set gatygo.main.sub_url=$P/sub-movebroken
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$P/sub-broken" "$(uci get gatygo.main.sub_url)" "moved to a dead address"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the dead address: the update still succeeds"
+assert_eq "ok" "$(_last RESULT)" "RESULT=ok from the previous address"
+assert_eq "$P/sub-broken|$P/sub-movebroken" "$(uci get gatygo.main.sub_url)|$(_urls GATYGO_URLS_PREVIOUS)" "the link stays; the previous address is kept"
+assert_eq "1" "$(grep -c 'subscription downloaded from the previous address' "$SYSLOG_STUB_FILE")" "the log says where it came from"
+
+# the fallback-url of the last good answer, when the link does not answer
+uci set gatygo.main.sub_url=$P/sub-fallback
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$P/sub" "$(_urls GATYGO_URLS_FALLBACK)" "fallback-url kept"
+printf "GATYGO_URLS_FOR='http://127.0.0.1:1/sub'\nGATYGO_URLS_FALLBACK='$P/sub'\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED=''\n" > "$GATYGO_STATE/sub-urls.env"
+uci set gatygo.main.sub_url=http://127.0.0.1:1/sub
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the link does not answer: the fallback does"
+assert_eq "http://127.0.0.1:1/sub" "$(uci get gatygo.main.sub_url)" "the link is not replaced by the fallback"
+assert_eq "1" "$(grep -c 'subscription downloaded from the fallback address' "$SYSLOG_STUB_FILE")" "the log says where it came from"
+
+# a link changed by hand: the spares kept for another link are not tried
+printf "GATYGO_URLS_FOR='http://127.0.0.1:9/x'\nGATYGO_URLS_FALLBACK='$P/sub'\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED=''\n" > "$GATYGO_STATE/sub-urls.env"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "another link's fallback is not used"
+assert_eq "fetch_failed" "$(_last CODE)" "CODE=fetch_failed"
+
+# a failed update moves nothing
+uci set gatygo.main.sub_url=$P/sub-move-maxdev
+_u0=$(sha256sum < "$GATYGO_STATE/sub-urls.env")
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "device limit with new-url -> error"
+assert_eq "$P/sub-move-maxdev" "$(uci get gatygo.main.sub_url)" "the link stays"
+assert_eq "$_u0" "$(sha256sum < "$GATYGO_STATE/sub-urls.env")" "and the spares too"
+
+# new-domain sent on every answer: one move
+uci set gatygo.main.sub_url=$P/sub-domain
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "http://localhost:8789/sub-domain" "$(uci get gatygo.main.sub_url)" "new-domain: the host changes"
+_moved=$(_urls GATYGO_URLS_MOVED); _n=$(grep -c 'moved the subscription to a new address' "$SYSLOG_STUB_FILE")
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the new host answers"
+assert_eq "http://localhost:8789/sub-domain $_moved $_n" "$(uci get gatygo.main.sub_url) $(_urls GATYGO_URLS_MOVED) $(grep -c 'moved the subscription to a new address' "$SYSLOG_STUB_FILE")" "the same new-domain again: no second move"
+
+# bad addresses are ignored
+uci set gatygo.main.sub_url=$P/sub-badmove
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "bad new-url and new-domain: the update succeeds"
+assert_eq "$P/sub-badmove" "$(uci get gatygo.main.sub_url)" "the link stays"
+assert_eq "1" "$(grep -c 'ignored new-url' "$SYSLOG_STUB_FILE")" "the log says why (new-domain is not looked at when new-url is there)"
+uci set gatygo.main.sub_url="$_sub"
+
+assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -cE '127\.0\.0\.1|localhost')" "system log and stderr never contain the subscription host"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report
