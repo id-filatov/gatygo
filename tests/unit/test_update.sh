@@ -248,9 +248,17 @@ assert_eq "$_before" "$(curl -fs http://127.0.0.1:8789/log | jq "[.[] | select(.
 assert_eq "1" "$(jq '[.routing.rules[] | select((.ruleTag // "") | startswith("gatygo-rule-"))] | length' "$GATYGO_STATE/xray.json")" "the rule is in the installed config"
 assert_eq "$_lu" "$(sha256sum < "$GATYGO_STATE/last-update.env")" "apply records no result of its own"
 assert_exit 1 "nor a switch's" test -e "$GATYGO_RUN/last-select.env"
+assert_exit 1 "a plain apply asks for no update" test -e "$GATYGO_RUN/update-wanted"
+# the rebuild of a gatygo upgrade (the new version's own) asks for an update as well: the provider's
+# answer was read by the old version, the new one may read more from it; the upgrade runs it after
+assert_exit 0 "the upgrade's apply" env GATYGO_UPGRADE_RUN=1 sh "$CLI" apply
+assert_exit 0 "the upgrade's apply asks for an update" test -e "$GATYGO_RUN/update-wanted"
+rm -f "$GATYGO_RUN/update-wanted"
 mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
 assert_exit 1 "no cached subscription: apply fails" sh "$CLI" apply
 assert_eq "1" "$(grep -c 'settings could not be applied to the cached subscription' "$SYSLOG_STUB_FILE")" "and says so in the log"
+assert_exit 1 "the upgrade's failed apply" env GATYGO_UPGRADE_RUN=1 sh "$CLI" apply
+assert_exit 1 "asks for no update: the upgrade rolls back" test -e "$GATYGO_RUN/update-wanted"
 mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
 _x=$(sha256sum < "$GATYGO_STATE/xray.json")
 _sub=$(uci get gatygo.main.sub_url); uci delete gatygo.main.sub_url; uci delete 'gatygo.@rule[0]'

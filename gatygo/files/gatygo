@@ -275,6 +275,9 @@ cmd_apply() {
 		gatygo_log error "settings could not be applied to the cached subscription; keeping the current config"
 		return 1
 	fi
+	# the upgrade's rebuild: the provider's answer was read by the version before, this one may read
+	# more from it (its messages, a moved address); the upgrade runs the update when it is over
+	[ "${GATYGO_UPGRADE_RUN:-}" = 1 ] && touch "$GATYGO_RUN/update-wanted"
 	if [ "$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)" = changed ] && gatygo_xray_running; then
 		gatygo_dns_apply "$GATYGO_STATE/xray.json"
 		_gatygo_reload
