@@ -54,7 +54,8 @@ def release(v, d):
 json.dump(release(sys.argv[2], sys.argv[3]), open(os.path.join(www, "releases/tags/v" + sys.argv[2]), "w"))
 json.dump(release(sys.argv[4], sys.argv[5]), open(os.path.join(www, "releases/latest"), "w"))
 EOF
-    rsync -a --delete "$www/" "$LAB_HOST:$LAB_DIR/upgrade/www/"
+    # by content: two sets served within one second can hold a package of the same name and size
+    rsync -a --checksum --delete "$www/" "$LAB_HOST:$LAB_DIR/upgrade/www/"
     rm -rf "$www"
 }
 
@@ -107,9 +108,12 @@ expect "the check finds v2" "$V2 true" 'gatygo upgrade check; ubus -S call gatyg
 
 echo "== 2. success: the same core, the same config"
 _pid=$(vm 'gatygo status | jq -r .pid'); _conf=$(vm 'sha256sum /etc/config/gatygo /etc/gatygo/profile /etc/gatygo/rules.json')
+_lu=$(vm 'gatygo status | jq -r .last_update.time')
 upgrade
 expect "outcome ok, core unchanged" "ok  false skip" "$OUTCOME"
 expect "v2 installed" "$V2" 'gatygo version'
+# the provider's answer was read by v1: v2 downloads the subscription again right after
+check "the new version downloads the subscription right after the upgrade" "i=0; until [ \"\$(gatygo status | jq -r .last_update.time)\" -gt $_lu ] || [ \$i -ge 30 ]; do i=\$((i + 1)); sleep 1; done; [ \"\$(gatygo status | jq -r .last_update.time)\" -gt $_lu ] && [ \"\$(gatygo status | jq -r .last_update.result)\" = ok ]"
 expect "running" "true" 'gatygo status | jq -r .running'
 expect "xray not restarted: the VPN did not blink" "$_pid" 'gatygo status | jq -r .pid'
 expect "settings, country and my rules as before" "$_conf" 'sha256sum /etc/config/gatygo /etc/gatygo/profile /etc/gatygo/rules.json'
