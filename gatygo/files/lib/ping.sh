@@ -66,27 +66,36 @@ gatygo_ping_run() {
 }
 
 # gatygo_ping_store PROFILES_JSON [SUBSCRIPTION_SUM] — keep the result in the run dir (tmpfs) and
-# print it: the run that made it is over. Nothing is kept once the subscription is gone (see
-# gatygo_check_store), nor when it changed while the run went on: SUBSCRIPTION_SUM is the
-# sha256sum of the subscription.json the run started from.
+# print it: the run that made it is over. The result notes the subscription it was measured on:
+# SUBSCRIPTION_SUM is the sha256sum of the subscription.json the run started from (the current
+# one when not given). Nothing is kept once the subscription is gone (see gatygo_check_store),
+# nor when it changed while the run went on.
 gatygo_ping_store() {
     mkdir -p "$GATYGO_RUN"
-    jq -nc --argjson profiles "$1" --argjson time "$(date +%s)" '{time: $time, profiles: $profiles}' > "$GATYGO_RUN/ping.json.tmp" \
+    _gatygo_sum=${2:-}
+    [ -n "$_gatygo_sum" ] || [ ! -s "$GATYGO_STATE/subscription.json" ] \
+        || _gatygo_sum=$(sha256sum < "$GATYGO_STATE/subscription.json")
+    jq -nc --argjson profiles "$1" --argjson time "$(date +%s)" --arg sub "$_gatygo_sum" \
+        '{time: $time, sub: $sub, profiles: $profiles}' > "$GATYGO_RUN/ping.json.tmp" \
         && mv "$GATYGO_RUN/ping.json.tmp" "$GATYGO_RUN/ping.json" \
         && jq -c '{time, measuring: false, profiles}' "$GATYGO_RUN/ping.json"
     if [ ! -s "$GATYGO_STATE/subscription.json" ] \
-        || { [ -n "${2:-}" ] && [ "$(sha256sum < "$GATYGO_STATE/subscription.json")" != "$2" ]; }; then
+        || [ "$(sha256sum < "$GATYGO_STATE/subscription.json")" != "$_gatygo_sum" ]; then
         rm -f "$GATYGO_RUN/ping.json"
     fi
 }
 
-# gatygo_ping_kept MAX_AGE — print {time, measuring, profiles}: the kept result (time null when
-# there is none) and whether a run is in progress. Exit 1 when a run is due: the result is
-# missing or older than MAX_AGE seconds. Nothing to measure (no subscription) is never due.
+# gatygo_ping_kept MAX_AGE — print {time, measuring, profiles}: the kept result of the current
+# subscription (time null when there is none) and whether a run is in progress. Exit 1 when a
+# run is due: the result is missing, older than MAX_AGE seconds, or another subscription's (an
+# update brought other countries, a new link). Nothing to measure (no subscription) is never due.
 gatygo_ping_kept() {
     _gatygo_m=false
     gatygo_locked ping && _gatygo_m=true
-    if jq -c --argjson m "$_gatygo_m" '{time, measuring: $m, profiles}' "$GATYGO_RUN/ping.json" 2>/dev/null; then
+    _gatygo_sum=''
+    [ -s "$GATYGO_STATE/subscription.json" ] && _gatygo_sum=$(sha256sum < "$GATYGO_STATE/subscription.json")
+    if jq -ce --argjson m "$_gatygo_m" --arg sub "$_gatygo_sum" \
+        'select(.sub == $sub) | {time, measuring: $m, profiles}' "$GATYGO_RUN/ping.json" 2>/dev/null; then
         jq -e --argjson max "$1" --argjson now "$(date +%s)" '($now - .time) < $max' "$GATYGO_RUN/ping.json" >/dev/null 2>&1
     else
         printf '{"time":null,"measuring":%s,"profiles":[]}\n' "$_gatygo_m"

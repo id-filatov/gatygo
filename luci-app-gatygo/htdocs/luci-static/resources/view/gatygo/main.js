@@ -285,6 +285,7 @@ return view.extend({
 	checkedTunnel: null,   // the tunnel (profile and xray pid) the last check was started for; null = page just opened
 	ping: null,            // the countries' response times: {time, measuring, profiles: [{remarks, ms}]}; null = not asked yet
 	pinging: false,        // a ping call is on its way
+	pingFor: null,         // the countries (their names) the last ping call was made for
 	upgradeAsk: false,     // the confirmation of an upgrade is open
 	upgradeSeen: false,    // this page saw an upgrade run: its end reloads the page (the new version's page)
 	upgradeTimer: null,
@@ -408,14 +409,21 @@ return view.extend({
 
 	// The response times belong to the subscription, not to the tunnel. Asked for once there are
 	// countries to show: the daemon answers at once with what it has and measures again by itself
-	// when that is older than 5 minutes. While it measures, the page asks again.
+	// when that is older than 5 minutes or another subscription's. While it measures, the page asks
+	// again. Other countries (an update or a moved subscription brought them) are asked about anew.
 	syncPing: function() {
+		if (this.ping != null && !this.pinging && this.pingFor != this.countryNames()) this.ping = null;
 		if (this.ping == null && !this.pinging && this.status.profile_used) this.runPing(false);
+	},
+
+	countryNames: function() {
+		return (this.status.profiles || []).map(function(p) { return p.remarks; }).join('\n');
 	},
 
 	runPing: function(fresh) {
 		if (this.pinging) return;
 		this.pinging = true;
+		this.pingFor = this.countryNames();
 		// a daemon from before there was a ping: no times, and no asking again
 		return callPing(!!fresh).then(L.bind(function(r) { this.ping = r; }, this), L.bind(function() { this.ping = {}; }, this))
 			.then(L.bind(function() {

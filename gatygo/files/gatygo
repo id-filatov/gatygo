@@ -78,7 +78,8 @@ cmd_check() {
 
 # The response time of every country: prints {time, measuring, profiles: [{remarks, ms|null}]}.
 # `ping` measures now (10-20 s on a large subscription, one run at a time); `ping kept` prints
-# the last result and exits 1 when a run is due (none yet, or older than 5 minutes).
+# the last result and exits 1 when a run is due (none yet, older than 5 minutes, or measured on
+# another subscription).
 cmd_ping() {
 	. "$GATYGO_LIB/ping.sh"
 	if [ "$1" = kept ]; then gatygo_ping_kept 300; return; fi

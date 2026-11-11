@@ -79,6 +79,19 @@ assert_eq "12" "$(gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' "another
 assert_exit 1 "but not kept" test -e "$GATYGO_RUN/ping.json"
 gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' "$(sha256sum < "$GATYGO_STATE/subscription.json")" >/dev/null
 assert_exit 0 "the same subscription: kept" test -s "$GATYGO_RUN/ping.json"
+# --- the subscription was replaced after the run (an update brought other countries, a new link):
+# the kept result is another subscription's, so none is given back and a run is due at once
+cp "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
+cp "$FIXTURES/subscription.json" "$GATYGO_STATE/subscription.json"
+assert_eq '{"time":null,"measuring":false,"profiles":[]}' "$(gatygo_ping_kept 300)" "another subscription's result is not given back"
+assert_exit 1 "another subscription's result -> a run is due" gatygo_ping_kept 300
+mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
+assert_eq "12" "$(gatygo_ping_kept 300 | jq '.profiles[0].ms')" "the result belongs to the subscription it was measured on"
+# a result kept by a gatygo that did not note the subscription (the run dir outlives an upgrade)
+printf '{"time":%s,"profiles":[{"remarks":"🌐 Auto","ms":12}]}\n' "$(date +%s)" > "$GATYGO_RUN/ping.json"
+assert_eq '{"time":null,"measuring":false,"profiles":[]}' "$(gatygo_ping_kept 300)" "a result without its subscription is not given back"
+assert_exit 1 "a result without its subscription -> a run is due" gatygo_ping_kept 300
+gatygo_ping_store '[{"remarks":"🌐 Auto","ms":12}]' "$(sha256sum < "$GATYGO_STATE/subscription.json")" >/dev/null
 assert_eq "false" "$(gatygo_ping_kept 300 | jq .measuring)" "no run in progress"
 mkdir -p "$GATYGO_RUN/ping.lock"; echo $$ > "$GATYGO_RUN/ping.lock/pid"
 assert_eq "true" "$(gatygo_ping_kept 300 | jq .measuring)" "a run in progress is reported"
