@@ -674,7 +674,7 @@ return view.extend({
 	},
 
 	// An upgrade's panel under the status: the confirmation, the failure, or a fresh success
-	// (the first 5 minutes after it, on the new version's page)
+	// (the first 5 minutes after it, on the new version's page, until it is closed)
 	renderUpgrade: function(up, dis) {
 		var run = up.run || {}, steps = run.steps || {};
 		var button = L.bind(function(cls, label, handler, key) {
@@ -703,7 +703,8 @@ return view.extend({
 		}
 		if (run.state == 'ok' && Date.now() / 1000 - (+run.time || 0) <= 300)
 			return panel('good', 'check', _('Updated to %s').format(run.to),
-				(steps.core == 'warn') ? _('xray core') + ' — ' + _('not downloaded, the current one works; retried with the next subscription update') : '');
+				(steps.core == 'warn') ? _('xray core') + ' — ' + _('not downloaded, the current one works; retried with the next subscription update') : '',
+				[ button('cbi-button-neutral', _('Close'), 'handleUpgradeDismiss', 'up-close') ]);
 		return '';
 	},
 
