@@ -813,14 +813,6 @@ msgid "Measure again"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Switching drops connections for a few seconds."
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Start connects to the selected one."
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Country"
 msgstr ""
 

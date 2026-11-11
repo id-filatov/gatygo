@@ -96,7 +96,7 @@ var CSS = [
 	'.gg-check.is-none { border-style:dashed; }',
 	'.gg-badge { display:grid; place-items:center; flex:none; width:20px; height:20px; border-radius:5px; background:color-mix(in srgb, var(--brand) 14%, transparent); color:var(--brand); }',
 	'.gg-check.is-none .gg-badge, .gg-check.is-wait .gg-badge { background:var(--gg-line-2); color:var(--gg-ink-3); }',
-	'.gg-check-name { font-weight:600; } .gg-check.is-none .gg-check-name { font-weight:500; color:var(--gg-ink-2); }',
+	'.gg-check { white-space:nowrap; } .gg-check-ms .gg-narrow { display:none; }',
 	'.gg-check-ms { display:inline-flex; align-items:center; min-width:44px; font-size:12px; color:var(--gg-ink-3); }',
 	'.gg-check-ms.good { color:var(--gg-good); } .gg-check-ms.slow { color:var(--gg-slow); } .gg-check-ms.bad, .gg-check-ms.none { color:var(--gg-bad-ink); }',
 	'.gg-check-ms.wait::before { content:""; width:34px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--gg-line-2) 25%, var(--gg-line) 50%, var(--gg-line-2) 75%) 0 0 / 200% 100%; animation:gg-shimmer 1.1s linear infinite; }',
@@ -109,7 +109,7 @@ var CSS = [
 	'.gg-side { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--gg-side); border-right:1px solid var(--gg-line); }',
 	'.gg-list { position:relative; display:flex; flex-direction:column; gap:6px; flex:1 1 0; min-height:420px; overflow:auto; padding:10px; overscroll-behavior:contain; }',
 	'.gg-side-foot { display:flex; flex-direction:column; gap:2px; padding:9px 16px 10px; border-top:1px solid var(--gg-line); font-size:12px; line-height:1.5; color:var(--gg-ink-2); }',
-	'.gg-side-foot p { margin:0; } .gg-side-foot .gg-hint { color:var(--gg-ink-3); } .gg-measure { display:inline-flex; align-items:center; justify-content:space-between; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
+	'.gg-side-foot p { margin:0; } .gg-measure { display:inline-flex; align-items:center; justify-content:space-between; gap:6px; } .gg-measure.bad { color:var(--gg-warn-ink); }',
 	'.gg-row { position:relative; display:flex; align-items:center; gap:12px; flex:none; width:100%; min-height:52px; margin:0; padding:7px 12px 7px 10px; border:1px solid var(--gg-line); border-radius:8px; background:var(--background-color-high); color:var(--gg-ink); font:inherit; font-size:13px; text-align:left; cursor:pointer; transition:border-color 150ms var(--gg-ease), background-color 150ms var(--gg-ease), transform 120ms var(--gg-ease); }',
 	'.gg-row-flag { flex:none; width:24px; font-size:20px; line-height:1; text-align:center; }',
 	'.gg-row-text { display:flex; flex-direction:column; gap:1px; flex:1 1 0; min-width:0; line-height:1.3; }',
@@ -153,13 +153,13 @@ var CSS = [
 	'  .gg-card-head { grid-template-columns:minmax(0,1fr); grid-template-areas:"main"; gap:8px; }',
 	'  .gg-card-main { padding-right:40px; }',
 	'  .gg-gear { position:absolute; top:8px; right:8px; margin:0; grid-area:auto; }',
-	'  .gg-card-check { grid-template-columns:minmax(0,1fr); }',
-	'  .gg-checks { display:grid; grid-template-columns:1fr 1fr; gap:6px 8px; } .gg-check-ms { margin-left:auto; justify-content:flex-end; } }',
+	'  .gg-card-check { grid-template-columns:minmax(0,1fr); } }',
 	'@media (max-width:640px) {',
 	'  .gg-card { padding:16px 16px 20px; }',
 	'  .gg-facts { gap:10px; } .gg-facts div { flex-direction:column; gap:1px; } .gg-facts dt { width:auto; font-size:12px; }',
 	'  .gg-pick.is-open .gg-list { margin:0 -16px; padding:10px 16px; }',
-	'  .gg-checks { grid-template-columns:1fr; } .gg-check { padding-right:10px; } .gg-check-name, .gg-check-ms { white-space:nowrap; }',
+	'  .gg-checks { gap:5px; } .gg-check { gap:5px; padding:3px 7px 3px 3px; } .gg-check-ms { min-width:0; } .gg-check-ms.wait::before { width:26px; }',
+	'  .gg-check-ms .gg-wide { display:none; } .gg-check-ms .gg-narrow { display:inline; }',
 	'  .gg-state { font-size:20px; } .gg-state-sep { display:none; } .gg-state-country { flex-basis:100%; order:3; }',
 	'  .gg-gear { width:44px; height:44px; }',
 	'  .gg-alert { flex-wrap:wrap; } .gg-alert-body { flex-basis:calc(100% - 32px); } .gg-alert-actions { flex-basis:100%; padding-left:32px; }',
@@ -729,11 +729,15 @@ return view.extend({
 	renderCheck: function(silent, others) {
 		var c = this.check, busy = this.checking;
 		if (!c || !c.available || !Array.isArray(c.services) || !c.services.length) return '';
+		// the icon tells the service: its name is in the tooltip and for screen readers. On a phone
+		// a dash stands for no reply, so the four fit in one line.
 		var items = c.services.map(function(sv) {
 			var ms = sv.ms, st = busy ? 'wait' : (ms == null) ? 'none' : 'ok', b = brand(sv.name);
-			return E('li', { 'class': 'gg-check is-' + st, 'style': '--brand:' + b[1] }, [ E('span', { 'class': 'gg-badge' }, icon(b[0])), E('span', { 'class': 'gg-check-name' }, [ sv.name ]),
+			var said = busy ? '' : (ms == null) ? _('no reply') : (ms < 1000) ? _('%d ms').format(ms) : _('%s s').format((ms / 1000).toFixed(1));
+			return E('li', { 'class': 'gg-check is-' + st, 'style': '--brand:' + b[1], 'title': said ? sv.name + ': ' + said : sv.name }, [
+				E('span', { 'class': 'gg-badge' }, icon(b[0])), E('span', { 'class': 'gg-sr' }, [ sv.name ]),
 				E('span', { 'class': 'gg-check-ms ' + (busy ? 'wait' : ms == null ? 'none' : ms < 1000 ? 'good' : ms < 2000 ? 'slow' : 'bad') },
-					busy ? '' : (ms == null) ? _('no reply') : (ms < 1000) ? _('%d ms').format(ms) : _('%s s').format((ms / 1000).toFixed(1))) ]);
+					(ms == null && !busy) ? [ E('span', { 'class': 'gg-wide' }, [ said ]), E('span', { 'class': 'gg-narrow', 'aria-hidden': 'true' }, [ '—' ]) ] : [ said ]) ]);
 		});
 		var none = !busy && c.services.every(function(sv) { return sv.ms == null; });
 		return E('div', { 'class': 'gg-card-check' }, [
@@ -852,8 +856,7 @@ return view.extend({
 				E('button', { 'class': 'gg-icon-btn', 'type': 'button', 'disabled': measuring ? '' : null, 'title': _('Measure again'), 'aria-label': _('Measure again'),
 					'data-key': 'remeasure', 'click': ui.createHandlerFn(this, 'handlePing') }, icon('refresh')) ]);
 		}
-		var sideFoot = E('div', { 'class': 'gg-side-foot' }, [ measure,
-			E('p', { 'class': 'gg-hint' }, running ? _('Switching drops connections for a few seconds.') : _('Start connects to the selected one.')) ]);
+		var sideFoot = measure ? E('div', { 'class': 'gg-side-foot' }, [ measure ]) : '';
 
 		// the list: a panel of its own on a wide screen; on a phone, folded to the profile in use
 		// under the buttons (open when that profile is not in the list)
