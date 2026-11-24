@@ -63,8 +63,10 @@ wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | 
 
 ## Ядро xray
 
-Не `xray-core` из фида. Релиз gatygo закрепляет версию
-[Xray-core](https://github.com/XTLS/Xray-core) и SHA256 архивов (`gatygo/files/lib/core.pin`).
+Не `xray-core` из фида. Релиз gatygo закрепляет релиз
+[Xray-core](https://github.com/XTLS/Xray-core) или свою сборку его (релиз XTLS плюс патчи из
+`core/patches/`, CI выкладывает её под тегом `core-v*`) и SHA256 архивов
+(`gatygo/files/lib/core.pin`).
 Роутер качает архив под свою архитектуру, сверяет хеш и только потом распаковывает и запускает.
 Ядро обновляется только вместе с gatygo.
 
@@ -102,6 +104,7 @@ tests/run.sh test_core.sh        # один файл
 tools/build-apk.sh               # сборка обоих .apk в OpenWrt SDK
 tests/vm/run.sh [gatygo.apk]     # e2e на VM с OpenWrt
 tools/pin-core.sh v26.9.9        # закрепить другую версию xray
+tools/pin-core.sh core-v26.11.9-1 # закрепить свою сборку xray
 tools/release.sh                 # релиз из main, пакеты собирает CI
 tools/release.sh --pre           # пре-релиз из текущей ветки
 ```
