@@ -306,6 +306,12 @@ printf '%s\n' "$ADD_OUT" | sed -n 's/^(\([0-9/]*\)) \(Installing.*\)$/  \2/p'
 say ""
 say "installing the xray core (35 MB)"
 CORE_STATE=$(sh -c '. /usr/lib/gatygo/core.sh; gatygo_core_ensure') || CORE_STATE=none
+# the package's own start ran xray on the core it found: a replaced core is in the instance (its
+# pin), so `start` re-submits it and procd restarts xray on the new one (a VPN stopped by hand
+# stays stopped)
+if [ "$CORE_STATE" = installed ] && /etc/init.d/gatygo running >/dev/null 2>&1; then
+    /etc/init.d/gatygo start >/dev/null 2>&1 || true
+fi
 [ -n "$CORE" ] || CORE=$(sh -c '. /usr/lib/gatygo/core.sh; gatygo_core_version' 2>/dev/null || true)
 
 # --- 3. what the router looks like now ------------------------------------------------------------
