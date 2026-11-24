@@ -18,7 +18,7 @@ B=$(git branch --show-current)
 [ -n "$B" ] || { echo "not on a branch" >&2; exit 1; }
 [ -n "$PRE" ] || [ "$B" = main ] || { echo "release from main only" >&2; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "working tree not clean" >&2; exit 1; }
-git fetch -q origin "$B"
+git fetch -q origin "$B" 2>/dev/null || { echo "could not fetch $B from origin: is it pushed?" >&2; exit 1; }
 [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$B")" ] || { echo "$B is not in sync with origin/$B" >&2; exit 1; }
 V=$(date -u +%Y%m%d.%H%M)
 for f in gatygo/Makefile luci-app-gatygo/Makefile; do
@@ -28,5 +28,6 @@ done
 git add gatygo/Makefile luci-app-gatygo/Makefile
 git commit -q -m "release: $V$PRE"
 git tag -a "v$V" -m "gatygo $V$PRE"
-git push -q origin "$B" "v$V"
+# both or neither: a tag without its branch would be released from a commit on no branch
+git push -q --atomic origin "$B" "v$V"
 echo "released v$V$PRE: https://github.com/$(git remote get-url origin | sed -E 's#.*github.com[:/]##; s#\.git$##')/releases/tag/v$V"

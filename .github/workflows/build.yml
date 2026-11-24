@@ -29,7 +29,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        # tools/release.sh --pre ends the release commit's subject with " (pre-release)"
+        # tools/release.sh --pre ends the release commit's subject with " (pre-release)"; the step
+        # runs with bash -e, so a git log that fails stops it instead of making a normal release
         run: |
-          pre=; case "$(git log -1 --format=%s)" in *' (pre-release)') pre=--prerelease ;; esac
+          s=$(git log -1 --format=%s)
+          pre=; case $s in *' (pre-release)') pre=--prerelease ;; esac
           gh release create "$GITHUB_REF_NAME" bin/packages/x86_64/gatygo/*.apk --title "gatygo ${GITHUB_REF_NAME#v}" --generate-notes $pre
