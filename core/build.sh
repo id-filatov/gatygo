@@ -72,7 +72,8 @@ for a in $ARCHS; do
     cp LICENSE "$OUT/README.md" "$pkg/"
     touch -t 202601010000 "$pkg"/*
     rm -f "$OUT/Xray-linux-$a.zip"
-    (cd "$pkg" && zip -q -9 -X -r "$OUT/Xray-linux-$a.zip" .)
+    # in a fixed order: the archive comes out the same on any host
+    (cd "$pkg" && ls | LC_ALL=C sort | zip -q -9 -X "$OUT/Xray-linux-$a.zip" -@)
     printf 'SHA2-256= %s\n' "$(sha256 "$OUT/Xray-linux-$a.zip")" > "$OUT/Xray-linux-$a.zip.dgst"
     echo "Xray-linux-$a.zip"
 done
