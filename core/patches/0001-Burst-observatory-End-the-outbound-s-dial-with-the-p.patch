@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: id-filatov <103366159+id-filatov@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 09:23:50 +0000
+Subject: [PATCH 1/2] Burst observatory: End the outbound's dial with the probe
+
+The probe dialed its outbound with the observatory's context, which lives as long as
+the instance: the probe timeout ended only the HTTP side, and a server that accepts the
+connection and never answers the handshake kept the outbound dialing forever, leaving
+goroutines and a socket behind on every probe.
+---
+ app/observatory/burst/ping.go               | 21 +++++++++-
+ app/observatory/burst/ping_internal_test.go | 44 +++++++++++++++++++++
+ 2 files changed, 64 insertions(+), 1 deletion(-)
+ create mode 100644 app/observatory/burst/ping_internal_test.go
+
+diff --git a/app/observatory/burst/ping.go b/app/observatory/burst/ping.go
+index 2755ec5..e7ded4b 100644
+--- a/app/observatory/burst/ping.go
++++ b/app/observatory/burst/ping.go
+@@ -39,7 +39,15 @@ func newHTTPClient(ctxv context.Context, dispatcher routing.Dispatcher, handler
+ 			if err != nil {
+ 				return nil, err
+ 			}
+-			return tagged.Dialer(ctxv, dispatcher, dest, handler)
++			// ctxv lives as long as the instance: bound the probe connection, the outbound's
++			// dial and handshake included, by the probe timeout
++			dctx, cancel := context.WithTimeout(ctxv, timeout)
++			conn, err := tagged.Dialer(dctx, dispatcher, dest, handler)
++			if err != nil {
++				cancel()
++				return nil, err
++			}
++			return &probeConn{Conn: conn, cancel: cancel}, nil
+ 		},
+ 	}
+ 	return &http.Client{
+@@ -79,3 +87,14 @@ func (s *pingClient) MeasureDelay(httpMethod string) (time.Duration, error) {
+ 
+ 	return time.Since(start), nil
+ }
++
++// probeConn cancels the probe's context once the HTTP client closes the connection.
++type probeConn struct {
++	net.Conn
++	cancel context.CancelFunc
++}
++
++func (c *probeConn) Close() error {
++	c.cancel()
++	return c.Conn.Close()
++}
+diff --git a/app/observatory/burst/ping_internal_test.go b/app/observatory/burst/ping_internal_test.go
+new file mode 100644
+index 0000000..e18b4f9
+--- /dev/null
++++ b/app/observatory/burst/ping_internal_test.go
+@@ -0,0 +1,44 @@
++package burst
++
++import (
++	"context"
++	gonet "net"
++	"net/http"
++	"testing"
++	"time"
++
++	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/features/routing"
++	"github.com/xtls/xray-core/transport/internet/tagged"
++)
++
++// A probe through an outbound whose server accepts the connection and never answers must not
++// leave the outbound dialing: the context handed to the outbound has to end with the probe.
++func TestPingContextEndsWithProbe(t *testing.T) {
++	dialed := make(chan context.Context, 1)
++	saved := tagged.Dialer
++	tagged.Dialer = func(ctx context.Context, _ routing.Dispatcher, _ net.Destination, _ string) (net.Conn, error) {
++		dialed <- ctx
++		conn, _ := gonet.Pipe() // nothing reads or writes the other end: a silent server
++		return conn, nil
++	}
++	defer func() { tagged.Dialer = saved }()
++
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	client := newPingClient(ctx, nil, "https://example.com/generate_204", 300*time.Millisecond, "proxy")
++	if _, err := client.MeasureDelay(http.MethodHead); err == nil {
++		t.Fatal("a probe through a silent server succeeded")
++	}
++
++	select {
++	case outboundCtx := <-dialed:
++		select {
++		case <-outboundCtx.Done():
++		case <-time.After(2 * time.Second):
++			t.Fatal("the outbound's context outlived the probe")
++		}
++	default:
++		t.Fatal("the probe did not dial the outbound")
++	}
++}
+-- 
+2.50.1 (Apple Git-155)
+

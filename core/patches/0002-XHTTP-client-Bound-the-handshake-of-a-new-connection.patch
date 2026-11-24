@@ -1,0 +1,156 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: id-filatov <103366159+id-filatov@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 09:23:50 +0000
+Subject: [PATCH 2/2] XHTTP client: Bound the handshake of a new connection
+
+The HTTP transport dials with a context that outlives the request, so nothing ended the
+TLS or REALITY handshake with a server that accepts the connection and never answers it:
+the dial, its goroutines and its socket stayed forever. Set a deadline on the raw
+connection for the handshake, clear it afterwards, and close the raw connection when the
+handshake fails.
+---
+ transport/internet/splithttp/dialer.go        | 40 +++++++----
+ .../splithttp/dialer_internal_test.go         | 66 +++++++++++++++++++
+ 2 files changed, 94 insertions(+), 12 deletions(-)
+ create mode 100644 transport/internet/splithttp/dialer_internal_test.go
+
+diff --git a/transport/internet/splithttp/dialer.go b/transport/internet/splithttp/dialer.go
+index b52f5a7..7104e57 100644
+--- a/transport/internet/splithttp/dialer.go
++++ b/transport/internet/splithttp/dialer.go
+@@ -98,6 +98,9 @@ func decideHTTPVersion(tlsConfig *tls.Config, realityConfig *reality.Config) str
+ 	return "2"
+ }
+ 
++// handshakeTimeout bounds the TLS or REALITY handshake of a new connection (a variable for tests).
++var handshakeTimeout = 10 * time.Second
++
+ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStreamConfig) DialerClient {
+ 	tlsConfig := tls.ConfigFromStreamSettings(streamSettings)
+ 	realityConfig := reality.ConfigFromStreamSettings(streamSettings)
+@@ -115,18 +118,7 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
+ 
+ 	transportConfig := streamSettings.ProtocolSettings.(*Config)
+ 
+-	dialContext := func(ctxInner context.Context) (net.Conn, error) {
+-		var conn net.Conn
+-		var err error
+-		if streamSettings.FinalMask != nil {
+-			conn, err = streamSettings.FinalMask.DialTCP(ctxInner, dest)
+-		} else {
+-			conn, err = internet.DialSystem(ctxInner, dest, streamSettings.SocketSettings)
+-		}
+-		if err != nil {
+-			return nil, err
+-		}
+-
++	dialHandshake := func(ctxInner context.Context, conn net.Conn) (net.Conn, error) {
+ 		if realityConfig != nil {
+ 			return reality.UClient(conn, realityConfig, ctxInner, dest)
+ 		}
+@@ -145,6 +137,30 @@ func createHTTPClient(dest net.Destination, streamSettings *internet.MemoryStrea
+ 		return conn, nil
+ 	}
+ 
++	dialContext := func(ctxInner context.Context) (net.Conn, error) {
++		var raw net.Conn
++		var err error
++		if streamSettings.FinalMask != nil {
++			raw, err = streamSettings.FinalMask.DialTCP(ctxInner, dest)
++		} else {
++			raw, err = internet.DialSystem(ctxInner, dest, streamSettings.SocketSettings)
++		}
++		if err != nil {
++			return nil, err
++		}
++		// The HTTP transport dials with a context that outlives the request (XMUX keeps the
++		// connection): without a deadline, a server that accepts TCP and never answers the
++		// handshake holds this dial, its goroutines and its socket forever.
++		raw.SetDeadline(time.Now().Add(handshakeTimeout))
++		conn, err := dialHandshake(ctxInner, raw)
++		if err != nil {
++			raw.Close()
++			return nil, err
++		}
++		raw.SetDeadline(time.Time{})
++		return conn, nil
++	}
++
+ 	var keepAlivePeriod time.Duration
+ 	if streamSettings.ProtocolSettings.(*Config).Xmux != nil {
+ 		keepAlivePeriod = time.Duration(streamSettings.ProtocolSettings.(*Config).Xmux.HKeepAlivePeriod) * time.Second
+diff --git a/transport/internet/splithttp/dialer_internal_test.go b/transport/internet/splithttp/dialer_internal_test.go
+new file mode 100644
+index 0000000..190408d
+--- /dev/null
++++ b/transport/internet/splithttp/dialer_internal_test.go
+@@ -0,0 +1,66 @@
++package splithttp
++
++import (
++	"context"
++	gonet "net"
++	"testing"
++	"time"
++
++	"github.com/xtls/xray-core/common/net"
++	"github.com/xtls/xray-core/transport/internet"
++	"github.com/xtls/xray-core/transport/internet/tls"
++)
++
++// The HTTP transport dials with a context that outlives the request: a server that accepts the
++// connection and never answers the TLS handshake must not hold the dial forever.
++func TestDialSilentServerHandshakeTimeout(t *testing.T) {
++	listener, err := gonet.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer listener.Close()
++	go func() {
++		var held []gonet.Conn // accepted and never answered
++		defer func() {
++			for _, c := range held {
++				c.Close()
++			}
++		}()
++		for {
++			c, err := listener.Accept()
++			if err != nil {
++				return
++			}
++			held = append(held, c)
++		}
++	}()
++
++	saved := handshakeTimeout
++	handshakeTimeout = 300 * time.Millisecond
++	defer func() { handshakeTimeout = saved }()
++
++	dest := net.TCPDestination(net.LocalHostIP, net.Port(listener.Addr().(*gonet.TCPAddr).Port))
++	client := createHTTPClient(dest, &internet.MemoryStreamConfig{
++		ProtocolName:     "splithttp",
++		ProtocolSettings: &Config{Path: "/"},
++		SecurityType:     "tls",
++		SecuritySettings: &tls.Config{ServerName: "example.com", Fingerprint: "chrome"},
++	}).(*DefaultDialerClient)
++
++	done := make(chan error, 1)
++	go func() {
++		conn, err := client.dialUploadConn(context.Background())
++		if err == nil {
++			conn.Close()
++		}
++		done <- err
++	}()
++	select {
++	case err := <-done:
++		if err == nil {
++			t.Fatal("the handshake with a silent server succeeded")
++		}
++	case <-time.After(5 * time.Second):
++		t.Fatal("the dial to a silent server did not end")
++	}
++}
+-- 
+2.50.1 (Apple Git-155)
+
