@@ -119,7 +119,7 @@ export GATYGO_SYSROOT="$FIXTURES/sysroot"
 assert_eq "50000" "$(gatygo_proc_uptime 4242)" "uptime = system uptime - start time"
 assert_exit 1 "unknown pid -> exit 1" gatygo_proc_uptime 1
 # the test image's xray is the pinned core (tools/pin-core.sh moves both)
-assert_eq "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$GATYGO_LIB/core.pin" | head -n 1)" "$(gatygo_xray_version)" "xray version parsed, and it is the pinned one"
+assert_eq "$(sed -n 's#.*  [a-z-]*v\([0-9][0-9.]*\)[-/].*#\1#p' "$GATYGO_LIB/core.pin" | head -n 1)" "$(gatygo_xray_version)" "xray version parsed, and it is the pinned one"
 
 # --- xray quit by itself: procd keeps the instance it gave up on; after a stop it knows nothing
 assert_exit 1 "stopped -> not crashed" gatygo_xray_crashed

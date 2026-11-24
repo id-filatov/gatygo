@@ -63,7 +63,7 @@ expect "first balancer tile applied" "🌐 Auto" 'gatygo status | jq -r .profile
 # the first start downloaded the core pinned in the package (about 20 MB from GitHub), checked and unpacked it
 check "core: the pinned xray is in gatygo's own directory" '. /usr/lib/gatygo/core.sh && gatygo_core_ready'
 expect "core: xray runs from there" "/usr/lib/gatygo/core/xray" 'readlink /proc/$(gatygo status | jq -r .pid)/exe'
-expect "core: status reports the pinned version" "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$ROOT/gatygo/files/lib/core.pin" | head -n 1)" 'gatygo status | jq -r .xray_version'
+expect "core: status reports the pinned version" "$(sed -n 's#.*  [a-z-]*v\([0-9][0-9.]*\)[-/].*#\1#p' "$ROOT/gatygo/files/lib/core.pin" | head -n 1)" 'gatygo status | jq -r .xray_version'
 expect "update result ok" "ok updated" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\""'
 # the way of asking that worked (lib/fetch.sh): the mixed name, which the mock answers with Xray JSON
 expect "the way of asking is kept: mixed" "mixed" '. /etc/gatygo/sub-way.env && echo "$GATYGO_WAY"'

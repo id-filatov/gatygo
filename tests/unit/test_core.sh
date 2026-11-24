@@ -55,7 +55,7 @@ assert_exit 1 "an architecture without a release archive" gatygo_core_asset
 
 # --- the shipped pin: one release, a SHA256 for every archive the map can ask for
 PIN="$GATYGO_LIB/core.pin"
-assert_eq "12" "$(grep -c '^[0-9a-f]\{64\}  v[0-9.]*/Xray-linux-[a-z0-9-]*\.zip$' "$PIN")" "12 archives, each with its SHA256"
+assert_eq "12" "$(grep -c '^[0-9a-f]\{64\}  \(core-\)\{0,1\}v[0-9.]*\(-[0-9]*\)\{0,1\}/Xray-linux-[a-z0-9-]*\.zip$' "$PIN")" "12 archives, each with its SHA256"
 assert_eq "1" "$(grep -v '^#' "$PIN" | sed 's#.*  \(.*\)/.*#\1#' | sort -u | wc -l | tr -d ' ')" "all of one release"
 for _a in aarch64_generic x86_64 i386_pentium4 arm_cortex-a7_neon-vfpv4 arm_cortex-a9 arm_arm1176jzf-s_vfp mipsel_24kc mips_24kc mips64el_mips64r2 mips64_octeonplus riscv64_generic loongarch64_generic; do
     _arch "$_a"
