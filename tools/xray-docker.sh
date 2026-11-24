@@ -8,4 +8,4 @@ cd "$(dirname "$0")/.."
 exec docker run --rm -i \
   -e XRAY_LOCATION_ASSET=/work/tests/fixtures/geo \
   -v "$PWD:/work" \
-  ghcr.io/xtls/xray-core:26.9.9 "$@"
+  ghcr.io/xtls/xray-core:26.11.9 "$@"

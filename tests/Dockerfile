@@ -1,7 +1,7 @@
 # Unit-test image: busybox ash + jq + the pinned xray core (tools/pin-core.sh keeps the tag
 # below in step with gatygo/files/lib/core.pin) for `xray run -test`, trimmed to what
 # OpenWrt 25.12 actually ships so the tests fail on anything the router would reject.
-FROM ghcr.io/xtls/xray-core:26.9.9 AS xray
+FROM ghcr.io/xtls/xray-core:26.11.9 AS xray
 
 # OpenWrt's `jq` package is built without oniguruma: no test/match/sub/capture/scan/splits.
 FROM alpine:3.22 AS jq
