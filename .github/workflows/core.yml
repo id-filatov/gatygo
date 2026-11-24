@@ -1,8 +1,9 @@
 name: build the xray core
 
 # gatygo's own build of xray (core/build.sh): a pull request that changes it builds the archives
-# as an artifact; a core-v* tag also releases them. That release is never "latest": routers ask
-# releases/latest for gatygo's own versions.
+# as an artifact; a core-v* tag also releases them, as a pre-release: routers ask releases/latest
+# for gatygo's own versions, and GitHub never picks a pre-release as latest (it would pick the
+# newest release when the latest one loses the mark). Routers download the archives by tag.
 on:
   pull_request:
     paths: ['core/**', '.github/workflows/core.yml']
@@ -43,5 +44,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           V=${GITHUB_REF_NAME#core-} && N=${V##*-} && V=${V%-*}
-          gh release create "$GITHUB_REF_NAME" out/*.zip out/*.dgst --latest=false \
+          gh release create "$GITHUB_REF_NAME" out/*.zip out/*.dgst --prerelease --latest=false \
             --title "xray $V + gatygo patches ($N)" --notes-file out/README.md
