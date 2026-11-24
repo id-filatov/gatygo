@@ -137,8 +137,9 @@ _mounts() { _sysroot 25.12.5 aarch64_generic; mkdir -p "$GATYGO_SYSROOT/proc"; p
 _pre_core() { _pre > "$WORK/pre.out"; echo "$(cat "$WORK/pre.out") $_gatygo_up_core"; }
 assert_eq '1 "fail" "no_space" ["36","29"]' "$(_fresh; FREE_KB=30000; _pre)" "too little flash for a new core (no mounts: 36 MB)"
 assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=24000; _mounts '/dev/ubi0_1 / ubifs rw 0 0'; _pre_core)" "ubifs: 24 MB are enough for a new core"
-assert_eq '1 "fail" "no_space" ["16","14"]' "$(_fresh; FREE_KB=15000; _mounts '/dev/ubi0_1 / ubifs rw 0 0'; _pre)" "ubifs: less than 16 MB"
-assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=17000; _mounts '/dev/mtdblock6 / jffs2 rw 0 0'; _pre_core)" "jffs2: 16 MB"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=15200; _mounts '/dev/ubi0_2 / ubifs rw 0 0'; _pre_core)" "ubifs: 14.8 MB are enough (a 32 MB overlay took the core with 14.7 MB free)"
+assert_eq '1 "fail" "no_space" ["14","12"]' "$(_fresh; FREE_KB=13000; _mounts '/dev/ubi0_1 / ubifs rw 0 0'; _pre)" "ubifs: less than 14 MB"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=14500; _mounts '/dev/mtdblock6 / jffs2 rw 0 0'; _pre_core)" "jffs2: 14 MB"
 assert_eq '1 "fail" "no_space" ["36","29"]' "$(_fresh; FREE_KB=30000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre)" "ext4: 36 MB"
 assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=37000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre_core)" "ext4: 37 MB are enough"
 assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=24000; _mounts 'tmpfs / tmpfs rw 0 0' '/dev/ubi0_1 / ubifs rw 0 0'; _pre_core)" "two mounts on one point: the last one counts"

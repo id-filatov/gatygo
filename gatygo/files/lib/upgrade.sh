@@ -234,14 +234,15 @@ gatygo_upgrade_preflight() {
     _gatygo_upin=$(GATYGO_CORE_PIN=$_gatygo_uw/core.pin; gatygo_core_pinned) || { gatygo_upgrade_fail no_core; return 1; }
     _gatygo_up_core=0
     [ "$_gatygo_upin" = "$(cat "$GATYGO_CORE_DIR/pin" 2>/dev/null)" ] || _gatygo_up_core=1
-    # flash: the packages and, for another core, room for its ~33 MB binary next to the old one;
-    # ubifs and jffs2 compress it (a 35 MB core took about 13 MB on ubifs)
+    # flash: the packages and, for another core, room for its 33-35 MB binary next to the old one;
+    # ubifs and jffs2 compress it (on a 32 MB ubifs overlay a 33 MB core went in next to the old one
+    # with 14.7 MB free); when the core does not fit after all, its step keeps the old one
     _gatygo_ud=/overlay
     [ -d "$_gatygo_ud" ] || _gatygo_ud=/
     _gatygo_uneed=2048
     if [ "$_gatygo_up_core" = 1 ]; then
         case $(gatygo_upgrade_fs_type "$_gatygo_ud") in
-            ubifs | jffs2) _gatygo_uneed=16384 ;;
+            ubifs | jffs2) _gatygo_uneed=14336 ;;
             *) _gatygo_uneed=36864 ;;
         esac
     fi
