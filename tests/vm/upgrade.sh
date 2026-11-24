@@ -6,7 +6,8 @@
 #   v2-badconfig   v2 whose config fails `xray -test`
 #   v2-badcore     v2 pinning an xray core that answers `version` and `run -test` but does not run
 # A set may also hold the core.pin it was built with (served as the tag's raw file; default:
-# gatygo/files/lib/core.pin) and core/ (served as the XTLS release, GATYGO_CORE_BASE).
+# gatygo/files/lib/core.pin) and core/ (served as the core's release, GATYGO_CORE_BASE). v1 also
+# holds oldcore.pin, a pin of another core for v1 to run on before the upgrade to v2's core.
 # LAB_HOST, LAB_DIR, FIXTURE and LUCI_PASSWORD as for tests/vm/run.sh. The lab host serves the
 # releases (GitHub's stand-in) on port 8790 and the mock panel on 8787. The VM's gatygo settings,
 # state and geo files from before the run are put back at the end; KEEP=1 leaves v1 with the mock
@@ -21,6 +22,7 @@ KEEP=${KEEP:-0}
 for s in v1 v2 v2-badconfig v2-badcore; do
     ls "$DIR/$s"/gatygo-[0-9]*.apk "$DIR/$s"/luci-app-gatygo-[0-9]*.apk >/dev/null 2>&1 || { echo "no packages in $DIR/$s" >&2; exit 1; }
 done
+[ -s "$DIR/v1/oldcore.pin" ] || { echo "no oldcore.pin in $DIR/v1" >&2; exit 1; }
 _ver() { basename "$(ls "$DIR/$1"/gatygo-[0-9]*.apk)" | sed 's/^gatygo-\(.*\)-r[0-9]*\.apk$/\1/'; }
 V1=$(_ver v1) V2=$(_ver v2)
 
@@ -80,6 +82,7 @@ scp -q "$ROOT"/tests/fixtures/geo/*.dat "$LAB_HOST:$LAB_DIR/geo/"
 for s in v1 v2 v2-badconfig v2-badcore; do
     ssh "$LAB_HOST" "rm -rf $LAB_DIR/upgrade/sets/$s; mkdir -p $LAB_DIR/upgrade/sets/$s" && scp -q "$DIR/$s"/*.apk "$LAB_HOST:$LAB_DIR/upgrade/sets/$s/"
 done
+scp -q "$DIR/v1/oldcore.pin" "$LAB_HOST:$LAB_DIR/upgrade/sets/v1/"
 serve v2
 ssh "$LAB_HOST" "cd $LAB_DIR && pkill -f sub_server.py; pkill -f 'http.server 8790'
              nohup python3 sub_server.py 8787 fixture.json geo http://10.0.2.2:8787 > mock.log 2>&1 &
@@ -125,6 +128,20 @@ expect "xray not restarted: the VPN did not blink" "$_pid" 'gatygo status | jq -
 expect "settings, country and my rules as before" "$_conf" 'sha256sum /etc/config/gatygo /etc/gatygo/profile /etc/gatygo/rules.json'
 check "the old core's link is gone" '! test -e /usr/lib/gatygo/core.prev'
 expect "the page now has nothing newer" "false" 'ubus -S call gatygo status | jq -r .upgrade.available'
+
+echo "== 2b. success: another core"
+v1
+# v1 on the other core: its pin swapped, an update downloads that core (from its real release)
+vm 'cp /tmp/up/v1/oldcore.pin /usr/lib/gatygo/core.pin && /tmp/tmo 300 gatygo update >/dev/null 2>&1
+    i=0; until [ "$(gatygo status | jq -r .running)" = true ] || [ $i -ge 60 ]; do i=$((i + 1)); sleep 1; done'
+expect "v1 on the other core" "$(grep 'Xray-linux-arm64-v8a.zip$' "$DIR/v1/oldcore.pin")" 'cat /usr/lib/gatygo/core/pin'
+upgrade
+expect "outcome ok, core replaced" "ok  false ok" "$OUTCOME"
+expect "v2 installed" "$V2" 'gatygo version'
+expect "v2's core in place" "$(grep 'Xray-linux-arm64-v8a.zip$' "$DIR/v2/core.pin")" 'cat /usr/lib/gatygo/core/pin'
+expect "running on it" "true /usr/lib/gatygo/core/xray" 'echo "$(gatygo status | jq -r .running) $(readlink /proc/$(gatygo status | jq -r .pid)/exe)"'
+expect "status reports its version" "$(sed -n 's#.*  [a-z-]*v\([0-9][0-9.]*\)[-/].*#\1#p' "$DIR/v2/core.pin" | head -n 1)" 'gatygo status | jq -r .xray_version'
+check "the old core's link is gone" '! test -e /usr/lib/gatygo/core.prev'
 
 echo "== 3. a VPN stopped by hand"
 v1
