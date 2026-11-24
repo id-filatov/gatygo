@@ -101,6 +101,7 @@ tools/build-apk.sh               # сборка обоих .apk в OpenWrt SDK
 tests/vm/run.sh [gatygo.apk]     # e2e на VM с OpenWrt
 tools/pin-core.sh v26.9.9        # закрепить другую версию xray
 tools/release.sh                 # релиз из main, пакеты собирает CI
+tools/release.sh --pre           # пре-релиз из текущей ветки
 ```
 
 ## Лицензия
