@@ -28,8 +28,9 @@ _gatygo_core_arch() {
     sed -n "s/^DISTRIB_ARCH='\(.*\)'/\1/p" "$GATYGO_SYSROOT/etc/openwrt_release" 2>/dev/null
 }
 
-# gatygo_core_asset — print "ARCHIVE BINARY" for this router's architecture: the XTLS release
-# archive and the binary to take from it. Exit 1 when XTLS builds nothing for it.
+# gatygo_core_asset — print "ARCHIVE BINARY" for this router's architecture: the release archive
+# (named as by XTLS, in gatygo's own build too) and the binary to take from it. Exit 1 when XTLS
+# builds nothing for it.
 gatygo_core_asset() {
     _gatygo_bin=xray
     case $(_gatygo_core_arch) in
@@ -58,7 +59,7 @@ gatygo_core_pinned() {
     grep "^[0-9a-f]\{64\}  [^/ ]*/${_gatygo_as% *}\$" "$GATYGO_CORE_PIN" 2>/dev/null | head -n 1 | grep .
 }
 
-# gatygo_core_version — the pinned XTLS release, e.g. v26.9.9
+# gatygo_core_version — the pinned release's tag: XTLS's (v26.9.9) or gatygo's own build (core-v26.11.9-1)
 gatygo_core_version() {
     grep -v '^#' "$GATYGO_CORE_PIN" 2>/dev/null | sed -n '1s#.*  \(.*\)/.*#\1#p'
 }

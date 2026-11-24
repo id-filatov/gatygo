@@ -66,7 +66,7 @@ wget -qO- https://raw.githubusercontent.com/id-filatov/gatygo/main/install.sh | 
 `core/patches/`, CI выкладывает её под тегом `core-v*`) и SHA256 архивов
 (`gatygo/files/lib/core.pin`).
 Роутер качает архив под свою архитектуру, сверяет хеш и только потом распаковывает и запускает.
-Ядро обновляется только вместе с gatygo.
+Ядро обновляется только вместе с gatygo. Патчи — под MPL-2.0, как и Xray-core.
 
 ## Командная строка
 
@@ -97,14 +97,14 @@ gatygo log [N]                   последние N строк лога xray �
 ## Разработка
 
 ```sh
-tests/run.sh                     # юнит-тесты в Docker (busybox ash, jq, закреплённый xray)
-tests/run.sh test_core.sh        # один файл
-tools/build-apk.sh               # сборка обоих .apk в OpenWrt SDK
-tests/vm/run.sh [gatygo.apk]     # e2e на VM с OpenWrt
-tools/pin-core.sh v26.9.9        # закрепить другую версию xray
+tests/run.sh                      # юнит-тесты в Docker (busybox ash, jq, закреплённый xray)
+tests/run.sh test_core.sh         # один файл
+tools/build-apk.sh                # сборка обоих .apk в OpenWrt SDK
+tests/vm/run.sh [gatygo.apk]      # e2e на VM с OpenWrt
+tools/pin-core.sh v26.9.9         # закрепить другую версию xray
 tools/pin-core.sh core-v26.11.9-1 # закрепить свою сборку xray
-tools/release.sh                 # релиз из main, пакеты собирает CI
-tools/release.sh --pre           # пре-релиз из текущей ветки
+tools/release.sh                  # релиз из main, пакеты собирает CI
+tools/release.sh --pre            # пре-релиз из текущей ветки
 ```
 
 ## Лицензия
