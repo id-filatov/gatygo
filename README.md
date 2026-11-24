@@ -67,7 +67,7 @@ Not the feed's `xray-core`. Each gatygo release pins an
 release plus the patches in `core/patches/`, released by CI under a `core-v*` tag), and the
 SHA256 of its archives (`gatygo/files/lib/core.pin`). The router downloads the archive for its
 architecture, checks the hash, and only then unpacks and runs it. The core is updated only with
-gatygo.
+gatygo. The patches are under the MPL-2.0, as Xray-core.
 
 ## Command line
 
@@ -98,14 +98,14 @@ Settings in `/etc/config/gatygo`, state in `/etc/gatygo`, logs via `logread -e g
 ## Development
 
 ```sh
-tests/run.sh                     # unit tests in Docker (busybox ash, jq, the pinned xray)
-tests/run.sh test_core.sh        # one file
-tools/build-apk.sh               # build both .apk with the OpenWrt SDK
-tests/vm/run.sh [gatygo.apk]     # e2e on an OpenWrt VM
-tools/pin-core.sh v26.9.9        # pin another xray version
+tests/run.sh                      # unit tests in Docker (busybox ash, jq, the pinned xray)
+tests/run.sh test_core.sh         # one file
+tools/build-apk.sh                # build both .apk with the OpenWrt SDK
+tests/vm/run.sh [gatygo.apk]      # e2e on an OpenWrt VM
+tools/pin-core.sh v26.9.9         # pin another xray version
 tools/pin-core.sh core-v26.11.9-1 # pin gatygo's own build of xray
-tools/release.sh                 # release from main; CI builds the packages
-tools/release.sh --pre           # a pre-release from the current branch
+tools/release.sh                  # release from main; CI builds the packages
+tools/release.sh --pre            # a pre-release from the current branch
 ```
 
 ## License

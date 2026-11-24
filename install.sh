@@ -299,8 +299,8 @@ if ! ADD_OUT=$(apk add --allow-untrusted "$@" "$GATYGO_APK" "$LUCI_APK" 2>&1); t
 fi
 printf '%s\n' "$ADD_OUT" | sed -n 's/^(\([0-9/]*\)) \(Installing.*\)$/  \2/p'
 
-# The xray core is not a package: every gatygo release pins one XTLS release and the SHA256 of
-# its archive per architecture. gatygo downloads it itself when it first starts; doing it here
+# The xray core is not a package: every gatygo release pins one XTLS release, or gatygo's own build
+# of one, and the SHA256 of its archive per architecture. gatygo downloads it itself when it first starts; doing it here
 # means everything it needs is in place when the subscription is entered. Its own core.sh does
 # the work, so the pin, the hash check and the list of architectures stay in one place.
 say ""

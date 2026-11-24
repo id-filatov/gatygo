@@ -143,6 +143,7 @@ assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=14500; _mounts '/dev/mtdblock6 / j
 assert_eq '1 "fail" "no_space" ["36","29"]' "$(_fresh; FREE_KB=30000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre)" "ext4: 36 MB"
 assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=37000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre_core)" "ext4: 37 MB are enough"
 assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=24000; _mounts 'tmpfs / tmpfs rw 0 0' '/dev/ubi0_1 / ubifs rw 0 0'; _pre_core)" "two mounts on one point: the last one counts"
+assert_eq '1 "fail" "no_space" ["36","23"]' "$(_fresh; FREE_KB=24000; _mounts '/dev/ubi0_1 / ubifs rw 0 0' 'tmpfs / tmpfs rw 0 0'; _pre)" "two mounts on one point, the other way round: the last one counts"
 assert_eq '0 "ok" "" [] 0' "$(_fresh; FREE_KB=3000; echo "$NEWPIN" > "$GATYGO_CORE_DIR/pin"; _pre > "$WORK/pre.out"; echo "$(cat "$WORK/pre.out") $_gatygo_up_core")" \
     "the same core: 2 MB of flash are enough"
 echo "2222222222222222222222222222222222222222222222222222222222222222  v26.9.9/Xray-linux-arm64-v8a.zip" > "$GATYGO_CORE_DIR/pin"
