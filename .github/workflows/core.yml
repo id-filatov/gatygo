@@ -1,0 +1,47 @@
+name: build the xray core
+
+# gatygo's own build of xray (core/build.sh): a pull request that changes it builds the archives
+# as an artifact; a core-v* tag also releases them. That release is never "latest": routers ask
+# releases/latest for gatygo's own versions.
+on:
+  pull_request:
+    paths: ['core/**', '.github/workflows/core.yml']
+  push:
+    tags: ['core-v*']
+
+permissions:
+  contents: write
+
+env:
+  # what a pull request builds: change it together with the patches
+  PR_TAG: core-v26.11.9-1
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # any Go will do: core/build.sh runs the one the XTLS release was built with (GOTOOLCHAIN)
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: false
+      - name: Build the archives
+        run: |
+          case $GITHUB_REF in refs/tags/core-v*) TAG=$GITHUB_REF_NAME ;; *) TAG=$PR_TAG ;; esac
+          go version
+          core/build.sh "$TAG" out
+      - name: Store the archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-core
+          path: out/
+          if-no-files-found: error
+      - name: Release them
+        if: startsWith(github.ref, 'refs/tags/core-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${GITHUB_REF_NAME#core-} && N=${V##*-} && V=${V%-*}
+          gh release create "$GITHUB_REF_NAME" out/*.zip out/*.dgst --latest=false \
+            --title "xray $V + gatygo patches ($N)" --notes-file out/README.md
