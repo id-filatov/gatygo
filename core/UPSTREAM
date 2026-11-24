@@ -1,0 +1,3 @@
+# The XTLS/Xray-core tags core/build.sh builds from, each with the commit it must be: a tag that
+# moved fails the build.
+v26.11.9 676eaf66f8f05d4d558ee7a74b4736623d3feeb9
