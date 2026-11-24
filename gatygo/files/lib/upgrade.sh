@@ -183,6 +183,12 @@ gatygo_upgrade_free_kb() {
     df -k "$1" 2>/dev/null | awk 'END { print $(NF - 2) }'
 }
 
+# gatygo_upgrade_fs_type PATH — the file system type of the mount point PATH (the last mount on it
+# counts); empty when nothing is mounted there
+gatygo_upgrade_fs_type() {
+    awk -v d="$1" '$2 == d { t = $3 } END { print t }' "$GATYGO_SYSROOT/proc/mounts" 2>/dev/null
+}
+
 # _gatygo_upgrade_kb VALUE — VALUE when it is a whole number, 0 otherwise (shell arithmetic on
 # anything else would end the run)
 _gatygo_upgrade_kb() {
@@ -228,11 +234,17 @@ gatygo_upgrade_preflight() {
     _gatygo_upin=$(GATYGO_CORE_PIN=$_gatygo_uw/core.pin; gatygo_core_pinned) || { gatygo_upgrade_fail no_core; return 1; }
     _gatygo_up_core=0
     [ "$_gatygo_upin" = "$(cat "$GATYGO_CORE_DIR/pin" 2>/dev/null)" ] || _gatygo_up_core=1
-    # flash: the packages and, for another core, room for its 35 MB binary next to the old one
-    _gatygo_uneed=2048
-    [ "$_gatygo_up_core" = 1 ] && _gatygo_uneed=40960
+    # flash: the packages and, for another core, room for its ~33 MB binary next to the old one;
+    # ubifs and jffs2 compress it (a 35 MB core took about 13 MB on ubifs)
     _gatygo_ud=/overlay
     [ -d "$_gatygo_ud" ] || _gatygo_ud=/
+    _gatygo_uneed=2048
+    if [ "$_gatygo_up_core" = 1 ]; then
+        case $(gatygo_upgrade_fs_type "$_gatygo_ud") in
+            ubifs | jffs2) _gatygo_uneed=16384 ;;
+            *) _gatygo_uneed=36864 ;;
+        esac
+    fi
     _gatygo_ufree=$(_gatygo_upgrade_kb "$(gatygo_upgrade_free_kb "$_gatygo_ud")")
     [ "$_gatygo_ufree" -ge "$_gatygo_uneed" ] \
         || { gatygo_upgrade_fail no_space $((_gatygo_uneed / 1024)) $((_gatygo_ufree / 1024)); return 1; }

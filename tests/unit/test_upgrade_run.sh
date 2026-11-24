@@ -132,7 +132,16 @@ mv "$tmp/core.pin.away" "$www/raw/v20261105.1200/gatygo/files/lib/core.pin"
 uci set gatygo.main.release_raw=http://127.0.0.1:1/raw
 assert_eq '1 "fail" "no_answer" []' "$(_fresh; _pre)" "raw files do not answer: no_answer, not a missing core"
 uci set gatygo.main.release_raw=http://127.0.0.1:8793/raw
-assert_eq '1 "fail" "no_space" ["40","29"]' "$(_fresh; FREE_KB=30000; _pre)" "too little flash for a new core"
+# _mounts LINE... — a fresh root with this /proc/mounts (the container has no /overlay: the check looks at /)
+_mounts() { _sysroot 25.12.5 aarch64_generic; mkdir -p "$GATYGO_SYSROOT/proc"; printf '%s\n' "$@" > "$GATYGO_SYSROOT/proc/mounts"; }
+_pre_core() { _pre > "$WORK/pre.out"; echo "$(cat "$WORK/pre.out") $_gatygo_up_core"; }
+assert_eq '1 "fail" "no_space" ["36","29"]' "$(_fresh; FREE_KB=30000; _pre)" "too little flash for a new core (no mounts: 36 MB)"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=24000; _mounts '/dev/ubi0_1 / ubifs rw 0 0'; _pre_core)" "ubifs: 24 MB are enough for a new core"
+assert_eq '1 "fail" "no_space" ["16","14"]' "$(_fresh; FREE_KB=15000; _mounts '/dev/ubi0_1 / ubifs rw 0 0'; _pre)" "ubifs: less than 16 MB"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=17000; _mounts '/dev/mtdblock6 / jffs2 rw 0 0'; _pre_core)" "jffs2: 16 MB"
+assert_eq '1 "fail" "no_space" ["36","29"]' "$(_fresh; FREE_KB=30000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre)" "ext4: 36 MB"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=37000; _mounts '/dev/sda2 / ext4 rw 0 0'; _pre_core)" "ext4: 37 MB are enough"
+assert_eq '0 "ok" "" [] 1' "$(_fresh; FREE_KB=24000; _mounts 'tmpfs / tmpfs rw 0 0' '/dev/ubi0_1 / ubifs rw 0 0'; _pre_core)" "two mounts on one point: the last one counts"
 assert_eq '0 "ok" "" [] 0' "$(_fresh; FREE_KB=3000; echo "$NEWPIN" > "$GATYGO_CORE_DIR/pin"; _pre > "$WORK/pre.out"; echo "$(cat "$WORK/pre.out") $_gatygo_up_core")" \
     "the same core: 2 MB of flash are enough"
 echo "2222222222222222222222222222222222222222222222222222222222222222  v26.9.9/Xray-linux-arm64-v8a.zip" > "$GATYGO_CORE_DIR/pin"
@@ -171,7 +180,7 @@ assert_eq "update,add --simulate," "$_r" "the feeds' index is fetched before the
 _r=$(_fresh; _pre >/dev/null; APK_STUB_UPDATE_RC=1 gatygo_upgrade_download "$WORK" >/dev/null 2>&1; echo "$? $(_j .steps.download)")
 assert_eq '0 "ok"' "$_r" "an index that does not come is not a refusal by itself"
 # df answering something else than a number refuses, it does not kill the run
-assert_eq '1 "fail" "no_space" ["40","0"]' "$(_fresh; FREE_KB='12%'; _pre)" "free space that is not a number"
+assert_eq '1 "fail" "no_space" ["36","0"]' "$(_fresh; FREE_KB='12%'; _pre)" "free space that is not a number"
 
 # --- nothing was installed by any of the above
 assert_exit 0 "the simulations are in the apk log" grep -q -- '^add --simulate' "$APK_STUB_LOG"
