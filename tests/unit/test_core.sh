@@ -62,6 +62,12 @@ for _a in aarch64_generic x86_64 i386_pentium4 arm_cortex-a7_neon-vfpv4 arm_cort
     assert_exit 0 "the shipped pin covers $_a" sh -c "GATYGO_CORE_PIN='$PIN'; . '$GATYGO_LIB/core.sh'; gatygo_core_pinned >/dev/null"
 done
 
+# --- where the archive is: gatygo's own build (core-*) or an XTLS release; GATYGO_CORE_BASE names one for both
+assert_eq "https://github.com/id-filatov/gatygo/releases/download" "$(unset GATYGO_CORE_BASE; gatygo_core_base core-v26.11.9-1)" "gatygo's own build: gatygo's releases"
+assert_eq "https://github.com/XTLS/Xray-core/releases/download" "$(unset GATYGO_CORE_BASE; gatygo_core_base v26.9.9)" "an XTLS release: XTLS's releases"
+assert_eq "https://github.com/id-filatov/gatygo/releases/download" "$(unset GATYGO_CORE_BASE; gatygo_core_base core-v26.11.9-1/Xray-linux-arm64-v8a.zip)" "a pin's path: by its tag"
+assert_eq "http://127.0.0.1:8792/geo" "$(gatygo_core_base core-v26.11.9-1)" "GATYGO_CORE_BASE wins"
+
 # --- first install: download, check, unpack only the binary
 _arch aarch64_generic
 _zip "$tmp/rel/Xray-linux-arm64-v8a.zip" "xray=echo 'Xray 1.0.0 (test)'"
@@ -117,6 +123,14 @@ _zip "$tmp/rel/Xray-linux-mips32le.zip" "xray=echo 'Xray hard'" "xray_softfloat=
 _pin v4.0.0 Xray-linux-mips32le.zip
 assert_eq "installed" "$(gatygo_core_ensure 2>/dev/null)" "ensure on a MIPS router"
 assert_eq "Xray soft" "$("$GATYGO_XRAY" version)" "the soft-float binary was unpacked"
+
+# --- a pin of gatygo's own build installs the same way
+_arch aarch64_generic
+_zip "$tmp/rel/Xray-linux-arm64-v8a.zip" "xray=echo 'Xray 26.11.9 (test)'"
+_pin core-v26.11.9-1 Xray-linux-arm64-v8a.zip
+assert_eq "installed" "$(gatygo_core_ensure 2>/dev/null)" "a core-* pin installs"
+assert_eq "Xray 26.11.9 (test)" "$("$GATYGO_XRAY" version)" "its binary runs"
+assert_eq "core-v26.11.9-1" "$(gatygo_core_version)" "its tag is the pinned release"
 
 # --- no archive for this router, or none pinned
 rm -rf "$GATYGO_CORE_DIR"

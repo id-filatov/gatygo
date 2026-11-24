@@ -61,9 +61,11 @@ button: run the install command above once.
 ## The xray core
 
 Not the feed's `xray-core`. Each gatygo release pins an
-[Xray-core](https://github.com/XTLS/Xray-core) version and the SHA256 of its archives
-(`gatygo/files/lib/core.pin`). The router downloads the archive for its architecture, checks
-the hash, and only then unpacks and runs it. The core is updated only with gatygo.
+[Xray-core](https://github.com/XTLS/Xray-core) release, or gatygo's own build of one (the XTLS
+release plus the patches in `core/patches/`, released by CI under a `core-v*` tag), and the
+SHA256 of its archives (`gatygo/files/lib/core.pin`). The router downloads the archive for its
+architecture, checks the hash, and only then unpacks and runs it. The core is updated only with
+gatygo.
 
 ## Command line
 
@@ -99,6 +101,7 @@ tests/run.sh test_core.sh        # one file
 tools/build-apk.sh               # build both .apk with the OpenWrt SDK
 tests/vm/run.sh [gatygo.apk]     # e2e on an OpenWrt VM
 tools/pin-core.sh v26.9.9        # pin another xray version
+tools/pin-core.sh core-v26.11.9-1 # pin gatygo's own build of xray
 tools/release.sh                 # release from main; CI builds the packages
 tools/release.sh --pre           # a pre-release from the current branch
 ```

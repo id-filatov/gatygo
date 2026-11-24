@@ -1,13 +1,28 @@
 #!/bin/sh
 # The xray core. gatygo does not use the feed's xray-core package: every gatygo release pins one
-# XTLS release (core.pin: a "SHA256  TAG/ARCHIVE" line per architecture, written by
-# tools/pin-core.sh). The router downloads the archive for its architecture and unpacks the
+# XTLS release or gatygo's own build of one (a core-* tag: the XTLS release plus core/patches,
+# built by core/build.sh). core.pin has a "SHA256  TAG/ARCHIVE" line per architecture, written
+# by tools/pin-core.sh. The router downloads the archive for its architecture and unpacks the
 # binary into gatygo's own directory. Nothing is unpacked or run before the SHA256 matched.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
 GATYGO_CORE_PIN=${GATYGO_CORE_PIN:-${GATYGO_LIB:-/usr/lib/gatygo}/core.pin}
-GATYGO_CORE_BASE=${GATYGO_CORE_BASE:-https://github.com/XTLS/Xray-core/releases/download}
+GATYGO_CORE_XTLS=https://github.com/XTLS/Xray-core/releases/download
+GATYGO_CORE_OWN=https://github.com/id-filatov/gatygo/releases/download
+
+# gatygo_core_base REF — where the archives of REF (a tag, or a pin's TAG/ARCHIVE) are: gatygo's
+# releases for its own build (core-*), XTLS's for theirs. GATYGO_CORE_BASE names one for both.
+gatygo_core_base() {
+    if [ -n "${GATYGO_CORE_BASE:-}" ]; then
+        echo "$GATYGO_CORE_BASE"
+        return 0
+    fi
+    case $1 in
+        core-*) echo "$GATYGO_CORE_OWN" ;;
+        *) echo "$GATYGO_CORE_XTLS" ;;
+    esac
+}
 
 _gatygo_core_arch() {
     sed -n "s/^DISTRIB_ARCH='\(.*\)'/\1/p" "$GATYGO_SYSROOT/etc/openwrt_release" 2>/dev/null
@@ -68,7 +83,7 @@ _gatygo_core_install() {
     _gatygo_z=$(mktemp -d)
     gatygo_log info "core: downloading xray ${_gatygo_p##* }"
     curl -fsSL --proto '=http,https' --connect-timeout 15 --max-time 600 --retry 2 --retry-delay 5 \
-        -o "$_gatygo_z/core.zip" "$GATYGO_CORE_BASE/${_gatygo_p##* }" 2>/dev/null
+        -o "$_gatygo_z/core.zip" "$(gatygo_core_base "${_gatygo_p##* }")/${_gatygo_p##* }" 2>/dev/null
     _gatygo_rc=$?
     if [ "$_gatygo_rc" -ne 0 ]; then
         gatygo_log error "core: download failed (curl exit $_gatygo_rc)"
