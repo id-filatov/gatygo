@@ -10,18 +10,21 @@ on:
   push:
     tags: ['core-v*']
 
+# the build runs upstream code and its modules: it gets no write access and keeps no token
 permissions:
-  contents: write
+  contents: read
 
 env:
   # what a pull request builds: change it together with the patches
   PR_TAG: core-v26.11.9-1
 
 jobs:
-  core:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       # any Go will do: core/build.sh runs the one the XTLS release was built with (GOTOOLCHAIN)
       - uses: actions/setup-go@v6
         with:
@@ -38,10 +41,22 @@ jobs:
           name: xray-core
           path: out/
           if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/core-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: xray-core
+          path: out
       - name: Release them
-        if: startsWith(github.ref, 'refs/tags/core-v')
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           V=${GITHUB_REF_NAME#core-} && N=${V##*-} && V=${V%-*}
           gh release create "$GITHUB_REF_NAME" out/*.zip out/*.dgst --prerelease --latest=false \
