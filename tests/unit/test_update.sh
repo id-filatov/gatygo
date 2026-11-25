@@ -15,6 +15,12 @@ _mock=$!
 for _ in $(seq 1 50); do curl -fs -o /dev/null http://127.0.0.1:8789/log && break; sleep 0.1; done
 _geo_requests() { curl -fs http://127.0.0.1:8789/log | jq '[.[] | select(.path | startswith("/geo/"))] | length'; }
 _last() { ( . "$GATYGO_STATE/last-update.env"; eval "printf '%s' \"\$$1\"" ); }
+# the subscription requests since _mark, "<path> <user agent>" joined by ";" (lib/fetch.sh's ways)
+M=http://127.0.0.1:8789 MX='Happ/3.0.0 (gatygo/dev)'
+_mark() { _m=$(curl -fs $M/log | jq length); }
+_asked() { curl -fs $M/log | jq -r --argjson m "$_m" '[.[$m:][] | select(.path | startswith("/sub")) | "\(.path) \(.headers["user-agent"])"] | join(";")'; }
+_way() { _gatygo_env_get "$GATYGO_STATE/sub-way.env" GATYGO_WAY; }
+_ino() { ls -i "$GATYGO_STATE/sub-way.env" | awk '{print $1}'; }
 # stderr goes to its own file so the leak check below covers both it and the system log
 
 # --- no URL configured (never connected, or deleted by gatygo forget): nothing to update and
@@ -26,7 +32,11 @@ assert_eq "1" "$(grep -c '\[info\] update skipped: no subscription link$' "$SYSL
 
 # --- first update from an empty state
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub
+_mark
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "first update succeeds"
+assert_eq "/sub $MX" "$(_asked)" "first update: one request, under the mixed name"
+assert_eq "mixed" "$(_way)" "the way that worked is kept"
+assert_eq "-rw-------" "$(ls -l "$GATYGO_STATE/sub-way.env" | cut -c1-10)" "sub-way.env is 0600"
 assert_eq "ok" "$(_last RESULT)" "RESULT=ok"
 assert_eq "updated" "$(_last CODE)" "CODE=updated"
 assert_eq "🌐 Auto" "$(_last PROFILE)" "first balancer profile used when profile is empty"
@@ -47,7 +57,10 @@ _sha1=$(sha256sum < "$GATYGO_STATE/xray.json")
 
 # --- second update, nothing changed: no reload, no geo traffic
 : > "$GATYGO_INIT_LOG"
+_mark; _i0=$(_ino)
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "unchanged update succeeds"
+assert_eq "/sub $MX" "$(_asked)" "the second update: one request, the saved way"
+assert_eq "$_i0" "$(_ino)" "unchanged way: the file is not rewritten"
 assert_eq "0" "$(_last RESTARTED)" "unchanged -> no restart"
 assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "init not called when nothing changed"
 assert_eq "$_sha1" "$(sha256sum < "$GATYGO_STATE/xray.json")" "xray.json untouched"
@@ -95,11 +108,6 @@ assert_eq "$_sha_de" "$(sha256sum < "$GATYGO_STATE/xray.json")" "config untouche
 uci set gatygo.main.sub_url=http://127.0.0.1:1/sub
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "unreachable -> error"
 uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub
-uci set gatygo.main.user_agent="curl/8.0"
-gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "wrong format (unknown UA) -> error"
-case $(_last MESSAGE) in *User-Agent*) _t_ok ;; *) _t_bad "message hints at the User-Agent: $(_last MESSAGE)" ;; esac
-assert_eq "not_recognised" "$(_last CODE)" "CODE=not_recognised"
-uci delete gatygo.main.user_agent
 
 # --- geo refresh when due: identical content -> no restart
 touch -d '2026-01-01 00:00:00' "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
@@ -330,6 +338,70 @@ uci set gatygo.main.sub_url=$P/sub-badmove
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "bad new-url and new-domain: the update succeeds"
 assert_eq "$P/sub-badmove" "$(uci get gatygo.main.sub_url)" "the link stays"
 assert_eq "1" "$(grep -c 'ignored new-url' "$SYSLOG_STUB_FILE")" "the log says why (new-domain is not looked at when new-url is there)"
+uci set gatygo.main.sub_url="$_sub"
+
+# --- the ways of asking for the subscription (lib/fetch.sh), against servers that give Xray JSON
+# to different requests (tests/mock/sub_server.py)
+uci set gatygo.main.sub_url=$M/sub; uci set gatygo.main.profile=""
+gatygo_update 2>>"$tmp/stderr.log"
+printf "GATYGO_WAY='v2rayn'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' http://127.0.0.1:9/x | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "/sub $MX" "$(_asked)" "another link: the saved way is not used"
+uci set gatygo.main.user_agent=Happ/3.0.0
+_mark; gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "/sub $MX" "$(_asked)" "a user_agent left in UCI is ignored"
+assert_eq "Happ/3.0.0" "$(uci get gatygo.main.user_agent)" "and stays there (an older version reads it after a rollback)"
+uci delete gatygo.main.user_agent
+
+uci set gatygo.main.sub_url=$M/sub-closed
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "/json closed, only an exact name: the update succeeds"
+assert_eq "/sub-closed $MX;/sub-closed/json $MX;/sub-closed gatygo/dev;/sub-closed Happ/3.0.0" "$(_asked)" "the ways in turn until one works"
+assert_eq "happ" "$(_way)" "and that one is kept"
+assert_eq "1" "$(grep -c '\[info\] subscription: the panel gives a Xray JSON list to the happ request$' "$SYSLOG_STUB_FILE")" "the log says which way works now"
+_mark; gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "/sub-closed Happ/3.0.0" "$(_asked)" "the next update starts with it"
+
+uci set gatygo.main.sub_url=$M/sub-own
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a server with a rule for gatygo's name"
+assert_eq "/sub-own $MX;/sub-own/json $MX;/sub-own gatygo/dev" "$(_asked)" "gatygo's own name comes third"
+assert_eq "gatygo" "$(_way)" "gatygo's own name is kept"
+
+uci set gatygo.main.sub_url=$M/sub
+printf "GATYGO_WAY='mixed-json'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' "$M/sub" | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a saved /json way"
+assert_eq "/sub/json $MX" "$(_asked)" "goes straight to /json"
+
+_xr=$(sha256sum < "$GATYGO_STATE/xray.json")
+uci set gatygo.main.sub_url=$M/sub-refuse
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "a server that refuses gatygo's name"
+assert_eq "/sub-refuse $MX;/sub-refuse/json $MX;/sub-refuse gatygo/dev" "$(_asked)" "after the refusal no other name is tried"
+assert_eq "not_recognised" "$(_last CODE)" "CODE=not_recognised"
+assert_eq "the panel answered, but none of the ways gatygo asks gave a Xray JSON list; keeping the current config" "$(_last MESSAGE)" "the message says so"
+assert_eq "$_xr" "$(sha256sum < "$GATYGO_STATE/xray.json")" "the config is untouched"
+
+uci set gatygo.main.sub_url=$M/sub-never
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "a server that never gives Xray JSON"
+assert_eq "7 /sub-never Streisand/1.6.40" "$(curl -fs $M/log | jq -r --argjson m "$_m" '[.[$m:][] | select(.path | startswith("/sub"))] | "\(length) \(.[-1].path) \(.[-1].headers["user-agent"])"')" "every way is tried once"
+assert_eq "not_recognised" "$(_last CODE)" "CODE=not_recognised"
+
+uci set gatygo.main.sub_url=$M/sub-maxdev
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "device limit"
+assert_eq "/sub-maxdev $MX|device_limit" "$(_asked)|$(_last CODE)" "the device limit stops at the first answer"
+
+uci set gatygo.main.sub_url=$M/sub-broken
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "HTTP 500 and no spares"
+# (curl itself retries a 500 on the link's first request)
+assert_eq "/sub-broken $MX|fetch_failed" "$(_asked | tr ';' '\n' | sort -u)|$(_last CODE)" "a refusal of the link is not met with other names"
+case $(_last MESSAGE) in *"HTTP 500"*) _t_ok ;; *) _t_bad "the message has the link's status: $(_last MESSAGE)" ;; esac
+
+# a link that does not answer at all: one request to it (curl retries inside), then the spare
+mkdir -p "$tmp/bin"
+printf '#!/bin/sh\nfor a; do u=$a; done\necho "$u" >> "%s/curl.urls"\nexec /usr/bin/curl "$@"\n' "$tmp" > "$tmp/bin/curl"; chmod +x "$tmp/bin/curl"
+printf "GATYGO_URLS_FOR='http://127.0.0.1:1/sub'\nGATYGO_URLS_FALLBACK='$M/sub'\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED=''\n" > "$GATYGO_STATE/sub-urls.env"
+uci set gatygo.main.sub_url=http://127.0.0.1:1/sub; : > "$tmp/curl.urls"
+_mark; PATH="$tmp/bin:$PATH" gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a dead link with a spare"
+assert_eq "1" "$(grep -c '^http://127.0.0.1:1/' "$tmp/curl.urls")" "dead link: one request to it, then the spare"
+assert_eq "/sub $MX" "$(_asked)" "the spare is asked with the first way"
 uci set gatygo.main.sub_url="$_sub"
 
 assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -cE '127\.0\.0\.1|localhost')" "system log and stderr never contain the subscription host"

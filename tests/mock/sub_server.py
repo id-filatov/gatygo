@@ -3,9 +3,9 @@
 
 Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
 
-  GET /sub          fixture body + the subscription headers when User-Agent starts with "gatygo/"
-                    and x-hwid is present; otherwise a text/plain base64 link list (what the
-                    real panel returns to unknown clients)
+  GET /sub          fixture body + the subscription headers when User-Agent starts with "Happ/"
+                    or the path ends in /json, and x-hwid is present; otherwise a text/plain
+                    base64 link list (what a real server returns to a name it does not know)
   GET /sub-maxdev   same, plus "x-hwid-max-devices-reached: true"
   GET /sub-norouting  same, without the routing header (no geo file URLs)
   GET /sub-nohwid   same as /sub but the x-hwid header is not required
@@ -14,6 +14,11 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
       /sub-fallback, /sub-msgs
                     same as /sub plus the headers in VARIANTS (a header named there replaces the
                     /sub one): the provider moving the subscription, a spare address, its messages
+  GET /sub-closed   no /json (403); the subscription only to "Happ/3.0.0" exactly, base64 to the rest
+  GET /sub-own      no /json (403); the subscription only to a User-Agent starting with "gatygo/"
+  GET /sub-refuse   no /json (403); 403 to "gatygo/...", base64 to the rest
+  GET /sub-never    no /json (403); base64 to everyone
+  GET <any of the above>/json  that path asked for Xray JSON
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
   GET /log          JSON list of received requests [{"path":..., "headers":{...}}]
@@ -58,6 +63,22 @@ VARIANTS = {
     ],
 }
 
+SUBS = ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid", "/sub-closed", "/sub-own", "/sub-refuse", "/sub-never")
+
+def answer(path, ua, json_path):
+    """True: the subscription; False: the base64 list; a number: that HTTP status"""
+    if path in ("/sub-closed", "/sub-own", "/sub-refuse", "/sub-never") and json_path:
+        return 403
+    if path == "/sub-closed":
+        return ua == "Happ/3.0.0"
+    if path == "/sub-own":
+        return ua.startswith("gatygo/")
+    if path == "/sub-refuse":
+        return 403 if ua.startswith("gatygo/") else False
+    if path == "/sub-never":
+        return False
+    return json_path or ua.startswith("Happ/")
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):  # keep test output quiet
         pass
@@ -73,8 +94,16 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         LOG.append({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}})
         ua = self.headers.get("User-Agent", "")
-        if self.path in ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid") or self.path in VARIANTS:
-            if not ua.startswith("gatygo/") or (self.path != "/sub-nohwid" and not self.headers.get("x-hwid")):
+        path = self.path.split("?", 1)[0]
+        json_path = path.endswith("/json")
+        if json_path:
+            path = path[:-len("/json")]
+        if path in SUBS or path in VARIANTS:
+            a = answer(path, ua, json_path)
+            if a is not True and a is not False:
+                self._send(a, b"refused", [("Content-Type", "text/plain")])
+                return
+            if not a or (path != "/sub-nohwid" and not self.headers.get("x-hwid")):
                 self._send(200, base64.b64encode(b"vless://00000000-0000-4000-8000-000000000000@relay-1.example.com:443#tile\n"),
                            [("Content-Type", "text/plain; charset=utf-8")])
                 return
@@ -84,17 +113,17 @@ class H(BaseHTTPRequestHandler):
                     ("subscription-userinfo", "upload=1024; download=123456789; total=0; expire=1767225600"),
                     ("announce", b64("Planned maintenance — use code 'GO' ✓")),
                     ("manual-block-user-agent", "true")]
-            if self.path != "/sub-norouting":
+            if path != "/sub-norouting":
                 hdrs.append(("routing", ROUTING))
-            if self.path == "/sub-maxdev":
+            if path == "/sub-maxdev":
                 hdrs.append(("x-hwid-max-devices-reached", "true"))
-            extra = VARIANTS.get(self.path, [])
+            extra = VARIANTS.get(path, [])
             names = {k.lower() for k, _ in extra}
             hdrs = [h for h in hdrs if h[0].lower() not in names] + extra
             self._send(200, BODY, hdrs)
-        elif self.path == "/sub-broken":
+        elif path == "/sub-broken":
             self._send(500, b"boom", [("Content-Type", "text/plain")])
-        elif self.path == "/redirect":
+        elif path == "/redirect":
             self._send(302, b"", [("Location", "/sub")])
         elif self.path.startswith("/geo/"):
             p = os.path.join(GEO_DIR, os.path.basename(self.path))

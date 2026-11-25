@@ -134,6 +134,54 @@ _gatygo_reload() {
     "$GATYGO_INIT" start >/dev/null 2>&1
 }
 
+# _gatygo_sub_download SAVED_WAY HWID DIR — download the subscription into DIR/body, DIR/hdr and
+# DIR/headers.env. The addresses: the link, then the spares kept for it (lib/suburl.sh). On each,
+# the ways of asking (lib/fetch.sh), SAVED_WAY first. An answer is one of:
+#   none (curl failed)                 the address is down: the next address
+#   not 200, to mixed-json             the server has no /json: the next way
+#   not 200, to another way            the address refused: the next address, unless it already
+#                                      answered 200 (a refusal of a name: no other name is tried)
+#   200, the device limit reached      stop
+#   200, a Xray JSON list              done
+#   200, anything else                 the next way
+# An address that answered 200 is the last one tried. Only the link's first request retries: the
+# page stays locked while an update runs. Sets _gatygo_used (the address), _gatygo_got (the way)
+# and _gatygo_code (the link's first status). exit 0 done, 1 no address answered 200, 2 the
+# device limit, 3 an address answered, but no way gave a Xray JSON list.
+_gatygo_sub_download() {
+    _gatygo_code='' _gatygo_used='' _gatygo_got='' _gatygo_tries=3 _gatygo_first=1
+    _gatygo_addrs=$(printf 'link %s\n' "$GATYGO_SUB_URL"; gatygo_suburl_spares "$GATYGO_SUB_URL")
+    while read -r _gatygo_kind _gatygo_addr; do
+        [ -n "$_gatygo_addr" ] || continue
+        _gatygo_answered=0
+        for _gatygo_k in $(gatygo_way_list "$1"); do
+            _gatygo_c=$(gatygo_fetch "$(gatygo_way_url "$_gatygo_k" "$_gatygo_addr")" "$(gatygo_way_ua "$_gatygo_k")" \
+                "$2" "$3/body" "$3/hdr" "$_gatygo_tries")
+            _gatygo_rc=$?
+            _gatygo_tries=0
+            [ "$_gatygo_first" = 0 ] || { _gatygo_code=$_gatygo_c; _gatygo_first=0; }
+            [ "$_gatygo_rc" -ne 2 ] || break
+            if [ "$_gatygo_rc" -ne 0 ]; then
+                [ "$_gatygo_k" != mixed-json ] || continue
+                [ "$_gatygo_answered" = 0 ] || return 3
+                break
+            fi
+            _gatygo_answered=1
+            gatygo_parse_headers "$3/hdr" > "$3/headers.env"
+            [ "$(_gatygo_env_get "$3/headers.env" GATYGO_HWID_MAX_DEVICES)" != 1 ] || return 2
+            if gatygo_sub_validate "$3/body" 2>/dev/null; then
+                _gatygo_used=$_gatygo_addr _gatygo_got=$_gatygo_k
+                [ "$_gatygo_kind" = link ] || gatygo_log info "subscription downloaded from the $_gatygo_kind address"
+                return 0
+            fi
+        done
+        [ "$_gatygo_answered" = 0 ] || return 3
+    done <<EOF
+$_gatygo_addrs
+EOF
+    return 1
+}
+
 # gatygo_update — exit 0 on ok/warning, 1 on error (the current config is never touched then)
 gatygo_update() {
     gatygo_load_config
@@ -152,38 +200,24 @@ gatygo_update() {
     _gatygo_w=$(mktemp -d)
     mkdir -p "$_gatygo_w/geo"
 
-    # 1. fetch: the link, then the spare addresses kept for it (lib/suburl.sh), one try each:
-    # the page stays locked while an update runs. The outcome recorded on failure is the link's own.
-    _gatygo_used=$GATYGO_SUB_URL
-    _gatygo_code=$(gatygo_fetch "$GATYGO_SUB_URL" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr")
-    if [ $? -ne 0 ]; then
-        _gatygo_used=''
-        _gatygo_spares=$(gatygo_suburl_spares "$GATYGO_SUB_URL")
-        while read -r _gatygo_kind _gatygo_spare; do
-            [ -n "$_gatygo_spare" ] || continue
-            if gatygo_fetch "$_gatygo_spare" "$GATYGO_USER_AGENT" "$_gatygo_hwid" "$_gatygo_w/body" "$_gatygo_w/hdr" 0 >/dev/null; then
-                _gatygo_used=$_gatygo_spare
-                gatygo_log info "subscription downloaded from the $_gatygo_kind address"
-                break
-            fi
-        done <<EOF
-$_gatygo_spares
-EOF
-        if [ -z "$_gatygo_used" ]; then
+    # 1–2. fetch and validate: the link, then its spare addresses, each asked in the ways of
+    # lib/fetch.sh, the one that worked last time first
+    _gatygo_way=$(gatygo_way_saved "$GATYGO_SUB_URL")
+    _gatygo_sub_download "$_gatygo_way" "$_gatygo_hwid" "$_gatygo_w"
+    case $? in
+        1)
             gatygo_result error fetch_failed "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
-            rm -rf "$_gatygo_w"; return 1
-        fi
-    fi
-    # 2. validate
-    gatygo_parse_headers "$_gatygo_w/hdr" > "$_gatygo_w/headers.env"
-    if [ "$(_gatygo_env_get "$_gatygo_w/headers.env" GATYGO_HWID_MAX_DEVICES)" = 1 ]; then
-        gatygo_result error device_limit "panel reports the device limit reached for this subscription; keeping the current config"
-        rm -rf "$_gatygo_w"; return 1
-    fi
-    if ! gatygo_sub_validate "$_gatygo_w/body" 2>/dev/null; then
-        gatygo_result error not_recognised "panel did not recognise the client (check the User-Agent and the subscription request rules); keeping the current config"
-        rm -rf "$_gatygo_w"; return 1
-    fi
+            rm -rf "$_gatygo_w"; return 1 ;;
+        2)
+            gatygo_result error device_limit "panel reports the device limit reached for this subscription; keeping the current config"
+            rm -rf "$_gatygo_w"; return 1 ;;
+        3)
+            gatygo_result error not_recognised "the panel answered, but none of the ways gatygo asks gave a Xray JSON list; keeping the current config"
+            rm -rf "$_gatygo_w"; return 1 ;;
+    esac
+    [ "$_gatygo_got" = "$_gatygo_way" ] \
+        || gatygo_log info "subscription: the panel gives a Xray JSON list to the $_gatygo_got request"
+    gatygo_way_save "$_gatygo_got" "$GATYGO_SUB_URL"
     _gatygo_sub_changed=1
     [ -f "$GATYGO_STATE/subscription.json" ] \
         && [ "$(sha256sum < "$_gatygo_w/body")" = "$(sha256sum < "$GATYGO_STATE/subscription.json")" ] && _gatygo_sub_changed=0
