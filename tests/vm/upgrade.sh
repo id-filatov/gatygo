@@ -97,7 +97,13 @@ echo "== 1. v1 on the mock subscription"
 # what the lab had, put back at the end (in RAM: flash is what the checks measure)
 vm 'mkdir -p /tmp/up-pre; [ -e /tmp/up-pre/config ] || { cp /etc/config/gatygo /tmp/up-pre/config; cp -a /etc/gatygo /tmp/up-pre/state
         mkdir -p /tmp/up-pre/geo; cp -p /usr/share/xray/geosite.dat /usr/share/xray/geoip.dat /tmp/up-pre/geo/ 2>/dev/null; }; true'
-vm '/etc/init.d/gatygo stop >/dev/null 2>&1; apk add --allow-untrusted /tmp/up/v1/*.apk >/dev/null 2>&1; rm -rf /etc/gatygo/* /var/run/gatygo/upgrade*
+# dnsmasq as the lab has it with its own gatygo stopped: the same at the end
+vm '/etc/init.d/gatygo stop >/dev/null 2>&1
+    [ -e /tmp/up-pre/dhcp ] || { uci -q get dhcp.@dnsmasq[0].server; uci -q get dhcp.@dnsmasq[0].noresolv; } > /tmp/up-pre/dhcp
+    # installing a package starts its service: not on the settings the lab had, or gatygo takes
+    # dnsmasq over and the line below wipes its backup
+    [ ! -f /etc/config/gatygo ] || { uci -q set gatygo.main.enabled=0; uci commit gatygo; }
+    apk add --allow-untrusted /tmp/up/v1/*.apk >/dev/null 2>&1; rm -rf /etc/gatygo/* /var/run/gatygo/upgrade*
     cp /usr/lib/gatygo/defaults.config /etc/config/gatygo
     uci set gatygo.main.enabled=1; uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub
     uci set gatygo.main.release_api=http://10.0.2.2:8790/releases; uci set gatygo.main.release_raw=http://10.0.2.2:8790/raw
@@ -206,9 +212,10 @@ if [ "$KEEP" = 1 ]; then
     echo "== KEEP=1: v1 on the mock subscription, the release server on the lab host (port 8790) and release_* stay"
 else
     vm '/etc/init.d/gatygo stop >/dev/null 2>&1; rm -rf /etc/gatygo/* /var/run/gatygo/upgrade* /tmp/up /tmp/tmo /tmp/ck
-        cp /tmp/up-pre/config /etc/config/gatygo; cp -a /tmp/up-pre/state/. /etc/gatygo/; cp -p /tmp/up-pre/geo/* /usr/share/xray/ 2>/dev/null
-        rm -rf /tmp/up-pre; true'
+        cp /tmp/up-pre/config /etc/config/gatygo; cp -a /tmp/up-pre/state/. /etc/gatygo/; cp -p /tmp/up-pre/geo/* /usr/share/xray/ 2>/dev/null; true'
     check "the lab's own settings are back" '! uci -q get gatygo.main.release_api && test "$(uci -q get gatygo.main.sub_url)" != http://10.0.2.2:8787/sub'
+    check "dnsmasq is as the lab had it" '{ uci -q get dhcp.@dnsmasq[0].server; uci -q get dhcp.@dnsmasq[0].noresolv; } > /tmp/up-dhcp; cmp -s /tmp/up-dhcp /tmp/up-pre/dhcp'
+    vm 'rm -rf /tmp/up-pre /tmp/up-dhcp; true'
     ssh "$LAB_HOST" "pkill -f sub_server.py; pkill -f 'http.server 8790'; rm -rf $LAB_DIR/upgrade; true"
 fi
 echo "== $pass passed, $fail failed"
