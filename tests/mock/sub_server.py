@@ -18,6 +18,9 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
   GET /sub-own      no /json (403); the subscription only to a User-Agent starting with "gatygo/"
   GET /sub-refuse   no /json (403); 403 to "gatygo/...", base64 to the rest
   GET /sub-never    no /json (403); base64 to everyone
+  GET /sub-picky    403 to "v2rayN/...", the rest like /sub
+  GET /sub-jsondrop /json drops the connection; the subscription only to "Happ/3.0.0" exactly
+  GET /sub-gone     /json 404, the link itself 403
   GET <any of the above>/json  that path asked for Xray JSON
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
@@ -63,10 +66,17 @@ VARIANTS = {
     ],
 }
 
-SUBS = ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid", "/sub-closed", "/sub-own", "/sub-refuse", "/sub-never")
+SUBS = ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid", "/sub-closed", "/sub-own", "/sub-refuse", "/sub-never",
+        "/sub-picky", "/sub-jsondrop", "/sub-gone")
 
 def answer(path, ua, json_path):
-    """True: the subscription; False: the base64 list; a number: that HTTP status"""
+    """True: the subscription; False: the base64 list; a number: that HTTP status; "drop": no answer"""
+    if path == "/sub-picky" and ua.startswith("v2rayN/"):
+        return 403
+    if path == "/sub-jsondrop":
+        return "drop" if json_path else ua == "Happ/3.0.0"
+    if path == "/sub-gone":
+        return 404 if json_path else 403
     if path in ("/sub-closed", "/sub-own", "/sub-refuse", "/sub-never") and json_path:
         return 403
     if path == "/sub-closed":
@@ -100,6 +110,9 @@ class H(BaseHTTPRequestHandler):
             path = path[:-len("/json")]
         if path in SUBS or path in VARIANTS:
             a = answer(path, ua, json_path)
+            if a == "drop":
+                self.close_connection = True
+                return
             if a is not True and a is not False:
                 self._send(a, b"refused", [("Content-Type", "text/plain")])
                 return

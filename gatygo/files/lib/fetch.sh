@@ -1,15 +1,16 @@
 #!/bin/sh
 # Download the subscription: mandatory headers (x-hwid only when a hwid is given), TLS verified,
 # no redirects, 3 retries (RETRIES when given). A server that does not answer the connection is
-# given up on in 10 s a try: the countries on the page stay locked while an update runs.
-#   gatygo_fetch URL UA HWID BODY_OUT HDR_OUT [RETRIES]   -> prints HTTP status; exit 0 iff 200, 1 other status, 2 curl error
+# given up on in 10 s a try: the countries on the page stay locked while an update runs. LEVEL
+# (error when not given) is the log level of a failure: a probe that may fail says info.
+#   gatygo_fetch URL UA HWID BODY_OUT HDR_OUT [RETRIES] [LEVEL]   -> prints HTTP status; exit 0 iff 200, 1 other status, 2 curl error
 # curl's stderr carries the host name, so it is discarded; only the exit code and status are logged.
 # Below: the ways of asking for it (which User-Agent, which address) and the one that worked.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
 gatygo_fetch() {
-    _gatygo_url=$1 _gatygo_ua=$2 _gatygo_hwid=$3 _gatygo_body=$4 _gatygo_hdr=$5 _gatygo_retries=${6:-3}
+    _gatygo_url=$1 _gatygo_ua=$2 _gatygo_hwid=$3 _gatygo_body=$4 _gatygo_hdr=$5 _gatygo_retries=${6:-3} _gatygo_lvl=${7:-error}
     set --
     [ -z "$_gatygo_hwid" ] || set -- -H "x-hwid: $_gatygo_hwid"
     _gatygo_code=$(curl -sS --connect-timeout 10 --max-time 30 --retry "$_gatygo_retries" --retry-delay 5 --retry-connrefused \
@@ -23,12 +24,12 @@ gatygo_fetch() {
         -D "$_gatygo_hdr" -o "$_gatygo_body" -w '%{http_code}' "$_gatygo_url" 2>/dev/null)
     _gatygo_rc=$?
     if [ "$_gatygo_rc" -ne 0 ]; then
-        gatygo_log error "fetch: curl failed (exit $_gatygo_rc)"
+        gatygo_log "$_gatygo_lvl" "fetch: curl failed (exit $_gatygo_rc)"
         return 2
     fi
     printf '%s\n' "$_gatygo_code"
     if [ "$_gatygo_code" != 200 ]; then
-        gatygo_log error "fetch: HTTP $_gatygo_code"
+        gatygo_log "$_gatygo_lvl" "fetch: HTTP $_gatygo_code"
         return 1
     fi
 }

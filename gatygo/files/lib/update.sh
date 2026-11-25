@@ -137,7 +137,8 @@ _gatygo_reload() {
 # _gatygo_sub_download SAVED_WAY HWID DIR — download the subscription into DIR/body, DIR/hdr and
 # DIR/headers.env. The addresses: the link, then the spares kept for it (lib/suburl.sh). On each,
 # the ways of asking (lib/fetch.sh), SAVED_WAY first. An answer is one of:
-#   none (curl failed)                 the address is down: the next address
+#   none (curl failed)                 the address is down: the next address; to mixed-json after
+#                                      the address answered 200, only its /json is: the next way
 #   not 200, to mixed-json             the server has no /json: the next way
 #   not 200, to another way            the address refused: the next address, unless it already
 #                                      answered 200 (a refusal of a name: no other name is tried)
@@ -145,22 +146,36 @@ _gatygo_reload() {
 #   200, a Xray JSON list              done
 #   200, anything else                 the next way
 # An address that answered 200 is the last one tried. Only the link's first request retries: the
-# page stays locked while an update runs. Sets _gatygo_used (the address), _gatygo_got (the way)
-# and _gatygo_code (the link's first status). exit 0 done, 1 no address answered 200, 2 the
-# device limit, 3 an address answered, but no way gave a Xray JSON list.
+# page stays locked while an update runs. Sets _gatygo_used (the address), _gatygo_got (the way),
+# _gatygo_code (the status of the link's first request without /json) and _gatygo_refused (1 when
+# SAVED_WAY was refused, or its /json did not answer: the next update starts over). exit 0 done,
+# 1 no address answered 200, 2 the device limit, 3 an address answered, but no way gave a Xray
+# JSON list.
 _gatygo_sub_download() {
-    _gatygo_code='' _gatygo_used='' _gatygo_got='' _gatygo_tries=3 _gatygo_first=1
+    _gatygo_code='' _gatygo_coded=0 _gatygo_used='' _gatygo_got='' _gatygo_refused=0 _gatygo_tries=3
     _gatygo_addrs=$(printf 'link %s\n' "$GATYGO_SUB_URL"; gatygo_suburl_spares "$GATYGO_SUB_URL")
     while read -r _gatygo_kind _gatygo_addr; do
         [ -n "$_gatygo_addr" ] || continue
         _gatygo_answered=0
         for _gatygo_k in $(gatygo_way_list "$1"); do
+            # a /json the server does not have is no error
+            _gatygo_lvl=error
+            [ "$_gatygo_k" != mixed-json ] || _gatygo_lvl=info
             _gatygo_c=$(gatygo_fetch "$(gatygo_way_url "$_gatygo_k" "$_gatygo_addr")" "$(gatygo_way_ua "$_gatygo_k")" \
-                "$2" "$3/body" "$3/hdr" "$_gatygo_tries")
+                "$2" "$3/body" "$3/hdr" "$_gatygo_tries" "$_gatygo_lvl")
             _gatygo_rc=$?
             _gatygo_tries=0
-            [ "$_gatygo_first" = 0 ] || { _gatygo_code=$_gatygo_c; _gatygo_first=0; }
-            [ "$_gatygo_rc" -ne 2 ] || break
+            if [ "$_gatygo_kind" = link ] && [ "$_gatygo_k" != mixed-json ] && [ "$_gatygo_coded" = 0 ]; then
+                _gatygo_code=$_gatygo_c _gatygo_coded=1
+            fi
+            if [ "$_gatygo_k" = "$1" ] && { [ "$_gatygo_rc" -eq 1 ] || [ "$_gatygo_k" = mixed-json ]; } \
+                && [ "$_gatygo_rc" -ne 0 ]; then
+                _gatygo_refused=1
+            fi
+            if [ "$_gatygo_rc" -eq 2 ]; then
+                [ "$_gatygo_k" = mixed-json ] && [ "$_gatygo_answered" = 1 ] && continue
+                break
+            fi
             if [ "$_gatygo_rc" -ne 0 ]; then
                 [ "$_gatygo_k" != mixed-json ] || continue
                 [ "$_gatygo_answered" = 0 ] || return 3
@@ -204,7 +219,13 @@ gatygo_update() {
     # lib/fetch.sh, the one that worked last time first
     _gatygo_way=$(gatygo_way_saved "$GATYGO_SUB_URL")
     _gatygo_sub_download "$_gatygo_way" "$_gatygo_hwid" "$_gatygo_w"
-    case $? in
+    _gatygo_dl=$?
+    # a saved way that failed is not kept: with no settings to change, it would stay stuck
+    if [ "$_gatygo_dl" != 0 ] && [ "$_gatygo_refused" = 1 ]; then
+        rm -f "$GATYGO_STATE/sub-way.env"
+        gatygo_log info "subscription: the $_gatygo_way request failed; the next update tries every way again"
+    fi
+    case $_gatygo_dl in
         1)
             gatygo_result error fetch_failed "subscription download failed (HTTP ${_gatygo_code:-none}); keeping the current config"
             rm -rf "$_gatygo_w"; return 1 ;;

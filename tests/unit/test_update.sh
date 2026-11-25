@@ -354,12 +354,15 @@ assert_eq "Happ/3.0.0" "$(uci get gatygo.main.user_agent)" "and stays there (an 
 uci delete gatygo.main.user_agent
 
 uci set gatygo.main.sub_url=$M/sub-closed
+_e0=$(grep -c '\[error\] fetch: HTTP 403' "$SYSLOG_STUB_FILE")
 _mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "/json closed, only an exact name: the update succeeds"
+assert_eq "$_e0" "$(grep -c '\[error\] fetch: HTTP 403' "$SYSLOG_STUB_FILE")" "a closed /json is not logged as an error"
 assert_eq "/sub-closed $MX;/sub-closed/json $MX;/sub-closed gatygo/dev;/sub-closed Happ/3.0.0" "$(_asked)" "the ways in turn until one works"
 assert_eq "happ" "$(_way)" "and that one is kept"
 assert_eq "1" "$(grep -c '\[info\] subscription: the panel gives a Xray JSON list to the happ request$' "$SYSLOG_STUB_FILE")" "the log says which way works now"
 _mark; gatygo_update 2>>"$tmp/stderr.log"
 assert_eq "/sub-closed Happ/3.0.0" "$(_asked)" "the next update starts with it"
+assert_eq "1" "$(grep -c '\[info\] subscription: the panel gives a Xray JSON list to the happ request$' "$SYSLOG_STUB_FILE")" "the same way again: no second log line"
 
 uci set gatygo.main.sub_url=$M/sub-own
 _mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a server with a rule for gatygo's name"
@@ -394,6 +397,33 @@ _mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "HTTP 500 and no s
 assert_eq "/sub-broken $MX|fetch_failed" "$(_asked | tr ';' '\n' | sort -u)|$(_last CODE)" "a refusal of the link is not met with other names"
 case $(_last MESSAGE) in *"HTTP 500"*) _t_ok ;; *) _t_bad "the message has the link's status: $(_last MESSAGE)" ;; esac
 
+# a saved way that gets a refusal is forgotten: no other name in this update, the next one starts over
+uci set gatygo.main.sub_url=$M/sub-picky
+printf "GATYGO_WAY='v2rayn'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' "$M/sub-picky" | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "the saved name refused"
+assert_eq "/sub-picky v2rayN/7.13.2" "$(_asked)" "no other name in this update"
+assert_exit 1 "the refused way is forgotten" test -e "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the next update"
+assert_eq "/sub-picky $MX|mixed" "$(_asked)|$(_way)" "starts over with the first way"
+
+# a /json that drops the connection is passed over like a closed one
+uci set gatygo.main.sub_url=$M/sub-jsondrop; rm -f "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "/json without an answer"
+assert_eq "/sub-jsondrop $MX;/sub-jsondrop/json $MX;/sub-jsondrop gatygo/dev;/sub-jsondrop Happ/3.0.0" "$(_asked)" "the other names are still tried"
+
+# the status in fetch_failed is the link's own, not that of a /json that is not there
+uci set gatygo.main.sub_url=$M/sub-gone
+printf "GATYGO_WAY='mixed-json'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' "$M/sub-gone" | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "/json 404, the link 403"
+assert_eq "/sub-gone/json $MX;/sub-gone $MX|fetch_failed" "$(_asked)|$(_last CODE)" "fetch_failed after /json and the link"
+case $(_last MESSAGE) in *"HTTP 403"*) _t_ok ;; *) _t_bad "the link's status in the message: $(_last MESSAGE)" ;; esac
+
+# a saved way that answers, but not with Xray JSON: the rest follow, without it
+uci set gatygo.main.sub_url=$M/sub
+printf "GATYGO_WAY='gatygo'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' "$M/sub" | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+_mark; gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a saved way that no longer gives Xray JSON"
+assert_eq "/sub gatygo/dev;/sub $MX|mixed" "$(_asked)|$(_way)" "the others follow, the saved one is not asked twice"
+
 # a link that does not answer at all: one request to it (curl retries inside), then the spare
 mkdir -p "$tmp/bin"
 printf '#!/bin/sh\nfor a; do u=$a; done\necho "$u" >> "%s/curl.urls"\nexec /usr/bin/curl "$@"\n' "$tmp" > "$tmp/bin/curl"; chmod +x "$tmp/bin/curl"
@@ -402,6 +432,12 @@ uci set gatygo.main.sub_url=http://127.0.0.1:1/sub; : > "$tmp/curl.urls"
 _mark; PATH="$tmp/bin:$PATH" gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a dead link with a spare"
 assert_eq "1" "$(grep -c '^http://127.0.0.1:1/' "$tmp/curl.urls")" "dead link: one request to it, then the spare"
 assert_eq "/sub $MX" "$(_asked)" "the spare is asked with the first way"
+printf "GATYGO_WAY='mixed-json'\nGATYGO_WAY_FOR='%s'\n" "$(printf '%s' http://127.0.0.1:1/sub | sha256sum | cut -d' ' -f1)" > "$GATYGO_STATE/sub-way.env"
+# (the good answer above kept its own fallback-url, none: the spare is written again)
+printf "GATYGO_URLS_FOR='http://127.0.0.1:1/sub'\nGATYGO_URLS_FALLBACK='$M/sub'\nGATYGO_URLS_PREVIOUS=''\nGATYGO_URLS_MOVED=''\n" > "$GATYGO_STATE/sub-urls.env"
+: > "$tmp/curl.urls"
+_mark; PATH="$tmp/bin:$PATH" gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a dead link, /json saved, a spare"
+assert_eq "1|/sub/json $MX" "$(grep -c '^http://127.0.0.1:1/' "$tmp/curl.urls")|$(_asked)" "one request to the dead link, the spare's /json first"
 uci set gatygo.main.sub_url="$_sub"
 
 assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -cE '127\.0\.0\.1|localhost')" "system log and stderr never contain the subscription host"
