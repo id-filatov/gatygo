@@ -5,9 +5,10 @@ export GATYGO_SYSROOT="$FIXTURES/sysroot"
 
 # defaults with an empty UCI
 : > "$UCI_STUB_FILE"
+unset GATYGO_USER_AGENT
 gatygo_load_config
 assert_eq "0" "$GATYGO_ENABLED" "enabled defaults to 0"
-assert_eq "gatygo/dev" "$GATYGO_USER_AGENT" "UA defaults to gatygo/<version> (dev without version file)"
+assert_eq "" "${GATYGO_USER_AGENT:-}" "no user agent setting: gatygo picks how to ask (lib/fetch.sh)"
 assert_eq "12345" "$GATYGO_TPROXY_PORT" "tproxy port default"
 assert_eq "5353" "$GATYGO_DNS_PORT" "dns port default"
 assert_eq "10808" "$GATYGO_CHECK_PORT" "check port default"
@@ -24,7 +25,7 @@ uci set gatygo.main.mark=0x10
 uci set gatygo.main.lan_ifaces="br-lan eth2"
 uci set network.lan.device=br-guest
 gatygo_load_config
-assert_eq "MyRouter/9" "$GATYGO_USER_AGENT" "UA from UCI"
+assert_eq "" "${GATYGO_USER_AGENT:-}" "a user_agent left in UCI is not read"
 assert_eq "16" "$GATYGO_MARK_DEC" "mark 0x10 -> 16"
 assert_eq "br-lan eth2" "$GATYGO_LAN_IFACES" "explicit lan_ifaces wins"
 uci delete gatygo.main.lan_ifaces

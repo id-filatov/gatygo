@@ -580,7 +580,7 @@ return view.extend({
 			break;
 		case 'not_recognised':
 			p.title = _('Your provider’s server did not recognise this router');
-			p.text = _('It answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings.') + kept;
+			p.text = _('It answered, but not with a list of countries. Ask your provider whether routers are supported.') + kept;
 			p.action = { label: _('Open settings'), href: L.url('admin/services/gatygo/advanced') };
 			break;
 		case 'test_failed':
@@ -757,7 +757,7 @@ return view.extend({
 		if (!error && failed) {
 			detail = lu.message;
 			error = (lu.code == 'fetch_failed') ? _('This link did not work. Check that you copied the whole link from your provider.')
-				: (lu.code == 'not_recognised') ? _('The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear).')
+				: (lu.code == 'not_recognised') ? _('The server answered, but not with a list of countries. Ask your provider whether routers are supported.')
 				: (lu.code == 'device_limit') ? _('Too many devices on this subscription. Remove a device in your provider’s account and try again.')
 				: (lu.code == 'core_failed') ? _('gatygo could not download the VPN engine from GitHub. Check the router’s internet connection and try again.')
 				: _('gatygo could not set up the connection.');

@@ -205,18 +205,6 @@ msgid "Change"
 msgstr "Изменить"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "User agent"
-msgstr "User agent"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "Your provider's server picks the format of the list by this name, and gatygo needs Xray JSON. If the default is not recognised, choose the app your provider supports."
-msgstr "По этому имени сервер провайдера выбирает формат списка, а gatygo нужен Xray JSON. Если вариант по умолчанию не распознаётся, выберите приложение, которое поддерживает ваш провайдер."
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
-msgid "default"
-msgstr "по умолчанию"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Send device ID"
 msgstr "Отправлять ID устройства"
 
@@ -486,8 +474,8 @@ msgid "Your provider’s server did not recognise this router"
 msgstr "Сервер провайдера не распознал этот роутер"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "It answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings."
-msgstr "Он ответил, но не списком стран. Спросите провайдера, поддерживаются ли роутеры, или смените User agent в настройках."
+msgid "It answered, but not with a list of countries. Ask your provider whether routers are supported."
+msgstr "Он ответил, но не списком стран. Спросите провайдера, поддерживаются ли роутеры."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Open settings"
@@ -714,8 +702,8 @@ msgid "This link did not work. Check that you copied the whole link from your pr
 msgstr "Эта ссылка не сработала. Проверьте, что скопировали ссылку от провайдера целиком."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "The server answered, but not with a list of countries. Ask your provider whether routers are supported, or change User agent in Settings (the gear)."
-msgstr "Сервер ответил, но не списком стран. Спросите провайдера, поддерживаются ли роутеры, или смените User agent в настройках (шестерёнка)."
+msgid "The server answered, but not with a list of countries. Ask your provider whether routers are supported."
+msgstr "Сервер ответил, но не списком стран. Спросите провайдера, поддерживаются ли роутеры."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Too many devices on this subscription. Remove a device in your provider’s account and try again."

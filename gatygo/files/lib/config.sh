@@ -51,7 +51,6 @@ gatygo_load_config() {
     GATYGO_VERSION=$(cat "${GATYGO_LIB:-/usr/lib/gatygo}/version" 2>/dev/null || echo dev)
     GATYGO_ENABLED=$(gatygo_cfg enabled 0)
     GATYGO_SUB_URL=$(gatygo_cfg sub_url "")
-    GATYGO_USER_AGENT=$(gatygo_cfg user_agent "gatygo/$GATYGO_VERSION")
     GATYGO_HWID=$(gatygo_cfg hwid "")
     GATYGO_SEND_HWID=$(gatygo_cfg send_hwid 1)
     GATYGO_PROFILE=$(gatygo_cfg profile "")
@@ -73,7 +72,7 @@ gatygo_load_config() {
     # memory for each, and running out of it kills xray for the whole home
     GATYGO_CONN_PER_DEVICE=$(gatygo_cfg_count conn_per_device 600)
     GATYGO_CONN_TOTAL=$(gatygo_cfg_count conn_total 1000)
-    export GATYGO_VERSION GATYGO_ENABLED GATYGO_SUB_URL GATYGO_USER_AGENT GATYGO_HWID GATYGO_SEND_HWID GATYGO_PROFILE \
+    export GATYGO_VERSION GATYGO_ENABLED GATYGO_SUB_URL GATYGO_HWID GATYGO_SEND_HWID GATYGO_PROFILE \
         GATYGO_UPDATE_INTERVAL GATYGO_TPROXY_PORT GATYGO_DNS_PORT GATYGO_CHECK_PORT GATYGO_MARK GATYGO_MARK_DEC \
         GATYGO_IPV6_BLOCK GATYGO_LAN_IFACES GATYGO_DIRECT_DNS GATYGO_LOGLEVEL GATYGO_ON_CRASH \
         GATYGO_CONN_PER_DEVICE GATYGO_CONN_TOTAL \

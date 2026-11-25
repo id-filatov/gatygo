@@ -38,7 +38,6 @@ VPN-клиент для OpenWrt 25.12. Берёт подписку Xray-JSON, з
 - ~40 МБ на overlay.
 - 256 МБ ОЗУ.
 - Подписка, отдающая Xray-JSON.
-- Если VPN-провайдер фильтрует по User-Agent, задайте его в Advanced → Settings.
 
 ## Установка
 

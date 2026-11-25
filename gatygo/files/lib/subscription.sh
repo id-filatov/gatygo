@@ -10,12 +10,12 @@ _GATYGO_JQ_PROFILES='map(select((.outbounds // []) | length > 0))
     | (map(select((.routing.balancers // []) | length > 0)) + map(select((.routing.balancers // []) | length == 0)))'
 
 # gatygo_sub_validate FILE — exit 0 iff FILE is a JSON array with at least one runnable config.
-# Anything else (base64 link list, wrong UA, empty array) exits 1 with a reason on stderr.
+# Anything else (a base64 link list, an empty array) exits 1 with a reason on stderr.
 gatygo_sub_validate() {
     if jq -e "type == \"array\" and ($_GATYGO_JQ_PROFILES | length > 0)" "$1" >/dev/null 2>&1; then
         return 0
     fi
-    echo "subscription body is not a Xray JSON array with at least one config (check the User-Agent and the panel's subscription request rules)" >&2
+    echo "subscription body is not a Xray JSON array with at least one config" >&2
     return 1
 }
 

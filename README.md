@@ -37,7 +37,6 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 - ~40 MB free on overlay.
 - 256 MB RAM.
 - A subscription that returns Xray-JSON.
-- If the VPN provider filters by User-Agent, set it in Advanced → Settings.
 
 ## Install
 

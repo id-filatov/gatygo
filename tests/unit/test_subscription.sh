@@ -19,7 +19,7 @@ printf '{"remarks":"x","outbounds":[{}]}' > "$tmp/object.json"
 assert_exit 1 "single object (not an array) is rejected" gatygo_sub_validate "$tmp/object.json"
 _reason=$(gatygo_sub_validate "$tmp/base64-body.txt" 2>&1)
 assert_eq "1" "$(printf '%s\n' "$_reason" | grep -c .)" "rejection prints exactly one reason line"
-case $_reason in *User-Agent*) _t_ok ;; *) _t_bad "reason mentions User-Agent: $_reason" ;; esac
+case $_reason in *User-Agent*) _t_bad "the reason sends nobody to a User-Agent setting: $_reason" ;; *) _t_ok ;; esac
 
 # --- profiles: everything, balancer configs first
 _p=$(gatygo_sub_profiles "$FIX")

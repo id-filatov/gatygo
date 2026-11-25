@@ -122,7 +122,7 @@ service_stopped() {
 
 # reload = the UCI config changed (Save & Apply). The cached subscription is rebuilt with the new
 # settings and the user's rules first (`gatygo apply`): they take effect even when the panel does
-# not answer. A changed URL, user agent or hwid flag needs a new download, which follows; the
+# not answer. A changed URL or hwid flag needs a new download, which follows; the
 # instance itself is re-submitted by `start`, which restarts xray only when its files changed.
 # The daemon's own post-update path calls `start` directly, not `reload`.
 reload_service() {
