@@ -478,10 +478,6 @@ msgid "It answered, but not with a list of countries. Ask your provider whether 
 msgstr "Он ответил, но не списком стран. Спросите провайдера, поддерживаются ли роутеры."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Open settings"
-msgstr "Открыть настройки"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The new settings from your provider did not pass the check"
 msgstr "Новые настройки от провайдера не прошли проверку"
 

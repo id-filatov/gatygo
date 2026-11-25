@@ -473,10 +473,6 @@ msgid "It answered, but not with a list of countries. Ask your provider whether 
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Open settings"
-msgstr ""
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "The new settings from your provider did not pass the check"
 msgstr ""
 

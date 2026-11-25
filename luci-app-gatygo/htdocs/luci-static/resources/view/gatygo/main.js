@@ -581,7 +581,7 @@ return view.extend({
 		case 'not_recognised':
 			p.title = _('Your provider’s server did not recognise this router');
 			p.text = _('It answered, but not with a list of countries. Ask your provider whether routers are supported.') + kept;
-			p.action = { label: _('Open settings'), href: L.url('admin/services/gatygo/advanced') };
+			p.action = retry;
 			break;
 		case 'test_failed':
 			p.title = _('The new settings from your provider did not pass the check');
