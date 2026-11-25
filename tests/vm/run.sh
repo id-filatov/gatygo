@@ -65,6 +65,10 @@ check "core: the pinned xray is in gatygo's own directory" '. /usr/lib/gatygo/co
 expect "core: xray runs from there" "/usr/lib/gatygo/core/xray" 'readlink /proc/$(gatygo status | jq -r .pid)/exe'
 expect "core: status reports the pinned version" "$(sed -n 's#.*  v\(.*\)/.*#\1#p' "$ROOT/gatygo/files/lib/core.pin" | head -n 1)" 'gatygo status | jq -r .xray_version'
 expect "update result ok" "ok updated" 'gatygo status | jq -r "\"\(.last_update.result) \(.last_update.code)\""'
+# the way of asking that worked (lib/fetch.sh): the mixed name, which the mock answers with Xray JSON
+expect "the way of asking is kept: mixed" "mixed" '. /etc/gatygo/sub-way.env && echo "$GATYGO_WAY"'
+if [ "$(ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq -r '[.[] | select(.path | startswith("/sub"))][-1].headers["user-agent"]')" = "Happ/3.0.0 (gatygo/$(sed -n 's/^PKG_VERSION:=//p' "$ROOT/gatygo/Makefile"))" ]; then
+    ok "the subscription is asked for under the mixed name"; else bad "the subscription is asked for under the mixed name"; fi
 check "xray.json installed 0600" 'test "$(ls -l /etc/gatygo/xray.json | cut -c1-10)" = -rw-------'
 check "geo files installed" 'test -s /usr/share/xray/geosite.dat && test -s /usr/share/xray/geoip.dat'
 check "foreign geo files replaced" 'test "$(wc -c < /usr/share/xray/geosite.dat)" -gt 100 && test -s /etc/gatygo/geo-source.env'
@@ -116,10 +120,13 @@ check "i18n: LuCI serves the Russian strings" "curl -s -b /tmp/ck http://127.0.0
 check "i18n: and not for English" "! curl -s -b /tmp/ck http://127.0.0.1/cgi-bin/luci/admin/translations/en | grep -q '\"$key\":'"
 
 echo "== 2c. settings reload"
-vm 'uci set gatygo.main.user_agent="gatygo/e2e"; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
-if ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq -e '[.[] | select(.headers["user-agent"] == "gatygo/e2e")] | length > 0' >/dev/null; then ok "reload re-downloads with the new user agent"; else bad "reload re-downloads with the new user agent"; fi
+# the subscription requests the mock has had so far
+subs() { ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq '[.[] | select(.path | startswith("/sub"))] | length'; }
+n0=$(subs)
+vm 'uci set gatygo.main.update_interval=6; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+if [ "$(subs)" -gt "$n0" ]; then ok "reload re-downloads the subscription"; else bad "reload re-downloads the subscription"; fi
 expect "still running after reload" "true" 'gatygo status | jq -r .running'
-vm 'uci delete gatygo.main.user_agent; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+vm 'uci set gatygo.main.update_interval=""; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
 
 echo "== 3. firewall"
 check "nft table inet gatygo present" 'nft list table inet gatygo >/dev/null'
@@ -328,12 +335,13 @@ check "dnsmasq restored" 'test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)" && !
 check "LAN client resolves via the router again" 'ip netns exec c1 /tmp/tmo 5 nslookup downloads.openwrt.org 192.168.1.1 >/dev/null 2>&1'
 # Save & Apply (reload_config is what LuCI runs) with the VPN stopped by hand: the subscription is
 # downloaded with the new settings, the VPN stays off
-vm 'uci set gatygo.main.user_agent="gatygo/e2e-stopped"; uci commit gatygo; reload_config; sleep 12'
-if ssh "$LAB_HOST" 'curl -s localhost:8787/log' | jq -e '[.[] | select(.headers["user-agent"] == "gatygo/e2e-stopped")] | length > 0' >/dev/null; then ok "settings applied while stopped refresh the subscription"; else bad "settings applied while stopped refresh the subscription"; fi
+n0=$(subs)
+vm 'uci set gatygo.main.update_interval=6; uci commit gatygo; reload_config; sleep 12'
+if [ "$(subs)" -gt "$n0" ]; then ok "settings applied while stopped refresh the subscription"; else bad "settings applied while stopped refresh the subscription"; fi
 expect "and the VPN stays off" "false" 'gatygo status | jq -r .running'
 check "with nothing of the tunnel back" '! nft list table inet gatygo >/dev/null 2>&1 && test -z "$(uci -q get dhcp.@dnsmasq[0].noresolv)"'
 # switched off and on again in the settings is another matter: that starts it
-vm 'uci delete gatygo.main.user_agent; uci set gatygo.main.enabled=0; uci commit gatygo; reload_config; sleep 4; uci set gatygo.main.enabled=1; uci commit gatygo; reload_config; sleep 12'
+vm 'uci set gatygo.main.update_interval=""; uci set gatygo.main.enabled=0; uci commit gatygo; reload_config; sleep 4; uci set gatygo.main.enabled=1; uci commit gatygo; reload_config; sleep 12'
 expect "enabling it in the settings starts it" "true" 'gatygo status | jq -r .running'
 vm '/etc/init.d/gatygo stop; sleep 2'
 
