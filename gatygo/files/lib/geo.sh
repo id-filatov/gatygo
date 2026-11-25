@@ -21,10 +21,11 @@ gatygo_geo_urls() {
         _gatygo_gi=$(_gatygo_env_get "$1" GATYGO_GEOIP_URL)
     fi
     if _gatygo_is_url "$_gatygo_gs" && _gatygo_is_url "$_gatygo_gi"; then
-        {
-            echo "GATYGO_GEOSITE_URL=$(gatygo_shquote "$_gatygo_gs")"
-            echo "GATYGO_GEOIP_URL=$(gatygo_shquote "$_gatygo_gi")"
-        } > "$GATYGO_STATE/geo-urls.env.tmp" && mv "$GATYGO_STATE/geo-urls.env.tmp" "$GATYGO_STATE/geo-urls.env"
+        # written only when they change: the router's flash is not written on every update
+        _gatygo_gnew=$(printf 'GATYGO_GEOSITE_URL=%s\nGATYGO_GEOIP_URL=%s' "$(gatygo_shquote "$_gatygo_gs")" "$(gatygo_shquote "$_gatygo_gi")")
+        [ "$(cat "$GATYGO_STATE/geo-urls.env" 2>/dev/null)" = "$_gatygo_gnew" ] \
+            || { printf '%s\n' "$_gatygo_gnew" > "$GATYGO_STATE/geo-urls.env.tmp" \
+                && mv "$GATYGO_STATE/geo-urls.env.tmp" "$GATYGO_STATE/geo-urls.env"; }
     elif [ -f "$GATYGO_STATE/geo-urls.env" ]; then
         _gatygo_gs=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOSITE_URL)
         _gatygo_gi=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOIP_URL)

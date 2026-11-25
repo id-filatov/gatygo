@@ -18,6 +18,9 @@ _last_geo_headers() { curl -fs http://127.0.0.1:8788/log | jq -c "[.[] | select(
 printf "GATYGO_GEOSITE_URL='http://127.0.0.1:8788/geo/geosite.dat'\nGATYGO_GEOIP_URL='http://127.0.0.1:8788/geo/geoip.dat'\n" > "$tmp/h.env"
 assert_eq "http://127.0.0.1:8788/geo/geosite.dat http://127.0.0.1:8788/geo/geoip.dat" "$(gatygo_geo_urls "$tmp/h.env")" "URLs from the routing header"
 assert_exit 0 "header URLs are cached" test -s "$GATYGO_STATE/geo-urls.env"
+_ino=$(ls -i "$GATYGO_STATE/geo-urls.env" | awk '{print $1}')
+gatygo_geo_urls "$tmp/h.env" >/dev/null
+assert_eq "$_ino" "$(ls -i "$GATYGO_STATE/geo-urls.env" | awk '{print $1}')" "the same URLs again: the cache is not rewritten (the router's flash)"
 printf "GATYGO_GEOSITE_URL=''\nGATYGO_GEOIP_URL=''\n" > "$tmp/empty.env"
 assert_eq "http://127.0.0.1:8788/geo/geosite.dat http://127.0.0.1:8788/geo/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env")" "no header -> cached URLs"
 rm "$GATYGO_STATE/geo-urls.env"
