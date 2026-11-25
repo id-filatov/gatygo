@@ -94,5 +94,19 @@ assert_eq "0" "$(ls "$tmp/stage" | wc -l | tr -d ' ')" "stage emptied on error"
 gatygo_geo_fetch http://127.0.0.1:8788/redirect http://127.0.0.1:8788/geo/geoip.dat "$tmp/stage" 2>/dev/null; _rc=$?
 assert_eq "1" "$_rc" "redirect to plain http is refused"
 
+# --- the provider switched routing off: the saved links are dropped, the files on the router stay
+# (a provider config may still name geosite:/geoip:), and nothing is downloaded any more
+printf "GATYGO_GEOSITE_URL='$GS'\nGATYGO_GEOIP_URL='http://127.0.0.1:8788/geo/geoip.dat'\nGATYGO_ROUTING_OFF='0'\n" > "$tmp/on.env"
+gatygo_geo_urls "$tmp/on.env" >/dev/null
+cp "$tmp/geo-src/geosite.dat" "$tmp/geo-src/geoip.dat" "$GATYGO_ASSETS/"
+printf "GATYGO_GEOSITE_URL=''\nGATYGO_GEOIP_URL=''\nGATYGO_ROUTING_OFF='1'\n" > "$tmp/off.env"
+assert_exit 1 "routing off -> no geo URLs" gatygo_geo_urls "$tmp/off.env"
+assert_exit 1 "routing off -> the saved links are dropped" test -e "$GATYGO_STATE/geo-urls.env"
+assert_eq "" "$(gatygo_geo_urls "$tmp/off.env")" "routing off -> nothing printed"
+assert_exit 0 "routing off -> the geo files stay" test -s "$GATYGO_ASSETS/geosite.dat" -a -s "$GATYGO_ASSETS/geoip.dat"
+gatygo_geo_urls "$tmp/on.env" >/dev/null
+printf "GATYGO_GEOSITE_URL=''\nGATYGO_GEOIP_URL=''\nGATYGO_ROUTING_OFF='0'\n" > "$tmp/none.env"
+assert_eq "$GS http://127.0.0.1:8788/geo/geoip.dat" "$(gatygo_geo_urls "$tmp/none.env")" "routing not off and no links -> the saved links"
+
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

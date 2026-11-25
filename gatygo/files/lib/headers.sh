@@ -41,12 +41,31 @@ _gatygo_userinfo() {
     printf '%s' "$2" | tr ';' '\n' | sed -n "s/^[[:space:]]*$1=\([0-9]*\).*/\1/p" | head -n 1
 }
 
-# _gatygo_geo_url FIELD ROUTING — FIELD of the base64 JSON in "<scheme>://routing/add/<b64>" or nothing
+# _gatygo_routing_b64 ROUTING — the base64 profile of a routing value: what follows
+# "<scheme>://routing/add/" or "<scheme>://routing/onadd/" (any scheme, an empty one too), or the
+# whole value when it has no "://"; nothing for any other link
+_gatygo_routing_b64() {
+    case $1 in
+        *://routing/add/*) printf '%s' "${1#*://routing/add/}" ;;
+        *://routing/onadd/*) printf '%s' "${1#*://routing/onadd/}" ;;
+        *://*) ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+# _gatygo_geo_url FIELD ROUTING — FIELD of the routing profile's JSON, or nothing. The base64 may
+# use the URL-safe alphabet and may lack its "=" padding.
 _gatygo_geo_url() {
-    case $2 in
-        *://routing/add/*)
-            printf '%s' "${2#*://routing/add/}" \
-                | jq -Rr --arg f "$1" '@base64d | fromjson | .[$f] // empty' 2>/dev/null ;;
+    _gatygo_routing_b64 "$2" | tr '_-' '/+' \
+        | jq -Rr --arg f "$1" '@base64d | fromjson | .[$f] // empty' 2>/dev/null
+}
+
+# _gatygo_routing_off ROUTING — 1 when the provider switched routing off ("off" or
+# "<scheme>://routing/off"), else 0
+_gatygo_routing_off() {
+    case $1 in
+        off | *://routing/off) echo 1 ;;
+        *) echo 0 ;;
     esac
 }
 
@@ -92,6 +111,7 @@ gatygo_parse_headers() {
     echo "GATYGO_USERINFO_EXPIRE=$(gatygo_shquote "$(_gatygo_userinfo expire "$_gatygo_ui")")"
     echo "GATYGO_GEOSITE_URL=$(gatygo_shquote "$(_gatygo_geo_url Geositeurl "$_gatygo_routing")")"
     echo "GATYGO_GEOIP_URL=$(gatygo_shquote "$(_gatygo_geo_url Geoipurl "$_gatygo_routing")")"
+    echo "GATYGO_ROUTING_OFF=$(gatygo_shquote "$(_gatygo_routing_off "$_gatygo_routing")")"
     echo "GATYGO_HWID_MAX_DEVICES=$(gatygo_shquote "$(_gatygo_flag x-hwid-max-devices-reached "$_gatygo_f")")"
     echo "GATYGO_HWID_NOT_SUPPORTED=$(gatygo_shquote "$(_gatygo_flag x-hwid-not-supported "$_gatygo_f")")"
     echo "GATYGO_ANNOUNCE=$(gatygo_shquote "$(_gatygo_b64text "$(_gatygo_hdr announce "$_gatygo_f")")")"

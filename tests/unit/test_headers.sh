@@ -10,7 +10,7 @@ _reset() {
         GATYGO_GEOSITE_URL GATYGO_GEOIP_URL GATYGO_HWID_MAX_DEVICES GATYGO_HWID_NOT_SUPPORTED \
         GATYGO_ANNOUNCE GATYGO_SITE_URL GATYGO_SUPPORT_URL GATYGO_INFO_TEXT GATYGO_INFO_COLOR \
         GATYGO_INFO_BUTTON_TEXT GATYGO_INFO_BUTTON_LINK GATYGO_EXPIRE_NOTICE GATYGO_EXPIRE_LINK \
-        GATYGO_NEW_URL GATYGO_NEW_DOMAIN GATYGO_FALLBACK_URL
+        GATYGO_NEW_URL GATYGO_NEW_DOMAIN GATYGO_FALLBACK_URL GATYGO_ROUTING_OFF
 }
 
 # --- full response: every supported header present
@@ -40,8 +40,9 @@ assert_eq "https://example.com/renew" "$GATYGO_EXPIRE_LINK" "sub-expire-button-l
 assert_eq "https://sub.example.net/s/abc" "$GATYGO_NEW_URL" "new-url as sent"
 assert_eq "sub.example.org" "$GATYGO_NEW_DOMAIN" "new-domain as sent"
 assert_eq "https://backup.example.com/s/abc" "$GATYGO_FALLBACK_URL" "fallback-url as sent"
-assert_eq "23" "$(grep -c "^GATYGO_[A-Z_]*='" "$tmp/full.env")" "23 quoted assignments"
-assert_eq "23" "$(wc -l < "$tmp/full.env" | tr -d ' ')" "and nothing else"
+assert_eq "0" "$GATYGO_ROUTING_OFF" "routing add -> not off"
+assert_eq "24" "$(grep -c "^GATYGO_[A-Z_]*='" "$tmp/full.env")" "24 quoted assignments"
+assert_eq "24" "$(wc -l < "$tmp/full.env" | tr -d ' ')" "and nothing else"
 
 # --- minimal response: optional headers missing
 _reset
@@ -52,6 +53,7 @@ assert_eq "" "$GATYGO_UPDATE_INTERVAL" "missing interval -> empty"
 assert_eq "" "$GATYGO_USERINFO_DOWNLOAD" "missing userinfo -> empty"
 assert_eq "" "$GATYGO_GEOSITE_URL" "missing routing -> empty geosite url"
 assert_eq "" "$GATYGO_GEOIP_URL" "missing routing -> empty geoip url"
+assert_eq "0" "$GATYGO_ROUTING_OFF" "missing routing -> not off"
 assert_eq "0" "$GATYGO_HWID_MAX_DEVICES" "minimal: max-devices 0"
 assert_eq "||||||||||" "$GATYGO_ANNOUNCE|$GATYGO_SITE_URL|$GATYGO_SUPPORT_URL|$GATYGO_INFO_TEXT|$GATYGO_INFO_BUTTON_TEXT|$GATYGO_INFO_BUTTON_LINK|$GATYGO_EXPIRE_LINK|$GATYGO_NEW_URL|$GATYGO_NEW_DOMAIN|$GATYGO_FALLBACK_URL|" "minimal: no messages, links or addresses"
 assert_eq "blue 0" "$GATYGO_INFO_COLOR $GATYGO_EXPIRE_NOTICE" "minimal: the colour defaults to blue, no expiry notice"
@@ -95,6 +97,35 @@ assert_eq "" "$GATYGO_SITE_URL" "a tg: link is dropped"
 assert_eq "" "$GATYGO_INFO_BUTTON_LINK" "a link with a space is dropped"
 assert_eq "" "$GATYGO_EXPIRE_LINK" "an ftp: link is dropped"
 assert_eq "sub.example.org" "$GATYGO_NEW_DOMAIN" "new-domain is trimmed"
+
+# --- the routing header in every form a provider may send: <scheme>://routing/add|onadd/<b64>
+# (any scheme, an empty one too), a bare <b64>, base64 with or without "=" and in the URL-safe
+# alphabet; off switches the geo file links off; anything else gives no links
+B=eyJHZW9zaXRldXJsIjoiaHR0cHM6Ly9nZW8uZXhhbXBsZS5jb20vZ2Vvc2l0ZS5kYXQiLCJHZW9pcHVybCI6Imh0dHBzOi8vZ2VvLmV4YW1wbGUuY29tL2dlb2lwLmRhdCJ9
+# the geosite link ends in "?": its base64 holds a "/" and ends in "=="
+Q=eyJHZW9zaXRldXJsIjoiaHR0cHM6Ly9nZW8uZXhhbXBsZS5jb20vZ2Vvc2l0ZS5kYXQ/IiwiR2VvaXB1cmwiOiJodHRwczovL2dlby5leGFtcGxlLmNvbS9nZW9pcC5kYXQifQ==
+QS=$(printf '%s' "${Q%==}" | tr '/+' '_-')
+GS=https://geo.example.com/geosite.dat GI=https://geo.example.com/geoip.dat
+_routing() {
+    printf 'HTTP/2 200 \r\nrouting: %s\r\n\r\n' "$1" > "$tmp/r.txt"
+    gatygo_parse_headers "$tmp/r.txt" > "$tmp/r.env"
+    ( _reset; . "$tmp/r.env"; printf '%s|%s|%s' "$GATYGO_GEOSITE_URL" "$GATYGO_GEOIP_URL" "$GATYGO_ROUTING_OFF" )
+}
+assert_eq "$GS|$GI|0" "$(_routing "app://routing/add/$B")" "routing add"
+assert_eq "$GS|$GI|0" "$(_routing "app://routing/onadd/$B")" "routing onadd"
+assert_eq "$GS|$GI|0" "$(_routing "://routing/add/$B")" "routing add with an empty scheme"
+assert_eq "$GS|$GI|0" "$(_routing "://routing/onadd/$B")" "routing onadd with an empty scheme"
+assert_eq "$GS|$GI|0" "$(_routing "$B")" "a bare base64 profile"
+assert_eq "$GS?|$GI|0" "$(_routing "$Q")" "a bare profile with / and = in its base64"
+assert_eq "$GS?|$GI|0" "$(_routing "${Q%==}")" "base64 without the = padding"
+assert_eq "$GS?|$GI|0" "$(_routing "$QS")" "URL-safe base64 without padding"
+assert_eq "$GS?|$GI|0" "$(_routing "app://routing/onadd/$QS")" "onadd with URL-safe base64"
+assert_eq "||1" "$(_routing off)" "off"
+assert_eq "||1" "$(_routing app://routing/off)" "<scheme>://routing/off"
+assert_eq "||1" "$(_routing ://routing/off)" "://routing/off"
+assert_eq "||0" "$(_routing 'app://routing/add/not-base64!')" "an undecodable profile: no links, not off"
+assert_eq "||0" "$(_routing bm90IGpzb24=)" "base64 that is not JSON: no links, not off"
+assert_eq "||0" "$(_routing "$(printf '%s' '{"Name":"x"}' | base64)")" "a profile without the link fields: no links"
 
 rm -rf "$tmp"
 report

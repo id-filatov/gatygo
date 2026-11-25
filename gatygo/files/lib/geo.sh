@@ -8,9 +8,14 @@ _gatygo_is_url() { case $1 in http://?* | https://?*) return 0 ;; *) return 1 ;;
 
 # gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL" from the routing header, else from the
 # cache of the last header that carried them. exit 1 (nothing printed) when neither has them: geo
-# files come only from the subscription.
+# files come only from the subscription. A provider that switched routing off has no geo files to
+# give: the cache goes too, and the files already in place stay for a config that still names them.
 gatygo_geo_urls() {
     _gatygo_gs='' _gatygo_gi=''
+    if [ -f "$1" ] && [ "$(_gatygo_env_get "$1" GATYGO_ROUTING_OFF)" = 1 ]; then
+        rm -f "$GATYGO_STATE/geo-urls.env"
+        return 1
+    fi
     if [ -f "$1" ]; then
         _gatygo_gs=$(_gatygo_env_get "$1" GATYGO_GEOSITE_URL)
         _gatygo_gi=$(_gatygo_env_get "$1" GATYGO_GEOIP_URL)
