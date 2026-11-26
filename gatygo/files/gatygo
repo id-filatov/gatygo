@@ -3,6 +3,7 @@
 #   gatygo start|stop|restart        service control
 #   gatygo forget                    drop the subscription: stop, erase what it brought, default settings
 #   gatygo update                    run the subscription update cycle now
+#   gatygo relay-check               reconnect xray when a relay moved (the hourly cron line when updates are only by hand)
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
 #   gatygo apply [wait]              rebuild the config from the cached subscription (Save & Apply)
 #   gatygo check [fresh]             JSON: do the usual services open through the tunnel
@@ -196,6 +197,23 @@ cmd_update() {
 	return $_rc
 }
 
+# The hourly cron line when updates are only by hand: what an update does after it installs the
+# config about a relay that moved (lib/relay.sh), without asking the provider. Not an update for
+# the page: it takes a lock of its own, and leaves the work to an update or an upgrade of gatygo
+# that runs (the update looks at the relays itself). Always exit 0.
+cmd_relay_check() {
+	. "$GATYGO_LIB/update.sh"
+	gatygo_load_config
+	if gatygo_updating || gatygo_locked upgrade; then return 0; fi
+	gatygo_lock relay || return 0
+	if gatygo_relay_moved "$GATYGO_STATE/xray.json"; then
+		gatygo_relay_reconnect
+		_gatygo_reload
+	fi
+	gatygo_unlock relay
+	return 0
+}
+
 # Switch the profile. Waits its turn behind an update or `gatygo forget` (the update lock, exit 2):
 # either could otherwise see its files change under it. Without a link (deleted, or a page from
 # before the delete) nothing is written, not even a result.
@@ -377,6 +395,7 @@ start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
 connect) cmd_connect "$2" ;;
 forget) cmd_forget ;;
 update) cmd_update ;;
+relay-check) cmd_relay_check ;;
 select) cmd_select "$2" ;;
 apply) cmd_apply "$2" ;;
 check) cmd_check "$2" ;;

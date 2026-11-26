@@ -91,5 +91,51 @@ _r1=$(gatygo_relay_reconnect; cat "$GATYGO_RUN/reconnect")
 _r2=$(gatygo_relay_reconnect; cat "$GATYGO_RUN/reconnect")
 assert_exit 0 "each reconnect writes a different value" test -n "$_r1" -a "$_r1" != "$_r2"
 
+# --- CLI relay-check: the hourly cron line when updates are only by hand. It restarts xray when a
+# relay moved, without an update; it is not an update for the page, and it keeps out of the way
+# of an update or an upgrade of gatygo.
+. "$GATYGO_LIB/service.sh"
+CLI=/src/gatygo/files/gatygo
+export GATYGO_STATE="$tmp/state" GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log"
+mkdir -p "$GATYGO_STATE"; cp "$tmp/xray.json" "$GATYGO_STATE/xray.json"
+# _moved_state — xray holds 198.51.100.1, which ru1 had and no longer has
+_moved_state() {
+    rm -f "$GATYGO_RUN/relay-addresses"
+    printf 'ru1.example.com 198.51.100.1\n' > "$NSLOOKUP_STUB_FILE"; gatygo_relay_note "$GATYGO_STATE/xray.json"
+    printf 'ru1.example.com 198.51.100.2\n' > "$NSLOOKUP_STUB_FILE"
+    : > "$NETSTAT_STUB_FILE"; _tcp 4242/xray ESTABLISHED 198.51.100.1:2096
+    : > "$GATYGO_INIT_LOG"; : > "$SYSLOG_STUB_FILE"
+}
+_rc() { cat "$GATYGO_RUN/reconnect" 2>/dev/null; }
+
+_moved_state; _r0=$(_rc)
+assert_exit 0 "relay-check: exit 0" sh "$CLI" relay-check
+assert_eq "running start" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "relay-check: moved -> xray restarted (running? then start)"
+assert_exit 0 "relay-check: a new reconnect value for the instance" test "$(_rc)" != "$_r0"
+assert_eq "1" "$(grep -c '\[info\] relay ru1.example.com moved; xray is still connected to its old address 198.51.100.1:2096$' "$SYSLOG_STUB_FILE")" "relay-check: the log says why"
+assert_exit 1 "relay-check: its lock is let go" gatygo_locked relay
+
+: > "$NETSTAT_STUB_FILE"; _tcp 4242/xray ESTABLISHED 198.51.100.2:2096; : > "$GATYGO_INIT_LOG"; _r0=$(_rc)
+sh "$CLI" relay-check
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "relay-check: not moved -> nothing restarted"
+assert_eq "$_r0" "$(_rc)" "relay-check: not moved -> the reconnect value stays"
+
+_moved_state
+assert_exit 0 "relay-check: xray not running -> exit 0" env UBUS_STUB_RUNNING=0 sh "$CLI" relay-check
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "relay-check: xray not running -> nothing"
+
+for _l in update upgrade relay; do
+    _moved_state; _r0=$(_rc)
+    gatygo_lock "$_l"
+    assert_exit 0 "relay-check: the $_l lock held -> exit 0" sh "$CLI" relay-check
+    assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "relay-check: the $_l lock held -> skipped"
+    assert_eq "$_r0" "$(_rc)" "relay-check: the $_l lock held -> the reconnect value stays"
+    gatygo_unlock "$_l"
+done
+
+gatygo_lock relay
+assert_exit 1 "relay-check is not an update for the page: updating stays false while it runs" sh "$CLI" updating
+gatygo_unlock relay
+
 rm -rf "$tmp"
 report
