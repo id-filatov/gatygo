@@ -84,8 +84,11 @@ gatygo_relay_moved() {
 }
 
 # gatygo_relay_reconnect — a new value for the xray instance (the init script hands it to procd),
-# so that the next `start` restarts xray although its files did not change
+# so that the next `start` restarts xray although its files did not change. The value goes from
+# empty to 1 and back: procd (2026.03.13) left xray running when this value became another of the
+# same length (a counter's 1 -> 2, the second move in one boot), and restarts it when the length
+# changes.
 gatygo_relay_reconnect() {
     mkdir -p "$GATYGO_RUN"
-    echo $(($(cat "$GATYGO_RUN/reconnect" 2>/dev/null || echo 0) + 1)) > "$GATYGO_RUN/reconnect"
+    if [ -s "$GATYGO_RUN/reconnect" ]; then : > "$GATYGO_RUN/reconnect"; else echo 1 > "$GATYGO_RUN/reconnect"; fi
 }

@@ -89,7 +89,11 @@ assert_exit 0 "and the same running -> moved" gatygo_relay_moved "$tmp/xray.json
 # --- the restart: a new value every time for the procd instance
 _r1=$(gatygo_relay_reconnect; cat "$GATYGO_RUN/reconnect")
 _r2=$(gatygo_relay_reconnect; cat "$GATYGO_RUN/reconnect")
-assert_exit 0 "each reconnect writes a different value" test -n "$_r1" -a "$_r1" != "$_r2"
+_r3=$(gatygo_relay_reconnect; cat "$GATYGO_RUN/reconnect")
+assert_exit 0 "each reconnect writes a different value" test "$_r1" != "$_r2" -a "$_r2" != "$_r3"
+# procd (2026.03.13) left xray running when this value became another of the same length (1 -> 2:
+# the second move in one boot kept xray on the old relay); a change of length restarts it
+assert_exit 0 "each reconnect changes the value's length" test "${#_r1}" != "${#_r2}" -a "${#_r2}" != "${#_r3}"
 
 # --- CLI relay-check: the hourly cron line when updates are only by hand. It restarts xray when a
 # relay moved, without an update; it is not an update for the page, and it keeps out of the way
