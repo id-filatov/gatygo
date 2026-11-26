@@ -191,7 +191,7 @@ cmd_update() {
 	if gatygo_xray_running; then
 		gatygo_load_config
 		gatygo_dns_apply "$GATYGO_STATE/xray.json"
-		gatygo_cron_sync "$(gatygo_update_interval_hours)"
+		gatygo_cron_sync "$(gatygo_update_schedule)"
 	fi
 	return $_rc
 }
@@ -316,7 +316,9 @@ cmd_status() {
 			'{result: $result, code: $code, time: $time, message: $message}') || _select=null
 	fi
 	_interval=$(gatygo_update_interval_hours)
-	[ "$_running" = true ] && _next=$(gatygo_next_update "$_interval")
+	_auto=true
+	gatygo_auto_update || _auto=false
+	[ "$_running$_auto" = truetrue ] && _next=$(gatygo_next_update "$_interval")
 	_profiles='[]'
 	[ -s "$GATYGO_STATE/subscription.json" ] && _profiles=$(gatygo_sub_profiles "$GATYGO_STATE/subscription.json")
 	_upgrade=$(gatygo_upgrade_status_json)
@@ -337,7 +339,7 @@ cmd_status() {
 			--arg up "${GATYGO_USERINFO_UPLOAD:-}" --arg down "${GATYGO_USERINFO_DOWNLOAD:-}" \
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg code "${CODE:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
-			--argjson last_select "$_select" --arg interval "$_interval" --arg next "$_next" \
+			--argjson last_select "$_select" --arg interval "$_interval" --argjson auto_update "$_auto" --arg next "$_next" \
 			--argjson upgrade "$_upgrade" --arg moved "$_moved" \
 			--arg announce "${GATYGO_ANNOUNCE:-}" --arg site "${GATYGO_SITE_URL:-}" --arg support "${GATYGO_SUPPORT_URL:-}" \
 			--arg info_text "${GATYGO_INFO_TEXT:-}" --arg info_color "${GATYGO_INFO_COLOR:-}" \
@@ -356,7 +358,7 @@ cmd_status() {
 			  userinfo: {upload: $up, download: $down, total: $total, expire: $expire},
 			  last_update: {result: $result, code: $code, time: $time, message: $message},
 			  last_select: $last_select,
-			  update_interval: ($interval | tonumber),
+			  update_interval: ($interval | tonumber), auto_update: $auto_update,
 			  next_update: (if $next == "" then null else ($next | tonumber) end),
 			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
 			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup},
@@ -427,7 +429,7 @@ watch)
 cron-sync)
 	. "$GATYGO_LIB/service.sh"
 	gatygo_load_config
-	gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	gatygo_cron_sync "$(gatygo_update_schedule)"
 	;;
 upgrade)
 	# the page asks some of these every few seconds: no settings are read here (run's executor

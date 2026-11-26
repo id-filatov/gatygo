@@ -20,7 +20,9 @@ gatygo_xray_pid() {
     ubus call service list '{"name":"gatygo"}' 2>/dev/null | jq -r '.gatygo.instances.xray.pid // empty' 2>/dev/null
 }
 
-# gatygo_update_interval_hours — UCI update_interval → profile-update-interval header → 12; minimum 1
+# gatygo_update_interval_hours — UCI update_interval → profile-update-interval header → 12; minimum 1.
+# `off` (updates only by hand) is not a number either: the hours are the header's, which the
+# settings page names.
 gatygo_update_interval_hours() {
     _gatygo_h=$GATYGO_UPDATE_INTERVAL
     case $_gatygo_h in '' | *[!0-9]*) _gatygo_h=$(_gatygo_env_get "$GATYGO_STATE/headers.env" GATYGO_UPDATE_INTERVAL 2>/dev/null) ;; esac
@@ -29,16 +31,30 @@ gatygo_update_interval_hours() {
     printf '%s\n' "$_gatygo_h"
 }
 
+# gatygo_auto_update — exit 1 iff the subscription is updated only by hand (update_interval off)
+gatygo_auto_update() {
+    [ "$GATYGO_UPDATE_INTERVAL" != off ]
+}
+
+# gatygo_update_schedule — what gatygo_cron_sync gets: `off`, or the interval in hours
+gatygo_update_schedule() {
+    if gatygo_auto_update; then gatygo_update_interval_hours; else echo off; fi
+}
+
 _gatygo_cron_restart() {
     _gatygo_i=${GATYGO_CRON_INIT:-/etc/init.d/cron}
     [ -x "$_gatygo_i" ] && "$_gatygo_i" restart >/dev/null 2>&1
     return 0
 }
 
-# gatygo_cron_sync HOURS — make the crontab carry exactly one `# gatygo` line for the interval
+# gatygo_cron_sync HOURS|off — make the crontab carry exactly one `# gatygo` line: the update every
+# HOURS, or with `off` the hourly look at relays that moved (lib/relay.sh), which an update would
+# otherwise do
 gatygo_cron_sync() {
     _gatygo_f=${GATYGO_CRONTAB:-/etc/crontabs/root}
-    if [ "$1" -ge 24 ]; then
+    if [ "$1" = off ]; then
+        _gatygo_line="0 * * * * /usr/bin/gatygo relay-check # gatygo"
+    elif [ "$1" -ge 24 ]; then
         _gatygo_line="0 3 * * * /usr/bin/gatygo update # gatygo"
     else
         _gatygo_line="0 */$1 * * * /usr/bin/gatygo update # gatygo"

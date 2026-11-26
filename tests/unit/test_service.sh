@@ -18,6 +18,20 @@ uci set gatygo.main.update_interval=0; gatygo_load_config
 assert_eq "1" "$(gatygo_update_interval_hours)" "minimum 1h"
 uci set gatygo.main.update_interval=abc; gatygo_load_config
 assert_eq "3" "$(gatygo_update_interval_hours)" "garbage in UCI -> header"
+assert_exit 0 "garbage in UCI: automatic updates stay on" gatygo_auto_update
+assert_eq "3" "$(gatygo_update_schedule)" "garbage in UCI: scheduled by the header"
+
+# --- only by hand: update_interval=off
+uci set gatygo.main.update_interval=off; gatygo_load_config
+assert_exit 1 "off: no automatic updates" gatygo_auto_update
+assert_eq "off" "$(gatygo_update_schedule)" "off: the schedule says off"
+assert_eq "3" "$(gatygo_update_interval_hours)" "off: the hours are still the header's (the page names them)"
+uci set gatygo.main.update_interval=6; gatygo_load_config
+assert_exit 0 "6: automatic updates on" gatygo_auto_update
+assert_eq "6" "$(gatygo_update_schedule)" "6: every 6 hours"
+uci set gatygo.main.update_interval=''; gatygo_load_config
+assert_exit 0 "empty: automatic updates on" gatygo_auto_update
+assert_eq "3" "$(gatygo_update_schedule)" "empty: as the header suggests"
 
 # --- cron line
 gatygo_cron_sync 6
@@ -35,6 +49,21 @@ assert_eq "5 4 * * * /bin/echo keep" "$(cat "$GATYGO_CRONTAB")" "only our line r
 : > "$GATYGO_CRON_LOG"
 gatygo_cron_remove
 assert_eq "" "$(cat "$GATYGO_CRON_LOG")" "remove without our line is a no-op"
+
+# --- only by hand: the hourly relay check replaces the update line, and back
+gatygo_cron_sync 6
+: > "$GATYGO_CRON_LOG"
+gatygo_cron_sync off
+assert_eq "5 4 * * * /bin/echo keep
+0 * * * * /usr/bin/gatygo relay-check # gatygo" "$(cat "$GATYGO_CRONTAB")" "off replaces the update line with the hourly relay check; foreign lines kept"
+assert_eq "restart" "$(cat "$GATYGO_CRON_LOG")" "off: cron restarted"
+: > "$GATYGO_CRON_LOG"
+gatygo_cron_sync off
+assert_eq "" "$(cat "$GATYGO_CRON_LOG")" "off again: no restart"
+gatygo_cron_sync 6
+assert_eq "5 4 * * * /bin/echo keep
+0 */6 * * * /usr/bin/gatygo update # gatygo" "$(cat "$GATYGO_CRONTAB")" "and back: one update line again"
+gatygo_cron_remove
 
 # --- gatygo_log_tail N: xray (relayed by procd) and gatygo lines from the system log, prefix cut to the tag
 cat > "$SYSLOG_STUB_FILE" <<'SYSLOG'
@@ -95,6 +124,14 @@ CLI=/src/gatygo/files/gatygo
 assert_eq "false null" "$(sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: stopped"
 assert_eq "true null" "$(UBUS_STUB_RUNNING=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: running"
 assert_eq "false 137" "$(UBUS_STUB_CRASHED=1 sh "$CLI" status | jq -r '"\(.running) \(.crashed)"')" "cli: crashed, with the exit code"
+
+# --- CLI: status says when automatic updates are off; there is no next update then
+printf "GATYGO_UPDATE_INTERVAL='3'\n" > "$GATYGO_STATE/headers.env"
+uci set gatygo.main.update_interval=off
+assert_eq "false null 3" "$(UBUS_STUB_RUNNING=1 sh "$CLI" status | jq -r '"\(.auto_update) \(.next_update) \(.update_interval)"')" "status: off -> auto_update false, no next update, the header's hours"
+uci set gatygo.main.update_interval=''
+assert_eq "true number 3" "$(UBUS_STUB_RUNNING=1 sh "$CLI" status | jq -r '"\(.auto_update) \(.next_update | type) \(.update_interval)"')" "status: on -> auto_update true, a next update"
+rm -f "$GATYGO_STATE/headers.env"
 
 # --- CLI: status hands the page the provider's messages and when the address moved
 . "$GATYGO_LIB/headers.sh"

@@ -90,7 +90,7 @@ service_started() {
 		sleep 1
 	done
 	gatygo_relay_note "$GATYGO_STATE/xray.json"
-	gatygo_cron_sync "$(gatygo_update_interval_hours)"
+	gatygo_cron_sync "$(gatygo_update_schedule)"
 	# One background refresh per boot: the tunnel is already up on the cached config.
 	if [ ! -f "$GATYGO_RUN/boot-update-done" ]; then
 		touch "$GATYGO_RUN/boot-update-done"
@@ -141,7 +141,7 @@ reload_service() {
 	_gatygo_applied=$?
 	start
 	if [ "$_gatygo_was_running" = 1 ]; then
-		gatygo_cron_sync "$(gatygo_update_interval_hours)"
+		gatygo_cron_sync "$(gatygo_update_schedule)"
 		# an update held the lock and read the old settings: apply once it is over
 		( [ "$_gatygo_applied" != 2 ] || /usr/bin/gatygo apply wait; /usr/bin/gatygo update ) >/dev/null 2>&1 &
 	fi
