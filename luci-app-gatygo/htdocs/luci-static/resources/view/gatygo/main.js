@@ -811,7 +811,8 @@ return view.extend({
 			else
 				main.push(E('p', { 'class': 'gg-meta' }, [
 					(lu.time && lu.result != 'error') ? _('Updated %s.').format(fmtAgo(+lu.time)) + ' ' : '',
-					st.next_update ? _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
+					(st.auto_update === false) ? _('Automatic updates are off.')
+						: st.next_update ? _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
 		}
 		else {
 			var state = (problem && problem.crashed) ? problem.state : null;

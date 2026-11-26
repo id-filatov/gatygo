@@ -489,7 +489,10 @@ return view.extend({
 	},
 
 	renderSettings: function(st) {
-		var m = new form.Map('gatygo', null, _('Changes take effect after Save & Apply: the subscription is downloaded again with the new settings.'));
+		// with updates only by hand Save & Apply asks the provider only for a new link or device ID flag
+		var m = new form.Map('gatygo', null, (uci.get('gatygo', 'main', 'update_interval') == 'off')
+			? _('Changes take effect after Save & Apply. The subscription is downloaded again only when the link or Send device ID changes.')
+			: _('Changes take effect after Save & Apply: the subscription is downloaded again with the new settings.'));
 		var s = m.section(form.NamedSection, 'main', 'gatygo');
 		var o;
 
@@ -535,13 +538,14 @@ return view.extend({
 		o.depends('send_hwid', '1');
 		o.cfgvalue = function(section_id) { return uci.get('gatygo', section_id, 'hwid') || _('generated on the first update'); };
 
-		// a fixed choice: a free number invites 0 or a year
-		var every = uci.get('gatygo', 'main', 'update_interval') || '';
+		// a fixed choice: a free number invites 0 or a year. off: only by hand (the hourly relay check stays)
+		var every = uci.get('gatygo', 'main', 'update_interval') || '', manual = (every == 'off');
 		o = s.option(form.ListValue, 'update_interval', _('Update every'), _('How often the list of countries is downloaded again.'));
-		o.value('', every ? _('As the subscription suggests') : _('As the subscription suggests (%d h)').format(st.update_interval || 12));
-		[ '1', '3', '6', '12', '24' ].concat(every).filter(function(h, i, all) { return h && all.indexOf(h) == i; })
+		o.value('', (every && !manual) ? _('As the subscription suggests') : _('As the subscription suggests (%d h)').format(st.update_interval || 12));
+		[ '1', '3', '6', '12', '24' ].concat(manual ? [] : every).filter(function(h, i, all) { return h && all.indexOf(h) == i; })
 			.sort(function(a, b) { return a - b; })
 			.forEach(function(h) { o.value(h, (h == '1') ? _('Every hour') : _('Every %d hours').format(+h)); });
+		o.value('off', _('Only by hand'));
 
 		o = s.option(form.Flag, 'ipv6_block', _('Block LAN IPv6'), _('IPv6 is not proxied. Blocking it keeps devices with IPv6 addresses from bypassing the tunnel.'));
 		o.default = '1';

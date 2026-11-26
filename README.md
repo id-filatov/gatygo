@@ -16,9 +16,10 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 
 ## Features
 
-- Scheduled subscription updates. Every config is checked with `xray run -test`; a failed update
-  keeps the working one.
-- A server moved to a new IP under the same name: the next update reconnects xray.
+- Scheduled subscription updates, or only by hand. Every config is checked with `xray run -test`;
+  a failed update keeps the working one.
+- A server moved to a new IP under the same name: the next update reconnects xray (with updates
+  only by hand, a check within the hour).
 - LAN DNS goes through xray, the router's own traffic is untouched.
 - Routing, balancer and geo files come from the subscription only; no built-in rules.
 - Shows what the VPN provider sends with the subscription: tile descriptions, announcements,

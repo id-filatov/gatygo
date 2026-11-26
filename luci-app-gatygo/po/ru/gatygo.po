@@ -173,6 +173,10 @@ msgid "The log is empty."
 msgstr "Журнал пуст."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Changes take effect after Save & Apply. The subscription is downloaded again only when the link or Send device ID changes."
+msgstr "Изменения вступают в силу после «Сохранить и применить». Подписка загружается заново, только если изменились ссылка или «Отправлять ID устройства»."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Changes take effect after Save & Apply: the subscription is downloaded again with the new settings."
 msgstr "Изменения вступают в силу после «Сохранить и применить»: подписка загружается заново с новыми настройками."
 
@@ -243,6 +247,10 @@ msgstr "Каждый час"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Every %d hours"
 msgstr "Каждые %d ч"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
+msgid "Only by hand"
+msgstr "Только вручную"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/advanced.js
 msgid "Block LAN IPv6"
@@ -764,6 +772,10 @@ msgstr "Обновление списка стран…"
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Updated %s."
 msgstr "Обновлено %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Automatic updates are off."
+msgstr "Автообновление отключено."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Next update in %s."
