@@ -37,6 +37,32 @@ _gatygo_su_write() {
         && mv "$_gatygo_su_f.tmp" "$_gatygo_su_f"
 }
 
+# The link and Send device ID of the last good download, in $GATYGO_STATE/fetched.env (the link as
+# its sha256: it is a secret). With updates only by hand, Save & Apply downloads again only when
+# the settings no longer match them (`gatygo update settings`). An update notes them, and so does a
+# move by the provider: the link it writes to the settings is not one changed by hand.
+
+# _gatygo_fetched_text URL SEND_HWID — the file's content for them
+_gatygo_fetched_text() {
+    printf "GATYGO_FETCHED_URL='%s'\nGATYGO_FETCHED_SEND_HWID=%s" \
+        "$(printf '%s' "$1" | sha256sum | cut -d' ' -f1)" "$(gatygo_shquote "$2")"
+}
+
+# gatygo_fetched_note URL SEND_HWID — note them (0600, atomic, written only when they change)
+gatygo_fetched_note() {
+    _gatygo_fe_f="$GATYGO_STATE/fetched.env"
+    _gatygo_fe_new=$(_gatygo_fetched_text "$1" "$2")
+    [ "$(cat "$_gatygo_fe_f" 2>/dev/null)" = "$_gatygo_fe_new" ] && return 0
+    mkdir -p "$GATYGO_STATE"
+    printf '%s\n' "$_gatygo_fe_new" > "$_gatygo_fe_f.tmp" && chmod 600 "$_gatygo_fe_f.tmp" \
+        && mv "$_gatygo_fe_f.tmp" "$_gatygo_fe_f"
+}
+
+# gatygo_fetched_changed URL SEND_HWID — exit 0 when nothing is noted or the note is of others
+gatygo_fetched_changed() {
+    [ "$(cat "$GATYGO_STATE/fetched.env" 2>/dev/null)" != "$(_gatygo_fetched_text "$1" "$2")" ]
+}
+
 # gatygo_suburl_domain URL HOSTPORT — URL with its host name replaced by HOSTPORT's; the port
 # changes only when HOSTPORT has one. Exit 1 (nothing printed) for a HOSTPORT that is not a host
 # name with an optional port, and for a URL without scheme://host or with an [IPv6] host.
@@ -105,6 +131,7 @@ gatygo_suburl_record() {
         if uci set "gatygo.main.sub_url=$_gatygo_su_to" 2>/dev/null && uci commit gatygo 2>/dev/null; then
             # the address that answered is the safety net: the link itself, or the spare
             _gatygo_su_write "$_gatygo_su_to" "$_gatygo_su_keep" "$2" "$(date +%s)"
+            gatygo_fetched_note "$_gatygo_su_to" "$GATYGO_SEND_HWID"
             gatygo_log info "the provider moved the subscription to a new address"
             return 0
         fi

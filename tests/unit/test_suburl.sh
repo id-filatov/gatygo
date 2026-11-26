@@ -35,7 +35,25 @@ done
 assert_exit 1 "domain: an IPv6 host is left alone" gatygo_suburl_domain 'https://[2001:db8::1]/s' new.example.org
 assert_exit 1 "domain: not an address" gatygo_suburl_domain old.example.com/s new.example.org
 
+# --- the link and Send device ID of the last download: Save & Apply with updates only by hand
+# downloads again only when one of them is not what the settings say
+FE="$GATYGO_STATE/fetched.env"
+assert_exit 0 "fetched: nothing noted yet -> changed" gatygo_fetched_changed "$M" 1
+gatygo_fetched_note "$M" 1
+assert_exit 1 "fetched: the same link and flag -> not changed" gatygo_fetched_changed "$M" 1
+assert_exit 0 "fetched: another link -> changed" gatygo_fetched_changed "$M/2" 1
+assert_exit 0 "fetched: another Send device ID -> changed" gatygo_fetched_changed "$M" 0
+assert_eq "" "$(grep -F 'sub.example.com' "$FE")" "fetched.env holds no address"
+assert_eq "-rw-------" "$(ls -l "$FE" | cut -c1-10)" "fetched.env is 0600"
+_i0=$(ls -i "$FE" | awk '{print $1}')
+gatygo_fetched_note "$M" 1
+assert_eq "$_i0" "$(ls -i "$FE" | awk '{print $1}')" "unchanged: fetched.env is not rewritten"
+gatygo_fetched_note "$M" 0
+assert_exit 1 "a new note replaces the old one" gatygo_fetched_changed "$M" 0
+rm -f "$FE"
+
 # --- record: the provider moves the subscription by new-url
+GATYGO_SEND_HWID=1
 uci set gatygo.main.sub_url="$M"
 _hdr "$N" "" "$B"
 _rec "$M" "$M"
@@ -44,6 +62,7 @@ assert_eq "$N|$B|$M" "$(_u FOR)|$(_u FALLBACK)|$(_u PREVIOUS)" "the file belongs
 case $(_u MOVED) in '' | *[!0-9]*) _t_bad "the move is noted with its time: '$(_u MOVED)'" ;; *) _t_ok ;; esac
 assert_eq "-rw-------" "$(ls -l "$F" | cut -c1-10)" "sub-urls.env is 0600"
 assert_eq "1" "$(grep -c 'moved the subscription to a new address' "$SYSLOG_STUB_FILE")" "one line says so"
+assert_exit 1 "a move by the provider is noted as the link of the last download" gatygo_fetched_changed "$N" 1
 _moved=$(_u MOVED)
 
 # --- the new link failed and the previous one answered: the previous one stays

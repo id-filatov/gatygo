@@ -267,6 +267,7 @@ gatygo_update() {
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"
     # the spares for next time, and a move of the subscription to a new address
+    gatygo_fetched_note "$GATYGO_SUB_URL" "$GATYGO_SEND_HWID"
     gatygo_suburl_record "$GATYGO_SUB_URL" "$_gatygo_used" "$GATYGO_STATE/headers.env"
     _gatygo_restarted=0
     # a replaced core restarts xray too: the init script makes the core a part of the instance

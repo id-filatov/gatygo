@@ -2,7 +2,9 @@
 # gatygo command line. The service itself is /etc/init.d/gatygo (procd).
 #   gatygo start|stop|restart        service control
 #   gatygo forget                    drop the subscription: stop, erase what it brought, default settings
-#   gatygo update                    run the subscription update cycle now
+#   gatygo update [settings]         run the subscription update cycle now; settings: the one Save & Apply
+#                                    runs, skipped when updates are only by hand and neither the link nor
+#                                    Send device ID changed since the last download
 #   gatygo relay-check               reconnect xray when a relay moved (the hourly cron line when updates are only by hand)
 #   gatygo select <profile>          switch to a subscription tile (remarks) and apply it
 #   gatygo apply [wait]              rebuild the config from the cached subscription (Save & Apply)
@@ -25,7 +27,7 @@ GATYGO_LIB=${GATYGO_LIB:-/usr/lib/gatygo}
 . "$GATYGO_LIB/config.sh"
 
 usage() {
-	echo "usage: gatygo start|stop|restart|connect <url>|forget|update|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain|address>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|start|running|run|dismiss|newurl dismiss|version" >&2
+	echo "usage: gatygo start|stop|restart|connect <url>|forget|update [settings]|relay-check|select <profile>|apply [wait]|check [fresh]|ping [kept]|route <domain|address>|rules|status|nodes|log [N]|updating|cron-sync|watch|upgrade due|check|start|running|run|dismiss|newurl dismiss|version" >&2
 	exit 1
 }
 
@@ -174,6 +176,12 @@ cmd_update() {
 	. "$GATYGO_LIB/service.sh"
 	. "$GATYGO_LIB/dns.sh"
 	gatygo_load_config
+	# Save & Apply: the settings are on the cached subscription already (`gatygo apply`); with
+	# updates only by hand just a new link or Send device ID needs the provider
+	if [ "${1:-}" = settings ] && ! gatygo_auto_update && ! gatygo_fetched_changed "$GATYGO_SUB_URL" "$GATYGO_SEND_HWID"; then
+		gatygo_log info "update skipped: automatic updates are off and neither the link nor Send device ID changed"
+		return 0
+	fi
 	gatygo_update_lock || {
 		# the upgrade of gatygo holds it while the packages install: it runs the update after
 		if gatygo_locked upgrade; then
@@ -295,7 +303,7 @@ cmd_apply() {
 	fi
 	# the upgrade's rebuild: the provider's answer was read by the version before, this one may read
 	# more from it (its messages, a moved address); the upgrade runs the update when it is over
-	[ "${GATYGO_UPGRADE_RUN:-}" = 1 ] && touch "$GATYGO_RUN/update-wanted"
+	[ "${GATYGO_UPGRADE_RUN:-}" = 1 ] && gatygo_auto_update && touch "$GATYGO_RUN/update-wanted"
 	if [ "$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)" = changed ] && gatygo_xray_running; then
 		gatygo_dns_apply "$GATYGO_STATE/xray.json"
 		_gatygo_reload
@@ -394,7 +402,7 @@ case ${1:-} in
 start | stop | restart) exec /etc/init.d/gatygo "$1" ;;
 connect) cmd_connect "$2" ;;
 forget) cmd_forget ;;
-update) cmd_update ;;
+update) case ${2:-} in '' | settings) cmd_update "${2:-}" ;; *) usage ;; esac ;;
 relay-check) cmd_relay_check ;;
 select) cmd_select "$2" ;;
 apply) cmd_apply "$2" ;;

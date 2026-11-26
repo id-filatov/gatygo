@@ -440,6 +440,49 @@ _mark; PATH="$tmp/bin:$PATH" gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "
 assert_eq "1|/sub/json $MX" "$(grep -c '^http://127.0.0.1:1/' "$tmp/curl.urls")|$(_asked)" "one request to the dead link, the spare's /json first"
 uci set gatygo.main.sub_url="$_sub"
 
+# --- updates only by hand (update_interval off): Save & Apply runs `gatygo update settings`,
+# which downloads only for a new link or Send device ID
+rm -f "$GATYGO_STATE/sub-urls.env" "$GATYGO_STATE/sub-way.env"
+uci set gatygo.main.sub_url=$M/sub; uci set gatygo.main.send_hwid=1; uci set gatygo.main.update_interval=''
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "an update to note the link"
+assert_exit 1 "a good update notes its link and Send device ID" gatygo_fetched_changed "$M/sub" 1
+uci set gatygo.main.sub_url=http://127.0.0.1:1/sub
+gatygo_update 2>>"$tmp/stderr.log"
+assert_exit 1 "a failed update notes nothing" gatygo_fetched_changed "$M/sub" 1
+uci set gatygo.main.sub_url=$M/sub
+_skipped() { grep -c '\[info\] update skipped: automatic updates are off and neither the link nor Send device ID changed$' "$SYSLOG_STUB_FILE"; }
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, automatic updates on: downloads as always" test -n "$(_asked)"
+uci set gatygo.main.update_interval=off; _n0=$(_skipped)
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "settings, off, nothing changed: exit 0"
+assert_eq "" "$(_asked)" "settings, off, nothing changed: no download"
+assert_eq "$((_n0 + 1))" "$(_skipped)" "settings, off, nothing changed: one line says why"
+# (the mock's /sub wants x-hwid: without one the download fails and notes nothing)
+uci set gatygo.main.sub_url=$M/sub-nohwid
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, off, a new link: downloads" test -n "$(_asked)"
+uci set gatygo.main.send_hwid=0
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, off, Send device ID changed: downloads" test -n "$(_asked)"
+assert_exit 1 "and notes it" gatygo_fetched_changed "$M/sub-nohwid" 0
+uci set gatygo.main.send_hwid=1
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, off, Send device ID back: downloads" test -n "$(_asked)"
+uci set gatygo.main.sub_url=$M/sub-moved
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, off, a new link: downloads" test -n "$(_asked)"
+# the provider moves the link (new-url): the update writes it to the settings itself
+uci set gatygo.main.sub_url=$M/sub-move
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_eq "$M/sub-moved" "$(uci get gatygo.main.sub_url)" "settings, off, a link the provider moves"
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_eq "" "$(_asked)" "off: a move by the provider is not a change"
+# the rebuild of a gatygo upgrade asks for no update when updates are only by hand
+rm -f "$GATYGO_RUN/update-wanted"
+assert_exit 0 "off: the upgrade's apply" env GATYGO_UPGRADE_RUN=1 sh "$CLI" apply
+assert_exit 1 "off: the upgrade's apply asks for no update" test -e "$GATYGO_RUN/update-wanted"
+uci set gatygo.main.update_interval=''; uci set gatygo.main.sub_url="$_sub"; rm -f "$GATYGO_STATE/sub-urls.env"
+
 assert_eq "0" "$(cat "$SYSLOG_STUB_FILE" "$tmp/stderr.log" | grep -cE '127\.0\.0\.1|localhost')" "system log and stderr never contain the subscription host"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
