@@ -128,6 +128,40 @@ if [ "$(subs)" -gt "$n0" ]; then ok "reload re-downloads the subscription"; else
 expect "still running after reload" "true" 'gatygo status | jq -r .running'
 vm 'uci set gatygo.main.update_interval=""; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
 
+echo "== 2d. updates only by hand"
+# update_interval off: Save & Apply, a rule and the first start after boot download nothing; a new
+# Send device ID does; the cron line is the hourly relay check (section 8c runs it)
+IDLE='i=0; while gatygo updating && [ $i -lt 90 ]; do i=$((i + 1)); sleep 1; done'
+vm "$IDLE"; n0=$(subs)
+vm 'uci set gatygo.main.update_interval=off; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+vm "$IDLE"
+if [ "$(subs)" = "$n0" ]; then ok "off: Save & Apply downloads nothing"; else bad "off: Save & Apply downloads nothing"; fi
+expect "off: one gatygo cron line, the hourly relay check" "0 * * * * /usr/bin/gatygo relay-check # gatygo" 'grep "# gatygo$" /etc/crontabs/root'
+expect "off: status says so, no next update" "[false,null]" 'gatygo status | jq -c "[.auto_update, .next_update]"'
+vm 'uci add gatygo rule >/dev/null; uci set gatygo.@rule[-1].domain=rare.example; uci set gatygo.@rule[-1].to=direct; uci commit gatygo; /etc/init.d/gatygo reload'
+check "off: the rule is applied" 'i=0; until gatygo rules | jq -e ".pending == false" >/dev/null; do i=$((i + 1)); [ $i -lt 90 ] || exit 1; sleep 1; done'
+expect "off: the rule is in the config" "1" 'jq "[.routing.rules[] | select((.ruleTag // \"\") | startswith(\"gatygo-rule-\"))] | length" /etc/gatygo/xray.json'
+vm "sleep 5; $IDLE"
+if [ "$(subs)" = "$n0" ]; then ok "off: a rule downloads nothing"; else bad "off: a rule downloads nothing"; fi
+vm 'uci delete gatygo.@rule[-1]; uci commit gatygo; /etc/init.d/gatygo reload; sleep 5'
+vm "$IDLE"; n1=$(subs)
+vm 'rm -f /var/run/gatygo/boot-update-done; /etc/init.d/gatygo stop; /etc/init.d/gatygo start; sleep 40'
+if [ "$(subs)" = "$n1" ]; then ok "off: no download on the first start after boot"; else bad "off: no download on the first start after boot"; fi
+expect "off: running after the start" "true" 'gatygo status | jq -r .running'
+# the mock wants x-hwid: the download without it fails, so it notes nothing and turning the flag
+# back on is no change
+vm 'uci set gatygo.main.send_hwid=0; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+vm "$IDLE"; n2=$(subs)
+if [ "$n2" -gt "$n1" ]; then ok "off: a new Send device ID downloads"; else bad "off: a new Send device ID downloads"; fi
+vm 'uci set gatygo.main.send_hwid=1; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+vm "$IDLE"
+if [ "$(subs)" = "$n2" ]; then ok "off: a failed download noted nothing: the flag back is no change"; else bad "off: a failed download noted nothing: the flag back is no change"; fi
+vm 'uci set gatygo.main.update_interval=""; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
+vm "$IDLE"
+if [ "$(subs)" -gt "$n2" ]; then ok "back to automatic: Save & Apply downloads"; else bad "back to automatic: Save & Apply downloads"; fi
+expect "back to automatic: the update line" "0 */3 * * * /usr/bin/gatygo update # gatygo" 'grep "# gatygo$" /etc/crontabs/root'
+expect "back to automatic: status" "true ok" 'gatygo status | jq -r "\"\(.auto_update) \(.last_update.result)\""'
+
 echo "== 3. firewall"
 check "nft table inet gatygo present" 'nft list table inet gatygo >/dev/null'
 check "policy rule present" 'ip rule | grep -q "fwmark 0x1 lookup 100"'
@@ -319,9 +353,24 @@ check "traffic goes through the relay" "$THROUGH"
 expect "xray is on the second server" "10.99.0.2:8443" "$HELD"
 vm 'gatygo update >/dev/null 2>&1'
 expect "the next update leaves it alone" "$R2" 'gatygo status | jq -r .pid'
+# updates only by hand: no update comes, the hourly relay check does the same without the panel
+relay_subs() { ssh "$LAB_HOST" 'curl -s localhost:8788/log' | jq '[.[] | select(.path | startswith("/sub"))] | length'; }
+vm 'uci set gatygo.main.update_interval=off; uci commit gatygo; /etc/init.d/gatygo reload; sleep 5'
+vm "$IDLE"; R3=$(vm 'gatygo status | jq -r .pid'); n8=$(relay_subs)
+vm 'echo "10.99.0.1 relay.e2e.test" > /tmp/hosts/e2e-relay; killall -HUP dnsmasq; sleep 6'
+vm "$THROUGH"
+expect "off: without a check xray stays on the second server" "10.99.0.2:8443" "$HELD"
+vm 'gatygo relay-check; sleep 5'
+R4=$(vm 'gatygo status | jq -r .pid')
+[ -n "$R4" ] && [ "$R4" != "$R3" ] && ok "off: relay-check restarted xray ($R3 -> $R4)" || bad "off: relay-check restarted xray ($R3 -> $R4)"
+check "off: traffic goes through the relay" "$THROUGH"
+expect "off: xray is on the first server again" "10.99.0.1:8443" "$HELD"
+if [ "$(relay_subs)" = "$n8" ]; then ok "off: relay-check asked the panel nothing"; else bad "off: relay-check asked the panel nothing"; fi
+vm 'gatygo relay-check'
+expect "off: the next relay-check leaves it alone" "$R4" 'gatygo status | jq -r .pid'
 vm 'kill $(cat /tmp/relay1.pid) $(cat /tmp/relay2.pid); ip addr del 10.99.0.1/32 dev lo; ip addr del 10.99.0.2/32 dev lo
     rm -f /tmp/hosts/e2e-relay /tmp/relay*; killall -HUP dnsmasq
-    uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo; gatygo update >/dev/null 2>&1; sleep 5'
+    uci set gatygo.main.update_interval=""; uci set gatygo.main.sub_url=http://10.0.2.2:8787/sub; uci commit gatygo; gatygo update >/dev/null 2>&1; sleep 5'
 expect "back on the main fixture" "📍 Bravo" 'gatygo status | jq -r .profile_used'
 
 echo "== 9. stop cleans up"
