@@ -141,5 +141,21 @@ gatygo_lock relay
 assert_exit 1 "relay-check is not an update for the page: updating stays false while it runs" sh "$CLI" updating
 gatygo_unlock relay
 
+# the restart goes under the update lock: `gatygo forget` (or an update) that took it while the
+# check looked up the names is not undone by a `start` (forget stops the VPN, then resets the
+# settings). The lookups here take the lock the way forget would.
+mkdir -p "$tmp/bin"
+printf '#!/bin/sh\nmkdir -p "%s/update.lock" && echo %s > "%s/update.lock/pid"\nexec /src/tests/stubs/nslookup "$@"\n' \
+    "$GATYGO_RUN" "$$" "$GATYGO_RUN" > "$tmp/bin/nslookup"; chmod +x "$tmp/bin/nslookup"
+_moved_state; _r0=$(_rc)
+PATH="$tmp/bin:$PATH" sh "$CLI" relay-check
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "relay-check: the update lock taken during the check -> nothing restarted"
+assert_eq "$_r0" "$(_rc)" "relay-check: the update lock taken during the check -> the reconnect value stays"
+gatygo_update_unlock
+_moved_state
+sh "$CLI" relay-check
+assert_eq "running start" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "relay-check: moved, lock free -> restarted"
+assert_exit 1 "relay-check: and the update lock is let go" gatygo_locked update
+
 rm -rf "$tmp"
 report

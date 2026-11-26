@@ -477,6 +477,30 @@ _mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
 assert_eq "$M/sub-moved" "$(uci get gatygo.main.sub_url)" "settings, off, a link the provider moves"
 _mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
 assert_eq "" "$(_asked)" "off: a move by the provider is not a change"
+# a new link while another update runs: Save & Apply waits for it to end, then downloads (with
+# updates only by hand nothing else would)
+uci set gatygo.main.sub_url=$M/sub
+gatygo_update_lock; ( sleep 3; gatygo_update_unlock ) & _held=$!
+_mark; sh "$CLI" update settings 2>>"$tmp/stderr.log"
+assert_exit 0 "settings, off, a new link while an update runs: waits, then downloads" test -n "$(_asked)"
+wait "$_held"
+# settings that fail on the cached subscription: no download follows to show it, so the failure
+# is the page's result; the next good apply puts the last update's result back
+_lu=$(sha256sum < "$GATYGO_STATE/last-update.env")
+mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
+assert_exit 1 "off: settings that fail" sh "$CLI" apply
+assert_eq "error settings_failed" "$(_last RESULT) $(_last CODE)" "off: a failed apply is the page's result"
+assert_exit 1 "off: and fail again" sh "$CLI" apply
+assert_exit 1 "off: the upgrade's failed apply" env GATYGO_UPGRADE_RUN=1 sh "$CLI" apply
+mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
+assert_exit 0 "off: settings that work again" sh "$CLI" apply
+assert_eq "$_lu" "$(sha256sum < "$GATYGO_STATE/last-update.env")" "off: the good apply puts the last update's result back"
+uci set gatygo.main.update_interval=''
+mv "$GATYGO_STATE/subscription.json" "$tmp/sub.keep"
+sh "$CLI" apply 2>>"$tmp/stderr.log"
+assert_eq "$_lu" "$(sha256sum < "$GATYGO_STATE/last-update.env")" "automatic updates: a failed apply records nothing (the download after it does)"
+mv "$tmp/sub.keep" "$GATYGO_STATE/subscription.json"
+uci set gatygo.main.update_interval=off
 # the rebuild of a gatygo upgrade asks for no update when updates are only by hand
 rm -f "$GATYGO_RUN/update-wanted"
 assert_exit 0 "off: the upgrade's apply" env GATYGO_UPGRADE_RUN=1 sh "$CLI" apply

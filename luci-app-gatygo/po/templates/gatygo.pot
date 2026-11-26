@@ -489,6 +489,14 @@ msgid "gatygo tests every update before using it, and this one failed."
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "The new settings did not pass the check"
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "gatygo tests the config before using it. Change back what you changed last, then Save & Apply."
+msgstr ""
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "%s is no longer in your subscription"
 msgstr ""
 

@@ -588,6 +588,11 @@ return view.extend({
 			p.text = _('gatygo tests every update before using it, and this one failed.') + kept;
 			p.action = retry;
 			break;
+		case 'settings_failed':
+			// updates only by hand: no download follows Save & Apply to report what went wrong
+			p.title = _('The new settings did not pass the check');
+			p.text = _('gatygo tests the config before using it. Change back what you changed last, then Save & Apply.') + kept;
+			break;
 		case 'profile_missing':
 			if (!st.profile || st.profile == st.profile_used) return null;
 			p.title = _('%s is no longer in your subscription').format(splitFlag(st.profile).name);

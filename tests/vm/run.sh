@@ -147,6 +147,7 @@ vm 'uci delete gatygo.@rule[-1]; uci commit gatygo; /etc/init.d/gatygo reload; s
 vm "$IDLE"; n1=$(subs)
 vm 'rm -f /var/run/gatygo/boot-update-done; /etc/init.d/gatygo stop; /etc/init.d/gatygo start; sleep 40'
 if [ "$(subs)" = "$n1" ]; then ok "off: no download on the first start after boot"; else bad "off: no download on the first start after boot"; fi
+check "off: the boot refresh counts as done" 'test -e /var/run/gatygo/boot-update-done'
 expect "off: running after the start" "true" 'gatygo status | jq -r .running'
 # the mock wants x-hwid: the download without it fails, so it notes nothing and turning the flag
 # back on is no change
@@ -158,7 +159,10 @@ vm "$IDLE"
 if [ "$(subs)" = "$n2" ]; then ok "off: a failed download noted nothing: the flag back is no change"; else bad "off: a failed download noted nothing: the flag back is no change"; fi
 vm 'uci set gatygo.main.update_interval=""; uci commit gatygo; /etc/init.d/gatygo reload; sleep 10'
 vm "$IDLE"
-if [ "$(subs)" -gt "$n2" ]; then ok "back to automatic: Save & Apply downloads"; else bad "back to automatic: Save & Apply downloads"; fi
+n3=$(subs)
+if [ "$n3" -gt "$n2" ]; then ok "back to automatic: Save & Apply downloads"; else bad "back to automatic: Save & Apply downloads"; fi
+vm "sleep 40; $IDLE"
+if [ "$(subs)" = "$n3" ]; then ok "back to automatic: once, no boot refresh after it"; else bad "back to automatic: once, no boot refresh after it"; fi
 expect "back to automatic: the update line" "0 */3 * * * /usr/bin/gatygo update # gatygo" 'grep "# gatygo$" /etc/crontabs/root'
 expect "back to automatic: status" "true ok" 'gatygo status | jq -r "\"\(.auto_update) \(.last_update.result)\""'
 

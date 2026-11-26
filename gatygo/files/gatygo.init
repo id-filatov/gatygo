@@ -5,8 +5,9 @@
 # the side effects around it (nft table, dnsmasq settings,
 # cron line) are applied once xray runs and removed on stop. `start` on a running service
 # re-submits the instance: procd restarts xray only when xray.json, a geo file or the core changed,
-# or an update found a relay that moved (lib/relay.sh).
-# `reload` (UCI trigger) additionally refreshes the subscription with the new settings. A VPN
+# or an update or `gatygo relay-check` found a relay that moved (lib/relay.sh).
+# `reload` (UCI trigger) additionally refreshes the subscription with the new settings; with
+# updates only by hand only when the link or Send device ID changed. A VPN
 # stopped by hand stays off: the settings are applied to the subscription only, and a package
 # upgrade (which calls `start` as well) leaves it stopped.
 START=95
@@ -92,13 +93,16 @@ service_started() {
 	gatygo_relay_note "$GATYGO_STATE/xray.json"
 	gatygo_cron_sync "$(gatygo_update_schedule)"
 	# One background refresh per boot: the tunnel is already up on the cached config. None when
-	# updates are only by hand.
-	if gatygo_auto_update && [ ! -f "$GATYGO_RUN/boot-update-done" ]; then
+	# updates are only by hand, and the boot counts as done all the same: switching back later must
+	# not bring it (Save & Apply downloads then anyway).
+	if [ ! -f "$GATYGO_RUN/boot-update-done" ]; then
 		touch "$GATYGO_RUN/boot-update-done"
-		(
-			sleep 30
-			/usr/bin/gatygo update
-		) >/dev/null 2>&1 &
+		if gatygo_auto_update; then
+			(
+				sleep 30
+				/usr/bin/gatygo update
+			) >/dev/null 2>&1 &
+		fi
 	fi
 }
 

@@ -16,7 +16,7 @@
 #   gatygo nodes                     JSON: outbounds with balancer selection and traffic
 #   gatygo log [N]                   last N xray/gatygo lines of the system log (default 200)
 #   gatygo updating                  exit 0 while an update runs
-#   gatygo cron-sync                 re-create the periodic update line
+#   gatygo cron-sync                 re-create the cron line: the periodic update, or the hourly relay-check
 #   gatygo watch                     wait for xray to quit for good (run by the service itself)
 #   gatygo upgrade due|check         exit 0 when the daily look at the latest release is due | look now
 #   gatygo upgrade running|run|dismiss  exit 0 while an upgrade runs | upgrade now | drop its outcome
@@ -178,10 +178,20 @@ cmd_update() {
 	gatygo_load_config
 	# Save & Apply: the settings are on the cached subscription already (`gatygo apply`); with
 	# updates only by hand just a new link or Send device ID needs the provider
-	if [ "${1:-}" = settings ] && ! gatygo_auto_update && ! gatygo_fetched_changed "$GATYGO_SUB_URL" "$GATYGO_SEND_HWID"; then
+	_unneeded() {
+		[ "${1:-}" = settings ] && ! gatygo_auto_update && ! gatygo_fetched_changed "$GATYGO_SUB_URL" "$GATYGO_SEND_HWID" || return 1
 		gatygo_log info "update skipped: automatic updates are off and neither the link nor Send device ID changed"
-		return 0
-	fi
+	}
+	_unneeded "${1:-}" && return 0
+	# Save & Apply while an update runs with the settings from before: wait for it to end (with
+	# updates only by hand nothing else would download the new link), then look again (that update
+	# may have been the download of this very link); an upgrade is not waited for
+	_i=0
+	while [ "${1:-}" = settings ] && [ "$_i" -lt 600 ] && gatygo_updating && ! gatygo_locked upgrade; do
+		_i=$((_i + 1))
+		sleep 1
+	done
+	[ "$_i" = 0 ] || ! _unneeded "${1:-}" || return 0
 	gatygo_update_lock || {
 		# the upgrade of gatygo holds it while the packages install: it runs the update after
 		if gatygo_locked upgrade; then
@@ -206,17 +216,20 @@ cmd_update() {
 }
 
 # The hourly cron line when updates are only by hand: what an update does after it installs the
-# config about a relay that moved (lib/relay.sh), without asking the provider. Not an update for
-# the page: it takes a lock of its own, and leaves the work to an update or an upgrade of gatygo
-# that runs (the update looks at the relays itself). Always exit 0.
+# config about a relay that moved (lib/relay.sh), without asking the provider. The look takes a
+# lock of its own and is not an update for the page; it leaves the work to an update or an upgrade
+# of gatygo that runs (the update looks at the relays itself). The restart, when a relay moved,
+# goes under the update lock: a `gatygo forget` or an update that took it meanwhile is not undone
+# by a `start` (forget stops the VPN before it resets the settings). Always exit 0.
 cmd_relay_check() {
 	. "$GATYGO_LIB/update.sh"
 	gatygo_load_config
 	if gatygo_updating || gatygo_locked upgrade; then return 0; fi
 	gatygo_lock relay || return 0
-	if gatygo_relay_moved "$GATYGO_STATE/xray.json"; then
+	if gatygo_relay_moved "$GATYGO_STATE/xray.json" && gatygo_update_lock; then
 		gatygo_relay_reconnect
 		_gatygo_reload
+		gatygo_update_unlock
 	fi
 	gatygo_unlock relay
 	return 0
@@ -268,8 +281,10 @@ cmd_select() {
 }
 
 # Rebuild xray.json from the cached subscription with the settings and the user's rules as they
-# are now: Save & Apply (the init script's reload) runs this before the download, so the rules
-# work even when the panel does not answer. Writes no result: the last update's stays. Exit 2:
+# are now: Save & Apply (the init script's reload) runs this before `update settings`, so the
+# rules work even when the panel does not answer. Writes no result, the last update's stays;
+# with updates only by hand a failure is the result (settings_failed: no download follows to
+# report it), and the next good rebuild puts the last update's result back. Exit 2:
 # an update holds the lock (`wait`: still after 60 s); 1: no cached subscription, or the config
 # failed the test (the current one stays).
 cmd_apply() {
@@ -297,9 +312,21 @@ cmd_apply() {
 	gatygo_apply_profile "$GATYGO_STATE/subscription.json" "$_stage" >/dev/null
 	_rc=$?
 	rm -rf "$_stage"
+	_lu=$GATYGO_STATE/last-update.env
 	if [ "$_rc" = 1 ] || [ ! -s "$GATYGO_STATE/subscription.json" ]; then
-		gatygo_log error "settings could not be applied to the cached subscription; keeping the current config"
+		_msg="settings could not be applied to the cached subscription; keeping the current config"
+		# with updates only by hand no download follows to tell the page: the failure is its
+		# result until the next good apply, which puts the last update's result back
+		if ! gatygo_auto_update && [ "${GATYGO_UPGRADE_RUN:-}" != 1 ]; then
+			[ "$(_gatygo_env_get "$_lu" CODE 2>/dev/null)" = settings_failed ] || { [ -f "$_lu" ] && cp -p "$_lu" "$_lu.before"; }
+			gatygo_result error settings_failed "$_msg"
+		else
+			gatygo_log error "$_msg"
+		fi
 		return 1
+	fi
+	if [ "$(_gatygo_env_get "$_lu" CODE 2>/dev/null)" = settings_failed ]; then
+		if [ -f "$_lu.before" ]; then mv "$_lu.before" "$_lu"; else rm -f "$_lu"; fi
 	fi
 	# the upgrade's rebuild: the provider's answer was read by the version before, this one may read
 	# more from it (its messages, a moved address); the upgrade runs the update when it is over

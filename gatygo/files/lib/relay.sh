@@ -3,7 +3,8 @@
 # connection, and its gRPC transport keeps one connection for as long as the old machine answers:
 # a changed DNS record goes unseen, and the config (names only) stays the same, so an update would
 # not restart xray either. The run dir keeps every address the relay names had while the router
-# runs; an update restarts xray when xray still holds one that its name no longer has. The
+# runs; an update (or, with updates only by hand, the hourly `gatygo relay-check`) restarts xray
+# when xray still holds one that its name no longer has. The
 # addresses xray holds alone would not do: it also connects straight to sites, often on a
 # relay's port.
 
