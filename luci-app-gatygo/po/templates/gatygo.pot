@@ -789,7 +789,7 @@ msgid "Waiting for the geo files"
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Couldn’t download the geo files from GitHub. Next try in %s."
+msgid "Couldn’t download the geo files from GitHub. Trying again every minute."
 msgstr ""
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js

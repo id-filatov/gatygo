@@ -210,9 +210,9 @@ gatygo_geo_restore() {
 
 # _gatygo_geo_wait STATE [NEXT] — tell the page the VPN waits for the default dats
 # ($GATYGO_RUN/geo-wait): downloading, or failed with the time of the next try; and whether the
-# home network is closed meanwhile (on_crash=block, the init script)
+# home network is closed meanwhile (on_crash=block, the init script), as the settings are now
 _gatygo_geo_wait() {
-    _gatygo_blk=0; [ "$GATYGO_ON_CRASH" != block ] || _gatygo_blk=1
+    _gatygo_blk=1; [ "$(gatygo_cfg on_crash block)" != direct ] || _gatygo_blk=0
     printf "GATYGO_GEO_WAIT='%s'\nGATYGO_GEO_NEXT='%s'\nGATYGO_GEO_BLOCK='%s'\n" "$1" "${2:-}" "$_gatygo_blk" \
         > "$GATYGO_RUN/geo-wait.tmp" && mv "$GATYGO_RUN/geo-wait.tmp" "$GATYGO_RUN/geo-wait"
 }
@@ -226,15 +226,19 @@ gatygo_geo_waiting() {
 
 # gatygo_geo_restore_later [start] — gatygo_geo_restore in the background, again every minute
 # (GATYGO_GEO_RETRY_DELAY seconds) until the dats are in place, they are no longer the default
-# ones, or the VPN is stopped by hand or switched off. With `start` the VPN waits for them: the
-# page is told ($GATYGO_RUN/geo-wait), and the service is started once they are there. Only the
-# first failed try is logged. At most one runs ($GATYGO_RUN/geo-retry: its pid). It lets go of
-# procd's lock (rc.common holds it on fd 1000): kept, it would hold up every stop until then.
+# ones, or the VPN is stopped by hand or switched off. With `start` the VPN waits for them
+# ($GATYGO_RUN/geo-start, a running download takes it up too): the page is told
+# ($GATYGO_RUN/geo-wait), and the service is started once they are there. Only the first failed
+# try is logged. At most one runs ($GATYGO_RUN/geo-retry: its pid). It lets go of procd's lock
+# (rc.common holds it on fd 1000): kept, it would hold up every stop until then.
 gatygo_geo_restore_later() {
+    mkdir -p "$GATYGO_RUN"
+    if [ "${1:-}" = start ]; then
+        : > "$GATYGO_RUN/geo-start"
+        [ -f "$GATYGO_RUN/geo-wait" ] || _gatygo_geo_wait downloading
+    fi
     _gatygo_rp=$(cat "$GATYGO_RUN/geo-retry" 2>/dev/null)
     [ -n "$_gatygo_rp" ] && kill -0 "$_gatygo_rp" 2>/dev/null && return 0
-    mkdir -p "$GATYGO_RUN"
-    [ "${1:-}" != start ] || _gatygo_geo_wait downloading
     (
         # the update lock it takes names this subshell, not the shell that started it
         read -r GATYGO_LOCK_PID _gatygo_x < /proc/self/stat
@@ -247,14 +251,15 @@ gatygo_geo_restore_later() {
                 gatygo_log error "geo: Loyalsoldier's geo files could not be downloaded; trying again every minute"
                 _gatygo_failed=1 GATYGO_LOG_QUIET=1
             fi
-            [ "${1:-}" != start ] || _gatygo_geo_wait failed $(( $(date +%s) + ${GATYGO_GEO_RETRY_DELAY:-60} ))
+            [ ! -f "$GATYGO_RUN/geo-start" ] || _gatygo_geo_wait failed $(( $(date +%s) + ${GATYGO_GEO_RETRY_DELAY:-60} ))
             sleep "${GATYGO_GEO_RETRY_DELAY:-60}"
         done
         GATYGO_LOG_QUIET=''
         [ "$_gatygo_rr" != 0 ] || gatygo_log info "geo: Loyalsoldier's geo files are in place again"
-        rm -f "$GATYGO_RUN/geo-wait" "$GATYGO_RUN/geo-retry"
+        _gatygo_st=0; [ ! -f "$GATYGO_RUN/geo-start" ] || _gatygo_st=1
+        rm -f "$GATYGO_RUN/geo-wait" "$GATYGO_RUN/geo-start" "$GATYGO_RUN/geo-retry"
         case $_gatygo_rr in
-            0 | 2) [ "${1:-}" != start ] || [ -f "$GATYGO_RUN/stopped" ] || "${GATYGO_INIT:-/etc/init.d/gatygo}" start ;;
+            0 | 2) [ "$_gatygo_st" = 0 ] || [ -f "$GATYGO_RUN/stopped" ] || "${GATYGO_INIT:-/etc/init.d/gatygo}" start ;;
         esac
     ) 1000>&- >/dev/null 2>&1 &
     echo "$!" > "$GATYGO_RUN/geo-retry"

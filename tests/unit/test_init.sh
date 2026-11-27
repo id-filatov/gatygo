@@ -89,6 +89,7 @@ assert_eq "dns_restore" "$(_calls)" "direct: the home network is not closed"
 assert_eq "0" "$(_wait GATYGO_GEO_BLOCK)" "the page is told it is not closed"
 # Stop meanwhile: the wait is over, the page is told at once
 stop_service
+assert_exit 1 "stop: the download no longer starts the service" test -e "$GATYGO_RUN/geo-start"
 assert_exit 1 "stop: the page is not told the VPN waits any more" test -e "$GATYGO_RUN/geo-wait"
 assert_exit 0 "stop: stopped by hand" test -e "$GATYGO_RUN/stopped"
 _gone "$(_worker)"

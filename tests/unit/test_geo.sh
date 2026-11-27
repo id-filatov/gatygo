@@ -198,13 +198,13 @@ kill "$_u"; wait "$_u" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
 # --- the VPN waits for the default files: they come in the background, away from procd's lock
 #     (rc.common holds it on fd 1000), once a minute until they are there; then the service starts
 export GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_RETRY_DELAY=1
-uci set gatygo.main.enabled=1; GATYGO_ON_CRASH=block
+uci set gatygo.main.enabled=1
 _wait() { _gatygo_env_get "$GATYGO_RUN/geo-wait" "$1"; }
 _gatygo_geo_wait downloading
 assert_eq "downloading  1" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_NEXT) $(_wait GATYGO_GEO_BLOCK)" "the wait as the page reads it: downloading, no next try yet, closed"
-GATYGO_ON_CRASH=direct; _gatygo_geo_wait failed 1795800000
+uci set gatygo.main.on_crash=direct; _gatygo_geo_wait failed 1795800000
 assert_eq "failed 1795800000 0" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_NEXT) $(_wait GATYGO_GEO_BLOCK)" "failed, the next try, open"
-GATYGO_ON_CRASH=block; rm -f "$GATYGO_RUN/geo-wait"
+uci delete gatygo.main.on_crash; rm -f "$GATYGO_RUN/geo-wait"
 _lines() { grep -c "$1" "$SYSLOG_STUB_FILE"; }
 mkdir -p "$tmp/geo-away"; mv "$tmp/geo-src/"*.dat "$tmp/geo-away/"
 rm -f "$GATYGO_RUN/stopped"; : > "$GATYGO_INIT_LOG"
@@ -251,6 +251,20 @@ assert_exit 1 "nothing waits: the page is not told" test -e "$GATYGO_RUN/geo-wai
 wait "$_p"
 assert_exit 0 "nothing waits: the files come all the same" test -s "$GATYGO_RUN/geo/geoip.dat"
 assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "nothing waits: no start"
+# the download runs for another profile when the VPN comes to wait for it (Start on a profile with
+# geo rules): the same download, now starting the service, and the page told as the settings are
+rm -rf "$GATYGO_RUN/geo"; mv "$tmp/geo-src/"*.dat "$tmp/geo-away/"; : > "$GATYGO_INIT_LOG"
+uci set gatygo.main.on_crash=direct
+gatygo_geo_restore_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+gatygo_geo_restore_later start
+assert_eq "$_p" "$(cat "$GATYGO_RUN/geo-retry")" "the VPN comes to wait: the same download"
+assert_exit 0 "the page is told now" test -e "$GATYGO_RUN/geo-wait"
+uci delete gatygo.main.on_crash
+sleep 2
+assert_eq "failed 1" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_BLOCK)" "the page is told as the settings are now (block)"
+mv "$tmp/geo-away/"*.dat "$tmp/geo-src/"
+wait "$_p"
+assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

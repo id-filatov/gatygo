@@ -825,8 +825,8 @@ return view.extend({
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot ' + (geoWait.block ? 'bad' : 'warn') }), _('Waiting for the geo files'),
 				E('span', { 'class': 'gg-state-sep' }, '·'), country(st.profile_used, true) ]));
 			main.push(E('p', { 'class': 'gg-meta' }, [
-				(geoWait.state == 'failed' && geoWait.next)
-					? _('Couldn’t download the geo files from GitHub. Next try in %s.').format(fmtIn(geoWait.next))
+				(geoWait.state == 'failed')
+					? _('Couldn’t download the geo files from GitHub. Trying again every minute.')
 					: E('span', { 'class': 'spinning' }, _('Downloading the geo files from GitHub after the restart (about 28 MB)…')),
 				' ', geoWait.block ? _('Until then devices at home have no internet.') : _('Until then devices at home use the regular internet.') ]));
 		}

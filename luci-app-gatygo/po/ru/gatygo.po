@@ -794,8 +794,8 @@ msgid "Waiting for the geo files"
 msgstr "Ждёт geo-файлы"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Couldn’t download the geo files from GitHub. Next try in %s."
-msgstr "Не удалось скачать geo-файлы с GitHub. Следующая попытка через %s."
+msgid "Couldn’t download the geo files from GitHub. Trying again every minute."
+msgstr "Не удалось скачать geo-файлы с GitHub. Новая попытка — каждую минуту."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Downloading the geo files from GitHub after the restart (about 28 MB)…"

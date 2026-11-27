@@ -133,7 +133,7 @@ stop_service() {
 	gatygo_cron_remove
 	gatygo_crash_clear
 	# the VPN no longer waits for the default geo files: their download ends by itself
-	rm -f "$GATYGO_RUN/geo-wait"
+	rm -f "$GATYGO_RUN/geo-wait" "$GATYGO_RUN/geo-start"
 	# stopped by hand, as opposed to switched off in the settings: reload_service keeps it off
 	# (tmpfs: a reboot starts an enabled service as usual)
 	mkdir -p "$GATYGO_RUN"
