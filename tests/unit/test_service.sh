@@ -82,6 +82,14 @@ assert_eq "xray: 2026/09/16 14:00:04.2 [Error] app/dns: failed" "$(gatygo_log_ta
 export GATYGO_RUN="$tmp/run"
 assert_exit 0 "lock taken" gatygo_update_lock
 assert_eq "$$" "$(cat "$GATYGO_RUN/update.lock/pid")" "lock records the pid"
+# a subshell in the background (lib/geo.sh) outlives the process that started it: it names itself
+gatygo_update_unlock
+( read -r GATYGO_LOCK_PID _x < /proc/self/stat; gatygo_update_lock; echo "$GATYGO_LOCK_PID $(cat "$GATYGO_RUN/update.lock/pid")" > "$tmp/lockpid"; gatygo_update_unlock )
+assert_eq "$(cut -d' ' -f1 "$tmp/lockpid")" "$(cut -d' ' -f2 "$tmp/lockpid")" "a subshell that names itself records its own pid"
+assert_exit 1 "not the pid of the shell that started it" test "$(cut -d' ' -f2 "$tmp/lockpid")" = "$$"
+( gatygo_update_lock; cat "$GATYGO_RUN/update.lock/pid" > "$tmp/lockpid"; gatygo_update_unlock )
+assert_eq "$$" "$(cat "$tmp/lockpid")" "any other subshell records \$\$, as before (the upgrade compares with it)"
+gatygo_update_lock
 assert_exit 0 "updating while held by a live pid" gatygo_updating
 assert_exit 1 "second lock refused while held" gatygo_update_lock
 gatygo_update_unlock

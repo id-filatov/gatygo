@@ -342,6 +342,7 @@ cmd_status() {
 	. "$GATYGO_LIB/subscription.sh"
 	. "$GATYGO_LIB/upgrade.sh"
 	. "$GATYGO_LIB/suburl.sh"
+	. "$GATYGO_LIB/geo.sh"
 	gatygo_load_config
 	_running=false _updating=false _configured=false _enabled=false _send_hwid=false _uptime='' _next=''
 	gatygo_xray_running && _running=true
@@ -358,6 +359,14 @@ cmd_status() {
 		_crash=$(jq -nc --arg time "$(_gatygo_env_get "$GATYGO_RUN/crash.env" TIME)" \
 			--arg direct "$(_gatygo_env_get "$GATYGO_RUN/crash.env" DIRECT)" --rawfile log "$GATYGO_RUN/crash.log" \
 			'{time: ($time | tonumber), direct: ($direct == "1"), log: ($log | rtrimstr("\n"))}' 2>/dev/null) || _crash=null
+	fi
+	# the VPN waits for the default geo files after a reboot (lib/geo.sh)
+	_geowait=null
+	if gatygo_geo_waiting; then
+		_geowait=$(jq -nc --arg state "$(_gatygo_env_get "$GATYGO_RUN/geo-wait" GATYGO_GEO_WAIT)" \
+			--arg next "$(_gatygo_env_get "$GATYGO_RUN/geo-wait" GATYGO_GEO_NEXT)" \
+			--arg block "$(_gatygo_env_get "$GATYGO_RUN/geo-wait" GATYGO_GEO_BLOCK)" \
+			'{state: $state, next: (if $next == "" then null else ($next | tonumber) end), block: ($block == "1")}') || _geowait=null
 	fi
 	# what the last switch of the profile ended with, if no update came after it
 	_select=null
@@ -393,7 +402,7 @@ cmd_status() {
 			--arg total "${GATYGO_USERINFO_TOTAL:-}" --arg expire "${GATYGO_USERINFO_EXPIRE:-}" \
 			--arg result "${RESULT:-}" --arg code "${CODE:-}" --arg time "${TIME:-}" --arg message "${MESSAGE:-}" \
 			--argjson last_select "$_select" --arg interval "$_interval" --argjson auto_update "$_auto" --arg next "$_next" \
-			--argjson upgrade "$_upgrade" --arg moved "$_moved" \
+			--argjson upgrade "$_upgrade" --arg moved "$_moved" --argjson geowait "$_geowait" \
 			--arg announce "${GATYGO_ANNOUNCE:-}" --arg site "${GATYGO_SITE_URL:-}" --arg support "${GATYGO_SUPPORT_URL:-}" \
 			--arg info_text "${GATYGO_INFO_TEXT:-}" --arg info_color "${GATYGO_INFO_COLOR:-}" \
 			--arg info_btext "${GATYGO_INFO_BUTTON_TEXT:-}" --arg info_blink "${GATYGO_INFO_BUTTON_LINK:-}" \
@@ -413,7 +422,7 @@ cmd_status() {
 			  last_select: $last_select,
 			  update_interval: ($interval | tonumber), auto_update: $auto_update,
 			  next_update: (if $next == "" then null else ($next | tonumber) end),
-			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip},
+			  geo: {geosite_mtime: $geosite, geoip_mtime: $geoip, wait: $geowait},
 			  hwid_flags: {max_devices: $maxdev, not_supported: $notsup},
 			  upgrade: $upgrade,
 			  provider: {announce: ($announce | nonempty), site: ($site | nonempty), support: ($support | nonempty),

@@ -188,29 +188,69 @@ gatygo_geo_record "$GS" "$GI"
 gatygo_geo_restore; assert_eq "2" "$?" "restore: the provider's files -> exit 2, nothing done"
 assert_exit 1 "restore: the provider's files -> nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
 
-# --- a failed start tries again in a minute: one retry at a time, none after a stop by hand
+# --- an update holds its lock: the files are downloaded, but not put in place under its feet
+rm -rf "$GATYGO_RUN/geo"; gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
+mkdir -p "$GATYGO_RUN/update.lock"; sleep 30 & _u=$!; echo "$_u" > "$GATYGO_RUN/update.lock/pid"
+gatygo_geo_restore; assert_eq "3" "$?" "restore while an update runs -> exit 3"
+assert_exit 1 "restore while an update runs: nothing put in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+kill "$_u"; wait "$_u" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
+
+# --- the VPN waits for the default files: they come in the background, away from procd's lock
+#     (rc.common holds it on fd 1000), once a minute until they are there; then the service starts
 export GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_RETRY_DELAY=1
-: > "$GATYGO_INIT_LOG"; mkdir -p "$GATYGO_RUN"; rm -f "$GATYGO_RUN/stopped"
-gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
-gatygo_geo_retry_later
-assert_eq "$_p" "$(cat "$GATYGO_RUN/geo-retry")" "a retry already waits: no second one"
-assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "the retry waits before it starts"
+uci set gatygo.main.enabled=1; GATYGO_ON_CRASH=block
+_wait() { _gatygo_env_get "$GATYGO_RUN/geo-wait" "$1"; }
+_gatygo_geo_wait downloading
+assert_eq "downloading  1" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_NEXT) $(_wait GATYGO_GEO_BLOCK)" "the wait as the page reads it: downloading, no next try yet, closed"
+GATYGO_ON_CRASH=direct; _gatygo_geo_wait failed 1795800000
+assert_eq "failed 1795800000 0" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_NEXT) $(_wait GATYGO_GEO_BLOCK)" "failed, the next try, open"
+GATYGO_ON_CRASH=block; rm -f "$GATYGO_RUN/geo-wait"
+_lines() { grep -c "$1" "$SYSLOG_STUB_FILE"; }
+mkdir -p "$tmp/geo-away"; mv "$tmp/geo-src/"*.dat "$tmp/geo-away/"
+rm -f "$GATYGO_RUN/stopped"; : > "$GATYGO_INIT_LOG"
+_e0=$(_lines "could not be downloaded; trying again every minute$"); _d0=$(_lines 'download of geosite.dat failed')
+exec 1000>"$tmp/procd.lock"
+gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry")
+exec 1000>&-
+assert_eq "" "$(readlink "/proc/$_p/fd/1000")" "the download does not hold the init script's lock"
+# the first try may have failed already: either state tells the page the VPN waits
+case $(_wait GATYGO_GEO_WAIT) in downloading | failed) _t_ok ;; *) _t_bad "the page is told the VPN waits: $(_wait GATYGO_GEO_WAIT)" ;; esac
+assert_eq "1" "$(_wait GATYGO_GEO_BLOCK)" "and that the home network is closed"
+gatygo_geo_restore_later start
+assert_eq "$_p" "$(cat "$GATYGO_RUN/geo-retry")" "one at a time"
+sleep 4
+assert_eq "failed" "$(_wait GATYGO_GEO_WAIT)" "no files yet: the page is told"
+assert_exit 0 "and when the next try is" test "$(_wait GATYGO_GEO_NEXT)" -ge "$(date +%s)"
+assert_eq "$((_e0 + 1)) $((_d0 + 1))" "$(_lines "could not be downloaded; trying again every minute$") $(_lines 'download of geosite.dat failed')" "only the first failed try is logged"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "no start while the files are missing"
+mv "$tmp/geo-away/"*.dat "$tmp/geo-src/"
 wait "$_p"
-assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "after the delay: one start"
-assert_exit 1 "the retry is over: its note is gone" test -e "$GATYGO_RUN/geo-retry"
-: > "$GATYGO_INIT_LOG"
-gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started"
+for n in geosite.dat geoip.dat; do
+    assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_RUN/geo/$n")" "the download in the background put $n in RAM"
+done
+assert_exit 1 "the wait is over: nothing to tell the page" test -e "$GATYGO_RUN/geo-wait"
+assert_exit 1 "the download is over: its note is gone" test -e "$GATYGO_RUN/geo-retry"
+assert_eq "1" "$(_lines "geo: Loyalsoldier's geo files are in place again$")" "the log says they are back"
+# stopped by hand meanwhile: no start
+rm -rf "$GATYGO_RUN/geo"; mv "$tmp/geo-src/"*.dat "$tmp/geo-away/"; : > "$GATYGO_INIT_LOG"
+gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry")
 touch "$GATYGO_RUN/stopped"
 wait "$_p"
 assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "stopped by hand meanwhile: no start"
-# the init script runs under procd's lock (rc.common, fd 1000): a retry that kept it while it
-# waits would hold up every stop and start until then
+assert_exit 1 "stopped by hand: the download ends" test -e "$GATYGO_RUN/geo-retry"
 rm -f "$GATYGO_RUN/stopped"
-exec 1000>"$tmp/procd.lock"
-gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
-assert_eq "" "$(readlink "/proc/$_p/fd/1000")" "the waiting retry does not hold the init script's lock"
-exec 1000>&-
+# switched off in the settings (or the subscription deleted): it ends as well
+uci set gatygo.main.enabled=0
+gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry"); wait "$_p"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "switched off: no start"
+uci set gatygo.main.enabled=1; mv "$tmp/geo-away/"*.dat "$tmp/geo-src/"
+# the VPN runs on a profile without geo rules: the files follow for the others, nothing waits
+gatygo_geo_restore_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+assert_exit 1 "nothing waits: the page is not told" test -e "$GATYGO_RUN/geo-wait"
 wait "$_p"
+assert_exit 0 "nothing waits: the files come all the same" test -s "$GATYGO_RUN/geo/geoip.dat"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "nothing waits: no start"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

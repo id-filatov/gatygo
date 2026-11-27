@@ -4,8 +4,10 @@
 # gatygo_log LEVEL MESSAGE... — one line "<timestamp> [LEVEL] MESSAGE" to stderr and to the
 # system log with tag gatygo (cron, rpcd and the init script have no other visible output;
 # `gatygo log` reads it back next to xray's lines). LEVEL: info | warn | error. Never fails.
-# Never pass the subscription URL, user UUID or hwid here.
+# Never pass the subscription URL, user UUID or hwid here. GATYGO_LOG_QUIET=1 keeps it quiet (a
+# try that repeats every minute logs its first failure only: lib/geo.sh).
 gatygo_log() {
+    [ "${GATYGO_LOG_QUIET:-}" != 1 ] || return 0
     _gatygo_lvl=$1
     shift
     _gatygo_line="$(date '+%Y-%m-%dT%H:%M:%S') [$_gatygo_lvl] $*"

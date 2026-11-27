@@ -89,7 +89,8 @@ gatygo_log_tail() {
 }
 
 # gatygo_lock NAME — take $GATYGO_RUN/NAME.lock (a directory: mkdir is atomic). Exit 1 when a
-# live process holds it; a lock left by a dead process is taken over.
+# live process holds it; a lock left by a dead process is taken over. The pid is $$, or
+# GATYGO_LOCK_PID: a subshell in the background outlives the shell $$ names (lib/geo.sh).
 gatygo_lock() {
     mkdir -p "$GATYGO_RUN"
     _gatygo_l=$GATYGO_RUN/$1.lock
@@ -98,7 +99,7 @@ gatygo_lock() {
         rm -rf "$_gatygo_l"
         mkdir "$_gatygo_l" 2>/dev/null || return 1
     fi
-    echo $$ > "$_gatygo_l/pid"
+    echo "${GATYGO_LOCK_PID:-$$}" > "$_gatygo_l/pid"
 }
 
 gatygo_unlock() {
