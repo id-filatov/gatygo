@@ -6,6 +6,10 @@
 
 GATYGO_STATE=${GATYGO_STATE:-/etc/gatygo}
 GATYGO_RUN=${GATYGO_RUN:-/var/run/gatygo}
+# geo files for a subscription that names geo rules but gives none (geo.sh): Loyalsoldier's, as in
+# Happ's default profile; kept in RAM (GATYGO_GEO_TMP), the flash only links to them
+GATYGO_GEO_DEFAULT_BASE=${GATYGO_GEO_DEFAULT_BASE:-https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download}
+GATYGO_GEO_TMP=${GATYGO_GEO_TMP:-$GATYGO_RUN/geo}
 GATYGO_ASSETS=${GATYGO_ASSETS:-/usr/share/xray}
 # the xray core gatygo downloads for itself (core.sh); GATYGO_XRAY is what everything runs
 GATYGO_CORE_DIR=${GATYGO_CORE_DIR:-/usr/lib/gatygo/core}
@@ -76,5 +80,6 @@ gatygo_load_config() {
         GATYGO_UPDATE_INTERVAL GATYGO_TPROXY_PORT GATYGO_DNS_PORT GATYGO_CHECK_PORT GATYGO_MARK GATYGO_MARK_DEC \
         GATYGO_IPV6_BLOCK GATYGO_LAN_IFACES GATYGO_DIRECT_DNS GATYGO_LOGLEVEL GATYGO_ON_CRASH \
         GATYGO_CONN_PER_DEVICE GATYGO_CONN_TOTAL \
-        GATYGO_STATE GATYGO_RUN GATYGO_ASSETS GATYGO_SYSROOT GATYGO_CORE_DIR GATYGO_XRAY
+        GATYGO_STATE GATYGO_RUN GATYGO_ASSETS GATYGO_SYSROOT GATYGO_CORE_DIR GATYGO_XRAY \
+        GATYGO_GEO_DEFAULT_BASE GATYGO_GEO_TMP
 }

@@ -1,7 +1,8 @@
 #!/bin/sh
 . "$(dirname "$0")/../lib.sh"
 tmp=$(mktemp -d)
-export GATYGO_STATE="$tmp/state" GATYGO_ASSETS="$tmp/assets"
+# the default geo files (Loyalsoldier's) come from the mock too, under a path of their own
+export GATYGO_STATE="$tmp/state" GATYGO_ASSETS="$tmp/assets" GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8788/geo/default
 mkdir -p "$GATYGO_STATE" "$GATYGO_ASSETS" "$tmp/geo-src" "$tmp/stage"
 . "$GATYGO_LIB/config.sh"
 . "$GATYGO_LIB/geo.sh"
@@ -110,6 +111,38 @@ assert_exit 0 "routing off -> the geo files stay" test -s "$GATYGO_ASSETS/geosit
 gatygo_geo_urls "$tmp/on.env" >/dev/null
 printf "GATYGO_GEOSITE_URL=''\nGATYGO_GEOIP_URL=''\nGATYGO_ROUTING_OFF='0'\n" > "$tmp/none.env"
 assert_eq "$GS http://127.0.0.1:8788/geo/geoip.dat" "$(gatygo_geo_urls "$tmp/none.env")" "routing not off and no links -> the saved links"
+
+# --- the subscription names geo rules but gives no geo files: the default ones (Loyalsoldier's)
+DB=$GATYGO_GEO_DEFAULT_BASE
+printf '[{"routing":{"rules":[{"domain":["geosite:category-ru"],"outboundTag":"direct"}]}}]' > "$tmp/body-geo.json"
+printf '[{"routing":{"rules":[{"domain":["domain:example.com"],"outboundTag":"direct"}]}}]' > "$tmp/body-nogeo.json"
+printf '[{"routing":{"rules":[{"domain":["domain:example.com"],"outboundTag":"direct"}]}},{"routing":{"rules":[{"ip":["geoip:ru"],"outboundTag":"direct"}]}}]' > "$tmp/body-one.json"
+assert_exit 0 "a body with geosite: names geo" gatygo_geo_named "$tmp/body-geo.json"
+assert_exit 0 "a body with geoip: names geo" gatygo_geo_named "$tmp/body-one.json"
+assert_exit 1 "a body without them does not" gatygo_geo_named "$tmp/body-nogeo.json"
+assert_exit 1 "no body names nothing" gatygo_geo_named "$tmp/none.json"
+rm -f "$GATYGO_STATE/geo-urls.env"
+assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json")" "geo rules, no header, no cache -> the default URLs"
+assert_exit 0 "the default URLs: exit 0" gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json"
+assert_exit 1 "the default URLs are not cached" test -e "$GATYGO_STATE/geo-urls.env"
+assert_exit 1 "a body without geo rules -> no geo URLs" gatygo_geo_urls "$tmp/empty.env" "$tmp/body-nogeo.json"
+assert_eq "" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-nogeo.json")" "a body without geo rules: nothing printed"
+assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-one.json")" "geo rules in one profile of two -> the default URLs (any profile may be selected)"
+assert_exit 1 "no body and no URLs -> exit 1, as before" gatygo_geo_urls "$tmp/empty.env"
+assert_eq "$GS $GI" "$(gatygo_geo_urls "$tmp/h.env" "$tmp/body-geo.json")" "the provider's URLs win over the default ones"
+assert_eq "$GS $GI" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json")" "the provider's cached URLs win too"
+assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/off.env" "$tmp/body-geo.json")" "routing off, geo rules -> the default URLs"
+assert_exit 1 "routing off -> the cache is gone" test -e "$GATYGO_STATE/geo-urls.env"
+assert_exit 1 "routing off, no geo rules -> no geo URLs" gatygo_geo_urls "$tmp/off.env" "$tmp/body-nogeo.json"
+
+assert_exit 0 "the default geosite URL is the default" gatygo_geo_is_default "$DB/geosite.dat"
+assert_exit 1 "a provider's geosite URL is not" gatygo_geo_is_default "$GS"
+rm -f "$GATYGO_STATE/geo-source.env"
+assert_exit 1 "no source record -> not the default files" gatygo_geo_source_default
+gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat"
+assert_exit 0 "recorded from the default URLs -> the default files" gatygo_geo_source_default
+gatygo_geo_record "$GS" "$GI"
+assert_exit 1 "recorded from the provider's URLs -> not the default files" gatygo_geo_source_default
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

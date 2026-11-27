@@ -6,17 +6,20 @@
 
 _gatygo_is_url() { case $1 in http://?* | https://?*) return 0 ;; *) return 1 ;; esac; }
 
-# gatygo_geo_urls HEADERS_ENV — print "GEOSITE_URL GEOIP_URL" from the routing header, else from the
-# cache of the last header that carried them. exit 1 (nothing printed) when neither has them: geo
-# files come only from the subscription. A provider that switched routing off has no geo files to
-# give: the cache goes too, and the files already in place stay for a config that still names them.
+# gatygo_geo_named FILE — exit 0 when FILE (a subscription body or a config) names geo data
+gatygo_geo_named() { grep -qE '"(geosite|geoip):' "$1" 2>/dev/null || return 1; }
+
+# gatygo_geo_urls HEADERS_ENV [SUB_BODY] — print "GEOSITE_URL GEOIP_URL" from the routing header,
+# else from the cache of the last header that carried them, else, when SUB_BODY names geo data
+# (in any profile: `gatygo select` may pick another one), the default files (Loyalsoldier's): the
+# provider's URLs always win. exit 1 (nothing printed) when there are none. The default URLs are
+# never cached. A provider that switched routing off has no geo files to give: the cache goes too;
+# the files already in place stay unless the body names geo data, then the default ones replace them.
 gatygo_geo_urls() {
     _gatygo_gs='' _gatygo_gi=''
     if [ -f "$1" ] && [ "$(_gatygo_env_get "$1" GATYGO_ROUTING_OFF)" = 1 ]; then
         rm -f "$GATYGO_STATE/geo-urls.env"
-        return 1
-    fi
-    if [ -f "$1" ]; then
+    elif [ -f "$1" ]; then
         _gatygo_gs=$(_gatygo_env_get "$1" GATYGO_GEOSITE_URL)
         _gatygo_gi=$(_gatygo_env_get "$1" GATYGO_GEOIP_URL)
     fi
@@ -29,10 +32,20 @@ gatygo_geo_urls() {
     elif [ -f "$GATYGO_STATE/geo-urls.env" ]; then
         _gatygo_gs=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOSITE_URL)
         _gatygo_gi=$(_gatygo_env_get "$GATYGO_STATE/geo-urls.env" GATYGO_GEOIP_URL)
+    elif [ -n "$2" ] && gatygo_geo_named "$2"; then
+        _gatygo_gs=$GATYGO_GEO_DEFAULT_BASE/geosite.dat _gatygo_gi=$GATYGO_GEO_DEFAULT_BASE/geoip.dat
     else
         return 1
     fi
     printf '%s %s\n' "$_gatygo_gs" "$_gatygo_gi"
+}
+
+# gatygo_geo_is_default GEOSITE_URL — exit 0 when it is the default geosite URL
+gatygo_geo_is_default() { [ "$1" = "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" ]; }
+
+# gatygo_geo_source_default — exit 0 when the installed dats are recorded as the default files
+gatygo_geo_source_default() {
+    gatygo_geo_is_default "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)"
 }
 
 # gatygo_geo_due — exit 0 when geosite.dat/geoip.dat are missing or older than 24 hours
