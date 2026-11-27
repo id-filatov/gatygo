@@ -86,6 +86,30 @@ gatygo_geo_source_matches() {
         && [ "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOIP_URL)" = "$2" ]
 }
 
+# gatygo_geo_install_default STAGE — install the default dats staged in STAGE: into
+# $GATYGO_GEO_TMP (RAM; moved, not copied: 28 MB), $GATYGO_ASSETS/<name> becomes a link to each, so
+# xray finds them where it always looks and the flash is never written with them. Prints
+# changed|unchanged.
+gatygo_geo_install_default() {
+    _gatygo_dch=0
+    mkdir -p "$GATYGO_GEO_TMP" "$GATYGO_ASSETS"
+    for _gatygo_n in geosite.dat geoip.dat; do
+        _gatygo_ram=$GATYGO_GEO_TMP/$_gatygo_n
+        if [ -f "$1/$_gatygo_n" ]; then
+            if [ ! -f "$_gatygo_ram" ] || [ "$(sha256sum < "$1/$_gatygo_n")" != "$(sha256sum < "$_gatygo_ram")" ]; then
+                chmod 644 "$1/$_gatygo_n" && mv -f "$1/$_gatygo_n" "$_gatygo_ram" && _gatygo_dch=1
+            else
+                touch "$_gatygo_ram"
+            fi
+        fi
+        if [ -f "$_gatygo_ram" ] && [ "$(readlink "$GATYGO_ASSETS/$_gatygo_n" 2>/dev/null)" != "$_gatygo_ram" ]; then
+            ln -sf "$_gatygo_ram" "$GATYGO_ASSETS/$_gatygo_n.tmp" \
+                && mv -f "$GATYGO_ASSETS/$_gatygo_n.tmp" "$GATYGO_ASSETS/$_gatygo_n" && _gatygo_dch=1
+        fi
+    done
+    [ "$_gatygo_dch" = 1 ] && echo changed || echo unchanged
+}
+
 # gatygo_geo_fetch GEOSITE_URL GEOIP_URL STAGE_DIR — download changed files into STAGE_DIR.
 # Conditional (If-Modified-Since = the installed file's mtime) only when the installed files are
 # recorded as coming from these URLs; unconditional otherwise. Keeps the server's Last-Modified as

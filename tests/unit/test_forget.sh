@@ -89,6 +89,17 @@ _populate; rm -f "$GATYGO_STATE/geo-source.env"
 sh "$CLI" forget 2>/dev/null
 assert_eq "geoip.dat geosite.dat other.dat" "$(ls "$GATYGO_ASSETS" | tr '\n' ' ' | sed 's/ $//')" "geo files of unknown origin stay"
 
+# --- the default geo files: in RAM, the flash only links to them; the links and the files go
+_populate
+mkdir -p "$GATYGO_RUN/geo"
+for f in geosite.dat geoip.dat; do
+    rm -f "$GATYGO_ASSETS/$f"; echo x > "$GATYGO_RUN/geo/$f"; ln -s "$GATYGO_RUN/geo/$f" "$GATYGO_ASSETS/$f"
+done
+printf "GATYGO_GEOSITE_URL='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat'\nGATYGO_GEOIP_URL='https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat'\n" > "$GATYGO_STATE/geo-source.env"
+assert_exit 0 "forget with the default geo files" sh "$CLI" forget
+assert_eq "other.dat" "$(ls "$GATYGO_ASSETS")" "the links on the flash go"
+assert_exit 1 "the files in RAM go" test -e "$GATYGO_RUN/geo"
+
 # --- the VPN could not be stopped: nothing is erased under a running xray
 _populate
 assert_exit 1 "a failed stop fails" env GATYGO_INIT_STOP_RC=1 sh "$CLI" forget

@@ -3,7 +3,7 @@
 tmp=$(mktemp -d)
 export GATYGO_SYSROOT="$FIXTURES/sysroot" GATYGO_STATE="$tmp/state" GATYGO_ASSETS="$tmp/assets" \
        GATYGO_RUN="$tmp/run" GATYGO_INIT=/src/tests/stubs/gatygo-init \
-       GATYGO_INIT_LOG="$tmp/init.log"
+       GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8789/geo/default
 mkdir -p "$GATYGO_ASSETS" "$tmp/geo-src"
 cp "$FIXTURES/geo/"*.dat "$tmp/geo-src/"
 : > "$UCI_STUB_FILE"; : > "$GATYGO_INIT_LOG"
@@ -142,13 +142,52 @@ gatygo_update 2>>"$tmp/stderr.log"
 assert_eq "0 " "$(_last RESTARTED) $(cat "$GATYGO_INIT_LOG")" "xray on the new address: no restart"
 unset UBUS_STUB_RUNNING NSLOOKUP_STUB_FILE NETSTAT_STUB_FILE
 
-# --- no geo URLs in the subscription, no geo files yet: nothing downloaded, the error says why
+# --- the subscription names geo rules but gives no geo files: the default ones (Loyalsoldier's),
+#     kept in RAM; the flash only links to them
+_def_requests() { curl -fs $M/log | jq '[.[] | select(.path | startswith("/geo/default/"))] | length'; }
+_loyal() { grep -c "\[info\] geo: the subscription names geo rules but gives no geo files; using Loyalsoldier's$" "$SYSLOG_STUB_FILE"; }
 GATYGO_STATE="$tmp/state-norouting" GATYGO_ASSETS="$tmp/assets-norouting"
-mkdir -p "$GATYGO_ASSETS"; uci set gatygo.main.sub_url=http://127.0.0.1:8789/sub-norouting; uci set gatygo.main.profile=""
+mkdir -p "$GATYGO_ASSETS"; uci set gatygo.main.sub_url=$M/sub-norouting; uci set gatygo.main.profile=""
+_before=$(_def_requests); _l0=$(_loyal)
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "geo rules and no geo files in the subscription -> the default files, the update succeeds"
+assert_eq "$((_before + 2))" "$(_def_requests)" "both default files downloaded"
+for n in geosite.dat geoip.dat; do
+    assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$GATYGO_ASSETS/$n")" "the flash holds only a link to $n in RAM"
+    assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_RUN/geo/$n")" "$n in RAM is the downloaded file"
+done
+assert_eq "-rw-r--r--" "$(ls -l "$GATYGO_RUN/geo/geoip.dat" | cut -c1-10)" "the files in RAM are 0644"
+assert_eq "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)" "their source is recorded: the default URLs"
+assert_exit 1 "the default URLs are not saved as the provider's" test -e "$GATYGO_STATE/geo-urls.env"
+assert_eq "$((_l0 + 1))" "$(_loyal)" "the log says the default files are used"
 _before=$(_geo_requests)
-gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "templates with geo rules and no geo files -> error"
-assert_eq "$_before" "$(_geo_requests)" "no geo download without URLs"
-case $(_last MESSAGE) in *"no geo file URLs"*) _t_ok ;; *) _t_bad "error names the missing geo URLs: $(_last MESSAGE)" ;; esac
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the same subscription again"
+assert_eq "$_before" "$(_geo_requests)" "the same subscription within a day: no geo requests"
+assert_eq "$((_l0 + 1))" "$(_loyal)" "no download, no log line"
+assert_eq "0" "$(_last RESTARTED)" "nothing changed"
+# the provider gives geo files again: they go on the flash, the ones in RAM go
+uci set gatygo.main.sub_url=$M/sub
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "default -> provider: the update succeeds"
+for n in geosite.dat geoip.dat; do
+    assert_exit 1 "default -> provider: $n on the flash is no link" test -L "$GATYGO_ASSETS/$n"
+    assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_ASSETS/$n")" "default -> provider: $n is the provider's file"
+    assert_exit 1 "default -> provider: $n in RAM is gone" test -e "$GATYGO_RUN/geo/$n"
+done
+assert_eq "$M/geo/geosite.dat" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)" "default -> provider: the provider's source is recorded"
+# and stops again (its saved links gone, as after routing off): back to the default files
+rm -f "$GATYGO_STATE/geo-urls.env"
+uci set gatygo.main.sub_url=$M/sub-norouting
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "provider -> default: the update succeeds"
+for n in geosite.dat geoip.dat; do
+    assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$GATYGO_ASSETS/$n")" "provider -> default: the file on the flash is a link again ($n)"
+    assert_exit 0 "provider -> default: $n is in RAM" test -s "$GATYGO_RUN/geo/$n"
+done
+
+# --- the default files cannot be downloaded: no config, and the error says why
+GATYGO_STATE="$tmp/state-nodefault" GATYGO_ASSETS="$tmp/assets-nodefault"; mkdir -p "$GATYGO_ASSETS"
+_db=$GATYGO_GEO_DEFAULT_BASE; GATYGO_GEO_DEFAULT_BASE=$M/geo-missing
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "the default geo files are not there -> error"
+GATYGO_GEO_DEFAULT_BASE=$_db
+case $(_last MESSAGE) in *"geo files could not be downloaded"*) _t_ok ;; *) _t_bad "the error says the geo files could not be downloaded: $(_last MESSAGE)" ;; esac
 assert_eq "test_failed" "$(_last CODE)" "CODE=test_failed"
 assert_exit 1 "no config installed" test -e "$GATYGO_STATE/xray.json"
 

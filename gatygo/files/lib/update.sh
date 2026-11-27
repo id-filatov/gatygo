@@ -59,10 +59,11 @@ gatygo_xray_test() {
     return 1
 }
 
-# gatygo_stage_assets STAGE TESTDIR — TESTDIR gets the staged dats plus the current ones for the rest
+# gatygo_stage_assets STAGE TESTDIR — TESTDIR gets the staged dats plus the current ones for the rest.
+# A staged dat is hard-linked when it can be (both in /tmp): the default ones are 28 MB of RAM.
 gatygo_stage_assets() {
     for _gatygo_n in geosite.dat geoip.dat; do
-        if [ -f "$1/$_gatygo_n" ]; then cp -p "$1/$_gatygo_n" "$2/$_gatygo_n"
+        if [ -f "$1/$_gatygo_n" ]; then ln -f "$1/$_gatygo_n" "$2/$_gatygo_n" 2>/dev/null || cp -p "$1/$_gatygo_n" "$2/$_gatygo_n"
         elif [ -f "$GATYGO_ASSETS/$_gatygo_n" ]; then cp -p "$GATYGO_ASSETS/$_gatygo_n" "$2/$_gatygo_n"
         fi
     done
@@ -73,21 +74,29 @@ _gatygo_install() {
     cp -p "$1" "$2.tmp" && chmod "$3" "$2.tmp" && mv "$2.tmp" "$2"
 }
 
-# gatygo_swap NEW_XRAY STAGE — install the config and any staged dat that differs; prints changed|unchanged
+# gatygo_swap NEW_XRAY STAGE — install the config and any staged dat that differs; prints
+# changed|unchanged. STAGE/.default: the staged dats are the default ones (lib/geo.sh, in RAM); a dat
+# of the provider's replaces a link to a default one, and the default one goes.
 gatygo_swap() {
     _gatygo_changed=0
     if [ ! -f "$GATYGO_STATE/xray.json" ] || [ "$(sha256sum < "$1")" != "$(sha256sum < "$GATYGO_STATE/xray.json")" ]; then
         _gatygo_install "$1" "$GATYGO_STATE/xray.json" 600 && _gatygo_changed=1
     fi
     mkdir -p "$GATYGO_ASSETS"
-    for _gatygo_n in geosite.dat geoip.dat; do
-        [ -f "$2/$_gatygo_n" ] || continue
-        if [ ! -f "$GATYGO_ASSETS/$_gatygo_n" ] || [ "$(sha256sum < "$2/$_gatygo_n")" != "$(sha256sum < "$GATYGO_ASSETS/$_gatygo_n")" ]; then
-            _gatygo_install "$2/$_gatygo_n" "$GATYGO_ASSETS/$_gatygo_n" 644 && _gatygo_changed=1
-        else
-            touch "$GATYGO_ASSETS/$_gatygo_n"
-        fi
-    done
+    if [ -f "$2/.default" ]; then
+        [ "$(gatygo_geo_install_default "$2")" = changed ] && _gatygo_changed=1
+    else
+        for _gatygo_n in geosite.dat geoip.dat; do
+            [ -f "$2/$_gatygo_n" ] || continue
+            if [ -L "$GATYGO_ASSETS/$_gatygo_n" ] || [ ! -f "$GATYGO_ASSETS/$_gatygo_n" ] \
+                || [ "$(sha256sum < "$2/$_gatygo_n")" != "$(sha256sum < "$GATYGO_ASSETS/$_gatygo_n")" ]; then
+                _gatygo_install "$2/$_gatygo_n" "$GATYGO_ASSETS/$_gatygo_n" 644 && _gatygo_changed=1 \
+                    && rm -f "$GATYGO_GEO_TMP/$_gatygo_n"
+            else
+                touch "$GATYGO_ASSETS/$_gatygo_n"
+            fi
+        done
+    fi
     [ "$_gatygo_changed" = 1 ] && echo changed || echo unchanged
 }
 
@@ -242,13 +251,19 @@ gatygo_update() {
     _gatygo_sub_changed=1
     [ -f "$GATYGO_STATE/subscription.json" ] \
         && [ "$(sha256sum < "$_gatygo_w/body")" = "$(sha256sum < "$GATYGO_STATE/subscription.json")" ] && _gatygo_sub_changed=0
-    # 3. geo (at most daily while the subscription is unchanged), only when the subscription names the files
-    _gatygo_geo_ok=0
-    if _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env") \
-        && { [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due; }; then
+    # 3. geo (at most daily while the subscription and the URLs are unchanged): the subscription's
+    # files, or the default ones when it names geo rules but gives no files (lib/geo.sh)
+    _gatygo_geo_ok=0 _gatygo_geo_fail=0
+    if _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env" "$_gatygo_w/body") \
+        && { [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due \
+            || ! gatygo_geo_source_matches "${_gatygo_urls% *}" "${_gatygo_urls#* }"; }; then
+        if gatygo_geo_is_default "${_gatygo_urls% *}"; then
+            : > "$_gatygo_w/geo/.default"
+            gatygo_log info "geo: the subscription names geo rules but gives no geo files; using Loyalsoldier's"
+        fi
         gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
         case $? in
-            1) gatygo_log warn "geo download failed; keeping the current geo files" ;;
+            1) _gatygo_geo_fail=1; gatygo_log warn "geo download failed; keeping the current geo files" ;;
             *) _gatygo_geo_ok=1 ;;
         esac
     fi
@@ -256,7 +271,7 @@ gatygo_update() {
     _gatygo_prof=$(gatygo_apply_profile "$_gatygo_w/body" "$_gatygo_w/geo")
     _gatygo_apply=$?
     if [ "$_gatygo_apply" -eq 1 ]; then
-        _gatygo_why=''; [ -n "$_gatygo_urls" ] || _gatygo_why=' (no geo file URLs in the subscription)'
+        _gatygo_why=''; [ "$_gatygo_geo_fail" = 0 ] || _gatygo_why=' (the geo files could not be downloaded)'
         gatygo_result error test_failed "new config failed the xray test$_gatygo_why; keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi

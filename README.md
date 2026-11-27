@@ -21,7 +21,7 @@ profile and routes the whole LAN through the tunnel (nftables tproxy).
 - A server moved to a new IP under the same name: the next update reconnects xray (with updates
   only by hand, a check within the hour).
 - LAN DNS goes through xray, the router's own traffic is untouched.
-- Routing, balancer and geo files come from the subscription only; no built-in rules.
+- Routing, balancer and geo files come from the subscription; no built-in rules. A subscription with geo rules and no geo files gets Loyalsoldier's, kept in RAM.
 - Shows what the VPN provider sends with the subscription: tile descriptions, announcements,
   links to its site and support, the expiry notice. Follows a moved subscription (`new-url`,
   `new-domain`); tries `fallback-url` when the link does not answer.
