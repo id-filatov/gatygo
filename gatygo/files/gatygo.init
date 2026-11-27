@@ -39,6 +39,18 @@ start_service() {
 	# the old core an upgrade kept for its rollback, left behind when the power went mid-way
 	gatygo_locked upgrade || rm -rf "$GATYGO_CORE_DIR.prev"
 	gatygo_crash_clear
+	# the default geo files live in RAM (lib/geo.sh): after a reboot only they come again, not the
+	# subscription. No network yet: no VPN, and another try in a minute.
+	if [ -s "$GATYGO_STATE/xray.json" ] && [ -x "$GATYGO_XRAY" ] && gatygo_geo_missing "$GATYGO_STATE/xray.json" \
+		&& gatygo_geo_source_default; then
+		gatygo_dns_restore
+		gatygo_log info "geo: downloading Loyalsoldier's geo files again (they are kept in RAM)"
+		gatygo_geo_restore || {
+			gatygo_log error "geo: Loyalsoldier's geo files could not be downloaded; trying again in a minute"
+			gatygo_geo_retry_later
+			return 1
+		}
+	fi
 	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
 	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
 		gatygo_log info "no cached config, xray core or geo files yet, downloading"

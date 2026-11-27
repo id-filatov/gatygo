@@ -2,7 +2,7 @@
 . "$(dirname "$0")/../lib.sh"
 tmp=$(mktemp -d)
 # the default geo files (Loyalsoldier's) come from the mock too, under a path of their own
-export GATYGO_STATE="$tmp/state" GATYGO_ASSETS="$tmp/assets" GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8788/geo/default
+export GATYGO_STATE="$tmp/state" GATYGO_ASSETS="$tmp/assets" GATYGO_RUN="$tmp/run" GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8788/geo/default
 mkdir -p "$GATYGO_STATE" "$GATYGO_ASSETS" "$tmp/geo-src" "$tmp/stage"
 . "$GATYGO_LIB/config.sh"
 . "$GATYGO_LIB/geo.sh"
@@ -143,6 +143,48 @@ gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat"
 assert_exit 0 "recorded from the default URLs -> the default files" gatygo_geo_source_default
 gatygo_geo_record "$GS" "$GI"
 assert_exit 1 "recorded from the provider's URLs -> not the default files" gatygo_geo_source_default
+
+# --- after a reboot (RAM is empty, the links on the flash lead nowhere): only the default files
+#     come again, the subscription is not asked
+rm -f "$GATYGO_ASSETS"/*.dat; rm -rf "$GATYGO_RUN/geo"
+for n in geosite.dat geoip.dat; do ln -s "$GATYGO_RUN/geo/$n" "$GATYGO_ASSETS/$n"; done
+gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat"
+_m=$(curl -fs http://127.0.0.1:8788/log | jq length)
+_since() { curl -fs http://127.0.0.1:8788/log | jq --argjson m "$_m" "[.[\$m:][] | select(.path | startswith(\"$1\"))] | length"; }
+gatygo_geo_restore; assert_eq "0" "$?" "restore: the default files are back"
+for n in geosite.dat geoip.dat; do
+    assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$GATYGO_ASSETS/$n")" "restore: the link to $n stays"
+    assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_RUN/geo/$n")" "restore: $n is in RAM"
+done
+assert_eq "2" "$(_since /geo/default/)" "restore: both default files downloaded"
+assert_eq "0" "$(_since /sub)" "restore: the subscription is not asked"
+# the default files cannot be downloaded (no network yet): nothing is touched
+rm -rf "$GATYGO_RUN/geo"
+_db=$GATYGO_GEO_DEFAULT_BASE; GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8788/geo-missing
+gatygo_geo_record "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$GATYGO_GEO_DEFAULT_BASE/geoip.dat"
+gatygo_geo_restore 2>/dev/null; assert_eq "1" "$?" "restore: no download -> exit 1"
+assert_exit 1 "restore: nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+assert_eq "$GATYGO_RUN/geo/geoip.dat" "$(readlink "$GATYGO_ASSETS/geoip.dat")" "restore: the links are left as they were"
+GATYGO_GEO_DEFAULT_BASE=$_db
+gatygo_geo_record "$GS" "$GI"
+gatygo_geo_restore; assert_eq "2" "$?" "restore: the provider's files -> exit 2, nothing done"
+assert_exit 1 "restore: the provider's files -> nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+
+# --- a failed start tries again in a minute: one retry at a time, none after a stop by hand
+export GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_RETRY_DELAY=1
+: > "$GATYGO_INIT_LOG"; mkdir -p "$GATYGO_RUN"; rm -f "$GATYGO_RUN/stopped"
+gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+gatygo_geo_retry_later
+assert_eq "$_p" "$(cat "$GATYGO_RUN/geo-retry")" "a retry already waits: no second one"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "the retry waits before it starts"
+wait "$_p"
+assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "after the delay: one start"
+assert_exit 1 "the retry is over: its note is gone" test -e "$GATYGO_RUN/geo-retry"
+: > "$GATYGO_INIT_LOG"
+gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+touch "$GATYGO_RUN/stopped"
+wait "$_p"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "stopped by hand meanwhile: no start"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

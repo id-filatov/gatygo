@@ -142,3 +142,30 @@ gatygo_geo_fetch() {
     done
     [ "$_gatygo_staged" = 1 ] && return 0 || return 3
 }
+
+# gatygo_geo_restore — after a reboot (RAM is empty): the default dats come again, the subscription
+# is not asked (with updates only by hand a reboot downloads nothing else). exit 0 they are in
+# place, 1 they could not be downloaded (nothing touched), 2 the installed dats are not the
+# default ones (nothing done).
+gatygo_geo_restore() {
+    gatygo_geo_source_default || return 2
+    _gatygo_rs=$(mktemp -d) || return 1
+    gatygo_geo_fetch "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$GATYGO_GEO_DEFAULT_BASE/geoip.dat" "$_gatygo_rs"
+    [ $? -ne 1 ] && gatygo_geo_install_default "$_gatygo_rs" >/dev/null
+    rm -rf "$_gatygo_rs"
+    [ -s "$GATYGO_ASSETS/geosite.dat" ] && [ -s "$GATYGO_ASSETS/geoip.dat" ]
+}
+
+# gatygo_geo_retry_later — start the service again in a minute (GATYGO_GEO_RETRY_DELAY seconds),
+# unless it was stopped by hand meanwhile. At most one retry waits ($GATYGO_RUN/geo-retry: its pid).
+gatygo_geo_retry_later() {
+    _gatygo_rp=$(cat "$GATYGO_RUN/geo-retry" 2>/dev/null)
+    [ -n "$_gatygo_rp" ] && kill -0 "$_gatygo_rp" 2>/dev/null && return 0
+    mkdir -p "$GATYGO_RUN"
+    (
+        sleep "${GATYGO_GEO_RETRY_DELAY:-60}"
+        rm -f "$GATYGO_RUN/geo-retry"
+        [ -f "$GATYGO_RUN/stopped" ] || "${GATYGO_INIT:-/etc/init.d/gatygo}" start
+    ) >/dev/null 2>&1 &
+    echo "$!" > "$GATYGO_RUN/geo-retry"
+}
