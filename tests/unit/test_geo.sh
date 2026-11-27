@@ -185,6 +185,14 @@ gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
 touch "$GATYGO_RUN/stopped"
 wait "$_p"
 assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "stopped by hand meanwhile: no start"
+# the init script runs under procd's lock (rc.common, fd 1000): a retry that kept it while it
+# waits would hold up every stop and start until then
+rm -f "$GATYGO_RUN/stopped"
+exec 1000>"$tmp/procd.lock"
+gatygo_geo_retry_later; _p=$(cat "$GATYGO_RUN/geo-retry")
+assert_eq "" "$(readlink "/proc/$_p/fd/1000")" "the waiting retry does not hold the init script's lock"
+exec 1000>&-
+wait "$_p"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

@@ -158,6 +158,7 @@ gatygo_geo_restore() {
 
 # gatygo_geo_retry_later — start the service again in a minute (GATYGO_GEO_RETRY_DELAY seconds),
 # unless it was stopped by hand meanwhile. At most one retry waits ($GATYGO_RUN/geo-retry: its pid).
+# It lets go of procd's lock (rc.common holds it on fd 1000): kept, it would hold up a stop until then.
 gatygo_geo_retry_later() {
     _gatygo_rp=$(cat "$GATYGO_RUN/geo-retry" 2>/dev/null)
     [ -n "$_gatygo_rp" ] && kill -0 "$_gatygo_rp" 2>/dev/null && return 0
@@ -166,6 +167,6 @@ gatygo_geo_retry_later() {
         sleep "${GATYGO_GEO_RETRY_DELAY:-60}"
         rm -f "$GATYGO_RUN/geo-retry"
         [ -f "$GATYGO_RUN/stopped" ] || "${GATYGO_INIT:-/etc/init.d/gatygo}" start
-    ) >/dev/null 2>&1 &
+    ) 1000>&- >/dev/null 2>&1 &
     echo "$!" > "$GATYGO_RUN/geo-retry"
 }
