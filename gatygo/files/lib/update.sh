@@ -60,10 +60,12 @@ gatygo_xray_test() {
 }
 
 # gatygo_stage_assets STAGE TESTDIR — TESTDIR gets the staged dats plus the current ones for the rest.
-# A staged dat is hard-linked when it can be (both in /tmp): the default ones are 28 MB of RAM.
+# A staged dat is hard-linked when it can be (both in /tmp), a current one that links to a default
+# dat in RAM is linked to it: the default ones are 28 MB of RAM.
 gatygo_stage_assets() {
     for _gatygo_n in geosite.dat geoip.dat; do
         if [ -f "$1/$_gatygo_n" ]; then ln -f "$1/$_gatygo_n" "$2/$_gatygo_n" 2>/dev/null || cp -p "$1/$_gatygo_n" "$2/$_gatygo_n"
+        elif [ -L "$GATYGO_ASSETS/$_gatygo_n" ]; then ln -s "$(readlink "$GATYGO_ASSETS/$_gatygo_n")" "$2/$_gatygo_n"
         elif [ -f "$GATYGO_ASSETS/$_gatygo_n" ]; then cp -p "$GATYGO_ASSETS/$_gatygo_n" "$2/$_gatygo_n"
         fi
     done

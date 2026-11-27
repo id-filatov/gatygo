@@ -24,6 +24,7 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
   GET <any of the above>/json  that path asked for Xray JSON
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
+  GET /geo-cut/<file>  200 and the whole Content-Length, but half the body, then the connection closes
   GET /log          JSON list of received requests [{"path":..., "headers":{...}}]
 """
 import base64, json, os, sys, time
@@ -152,6 +153,13 @@ class H(BaseHTTPRequestHandler):
                     pass
             self._send(200, open(p, "rb").read(),
                        [("Content-Type", "application/octet-stream"), ("Last-Modified", formatdate(mtime, usegmt=True))])
+        elif self.path.startswith("/geo-cut/"):
+            data = open(os.path.join(GEO_DIR, os.path.basename(self.path)), "rb").read()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data[:len(data) // 2])
+            self.close_connection = True
         elif self.path == "/log":
             self._send(200, json.dumps(LOG).encode(), [("Content-Type", "application/json")])
         else:

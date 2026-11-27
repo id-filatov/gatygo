@@ -97,6 +97,10 @@ assert_eq "1" "$_rc" "404 -> exit 1"
 assert_eq "0" "$(ls "$tmp/stage" | wc -l | tr -d ' ')" "stage emptied on error"
 gatygo_geo_fetch http://127.0.0.1:8788/redirect http://127.0.0.1:8788/geo/geoip.dat "$tmp/stage" 2>/dev/null; _rc=$?
 assert_eq "1" "$_rc" "redirect to plain http is refused"
+# a download cut short still says 200: curl's own exit status tells (a slow link to 16 MB files)
+gatygo_geo_fetch http://127.0.0.1:8788/geo-cut/geosite.dat http://127.0.0.1:8788/geo/geoip.dat "$tmp/stage" 2>/dev/null; _rc=$?
+assert_eq "1" "$_rc" "a download cut short -> exit 1"
+assert_eq "0" "$(ls "$tmp/stage" | wc -l | tr -d ' ')" "nothing of it staged"
 
 # --- the provider switched routing off: the saved links are dropped, the files on the router stay
 # (a provider config may still name geosite:/geoip:), and nothing is downloaded any more

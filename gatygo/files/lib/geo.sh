@@ -114,21 +114,30 @@ gatygo_geo_install_default() {
 # Conditional (If-Modified-Since = the installed file's mtime) only when the installed files are
 # recorded as coming from these URLs; unconditional otherwise. Keeps the server's Last-Modified as
 # mtime. Redirects are followed to https only (GitHub release URLs redirect; no credentials are
-# sent here). exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
+# sent here). The default files are 16 MB: a slow link gets 5 minutes, and only a stalled one (under
+# 1 KB/s for a minute) is cut off early. A transfer cut short still reports 200: curl's own exit
+# status decides. exit 0 = at least one file staged, 3 = nothing new (304), 1 = error (STAGE_DIR emptied)
 gatygo_geo_fetch() {
     _gatygo_stage=$3 _gatygo_staged=0 _gatygo_cond=0
     gatygo_geo_source_matches "$1" "$2" && _gatygo_cond=1
     for _gatygo_pair in "geosite.dat $1" "geoip.dat $2"; do
         _gatygo_n=${_gatygo_pair%% *} _gatygo_u=${_gatygo_pair#* }
         _gatygo_cur=$GATYGO_ASSETS/$_gatygo_n
+        _gatygo_crc=0
         if [ "$_gatygo_cond" = 1 ] && [ -f "$_gatygo_cur" ]; then
-            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' \
+            _gatygo_code=$(curl -sS --connect-timeout 20 --max-time 300 --speed-limit 1024 --speed-time 60 \
+                --retry 2 --retry-delay 5 --proto '=http,https' \
                 -L --max-redirs 3 --proto-redir '=https' -R -z "$_gatygo_cur" \
-                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
+                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null) || _gatygo_crc=$?
         else
-            _gatygo_code=$(curl -sS --max-time 60 --retry 2 --retry-delay 5 --proto '=http,https' \
+            _gatygo_code=$(curl -sS --connect-timeout 20 --max-time 300 --speed-limit 1024 --speed-time 60 \
+                --retry 2 --retry-delay 5 --proto '=http,https' \
                 -L --max-redirs 3 --proto-redir '=https' -R \
-                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null)
+                -o "$_gatygo_stage/$_gatygo_n" -w '%{http_code}' "$_gatygo_u" 2>/dev/null) || _gatygo_crc=$?
+        fi
+        if [ "$_gatygo_crc" != 0 ]; then
+            gatygo_log error "geo: download of $_gatygo_n failed (HTTP ${_gatygo_code:-none}, curl exit $_gatygo_crc)"
+            rm -f "$_gatygo_stage"/*.dat; return 1
         fi
         case $_gatygo_code in
             200)

@@ -164,6 +164,12 @@ gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the same subscription ag
 assert_eq "$_before" "$(_geo_requests)" "the same subscription within a day: no geo requests"
 assert_eq "$((_l0 + 1))" "$(_loyal)" "no download, no log line"
 assert_eq "0" "$(_last RESTARTED)" "nothing changed"
+# the xray test of a config gets links to the default files in RAM, not 28 MB copies
+mkdir -p "$tmp/st-none" "$tmp/st-test"
+gatygo_stage_assets "$tmp/st-none" "$tmp/st-test"
+for n in geosite.dat geoip.dat; do
+    assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$tmp/st-test/$n")" "the xray test links to $n in RAM"
+done
 # the provider gives geo files again: they go on the flash, the ones in RAM go
 uci set gatygo.main.sub_url=$M/sub
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "default -> provider: the update succeeds"
