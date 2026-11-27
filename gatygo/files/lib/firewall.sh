@@ -13,6 +13,10 @@
 # over conn_per_device of one device (a torrent client stays within its own share), or over
 # conn_total of the whole LAN. TCP gets a reset, so the app gives up at once; UDP is dropped.
 # The count is of live connections (nft ct count, kmod-nft-connlimit); the ones already open stay.
+#
+# tproxy finds no socket when xray is not there (it stopped by itself and on_crash=block keeps the
+# rules, or it waits for its geo files after a reboot): the packet would go on to the regular
+# internet around the VPN. Such a packet is refused instead, as one over the caps.
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
@@ -48,6 +52,7 @@ table inet gatygo {
 		meta l4proto { tcp, udp } ct state new add @conn_dev { ip saddr ct count over $GATYGO_CONN_PER_DEVICE } counter jump conn_refuse
 		meta nfproto ipv4 meta l4proto { tcp, udp } ct state new ct count over $GATYGO_CONN_TOTAL counter jump conn_refuse
 		meta l4proto { tcp, udp } tproxy ip to 127.0.0.1:$GATYGO_TPROXY_PORT meta mark set 0x1 counter accept
+		meta l4proto { tcp, udp } counter jump conn_refuse
 	}
 	chain conn_refuse {
 		meta l4proto tcp reject with tcp reset

@@ -245,7 +245,7 @@ vm 'ip netns add c1 && ip link add veth-c1 type veth peer name veth-c1p && ip li
     ip netns exec c1 sh -c "ip link set lo up; ip addr add 192.168.1.50/24 dev veth-c1p; ip link set veth-c1p up; ip route add default via 192.168.1.1"'
 check "client reaches the router" 'ip netns exec c1 ping -c1 -W2 192.168.1.1 >/dev/null'
 dns_counter() { vm 'nft list chain inet gatygo dns_redirect | grep -o "packets [0-9]*" | tail -n1 | cut -d" " -f2'; }
-tp_counter()  { vm 'nft list chain inet gatygo prerouting | grep -o "packets [0-9]*" | tail -n1 | cut -d" " -f2'; }
+tp_counter()  { vm 'nft list chain inet gatygo prerouting | grep tproxy | grep -o "packets [0-9]*" | tail -n1 | cut -d" " -f2'; }
 D0=$(dns_counter); vm 'ip netns exec c1 /tmp/tmo 3 nslookup example.com 8.8.8.8 >/dev/null 2>&1; true'; D1=$(dns_counter)
 [ "${D1:-0}" -gt "${D0:-0}" ] && ok "DNS to 8.8.8.8 is redirected ($D0 -> $D1)" || bad "DNS to 8.8.8.8 is redirected ($D0 -> $D1)"
 vm 'ip netns exec c1 /tmp/tmo 3 nslookup example.com 192.168.1.1 >/dev/null 2>&1; true'; D2=$(dns_counter)
@@ -305,6 +305,7 @@ vm 'for i in 1 2 3 4 5 6 7; do p=$(gatygo status | jq -r .pid); [ -n "$p" ] && k
 expect "status tells a crash from a stop" "false 137" 'gatygo status | jq -r "\"\(.running) \(.crashed)\""'
 # the watcher (the service's second instance) noted it; on_crash is block by default
 check "the moment is noted, the home network stays closed" 'gatygo status | jq -e ".crash.time > 1700000000 and .crash.direct == false" >/dev/null && nft list table inet gatygo >/dev/null'
+check "closed: a LAN client gets nowhere around the VPN" '! ip netns exec c1 /tmp/tmo 6 curl -s -o /dev/null -m 4 http://1.1.1.1/'
 check "the log says what happened" 'gatygo log 20 | grep -q "gatygo: .*xray quit by itself .*no internet"'
 vm '/etc/init.d/gatygo start; sleep 5'
 expect "start brings it back, with nothing left to show" "true null null" 'gatygo status | jq -r "\"\(.running) \(.crashed) \(.crash)\""'
