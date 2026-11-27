@@ -164,6 +164,13 @@ gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the same subscription ag
 assert_eq "$_before" "$(_geo_requests)" "the same subscription within a day: no geo requests"
 assert_eq "$((_l0 + 1))" "$(_loyal)" "no download, no log line"
 assert_eq "0" "$(_last RESTARTED)" "nothing changed"
+# a due check the server answers with 304: nothing downloaded, so no line about Loyalsoldier's
+touch -d '2026-01-01 00:00:00' "$tmp/geo-src/"*.dat "$GATYGO_RUN/geo/"*.dat
+_before=$(_def_requests)
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a due check of the default files"
+assert_eq "$((_before + 2))" "$(_def_requests)" "due: both default files asked again"
+assert_eq "$((_l0 + 1))" "$(_loyal)" "304: no line about Loyalsoldier's"
+touch "$tmp/geo-src/"*.dat
 # the xray test of a config gets links to the default files in RAM, not 28 MB copies
 mkdir -p "$tmp/st-none" "$tmp/st-test"
 gatygo_stage_assets "$tmp/st-none" "$tmp/st-test"
@@ -193,6 +200,35 @@ for n in geosite.dat geoip.dat; do
     assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$GATYGO_ASSETS/$n")" "provider -> default: the file on the flash is a link again ($n)"
     assert_exit 0 "provider -> default: $n is in RAM" test -s "$GATYGO_RUN/geo/$n"
 done
+# the subscription names no geo data any more: the default files go, links, RAM and record
+uci set gatygo.main.sub_url=$M/sub-nogeo
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a subscription without geo rules: the update succeeds"
+for n in geosite.dat geoip.dat; do
+    assert_exit 1 "no geo rules any more: no $n on the flash" test -L "$GATYGO_ASSETS/$n" -o -e "$GATYGO_ASSETS/$n"
+    assert_exit 1 "no geo rules any more: no $n in RAM" test -e "$GATYGO_RUN/geo/$n"
+done
+assert_exit 1 "no geo rules any more: no record of geo files" test -e "$GATYGO_STATE/geo-source.env"
+assert_eq "1" "$(grep -c "\[info\] geo: the subscription names no geo rules any more; Loyalsoldier's geo files removed$" "$SYSLOG_STUB_FILE")" "the log says the default files went"
+
+# --- the default files do not fit the config: downloaded again once a day, not on every update
+_bad_requests() { curl -fs $M/log | jq '[.[] | select(.path | startswith("/geo-bad/"))] | length'; }
+GATYGO_STATE="$tmp/state-baddefault" GATYGO_ASSETS="$tmp/assets-baddefault"; mkdir -p "$GATYGO_ASSETS"
+uci set gatygo.main.sub_url=$M/sub-norouting
+_db=$GATYGO_GEO_DEFAULT_BASE; GATYGO_GEO_DEFAULT_BASE=$M/geo-bad
+_before=$(_bad_requests)
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "the default files do not fit -> error"
+assert_eq "$((_before + 2))" "$(_bad_requests)" "the default files downloaded once"
+case $(_last MESSAGE) in *"with Loyalsoldier's geo files"*) _t_ok ;; *) _t_bad "the error names the default files: $(_last MESSAGE)" ;; esac
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "the same subscription again -> error again"
+assert_eq "$((_before + 2))" "$(_bad_requests)" "the same subscription again: the default files are not downloaded again"
+case $(_last MESSAGE) in *"with Loyalsoldier's geo files"*) _t_ok ;; *) _t_bad "and the error still names them: $(_last MESSAGE)" ;; esac
+assert_exit 1 "nothing of them in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+touch -d '2026-01-01 00:00:00' "$GATYGO_RUN/geo-failed"
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$((_before + 4))" "$(_bad_requests)" "a day later: downloaded again"
+GATYGO_GEO_DEFAULT_BASE=$_db
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "default files that fit: the update succeeds"
+assert_exit 1 "a success drops the mark" test -e "$GATYGO_RUN/geo-failed"
 
 # --- the default files cannot be downloaded: no config, and the error says why
 GATYGO_STATE="$tmp/state-nodefault" GATYGO_ASSETS="$tmp/assets-nodefault"; mkdir -p "$GATYGO_ASSETS"

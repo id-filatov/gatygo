@@ -8,6 +8,7 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
                     base64 link list (what a real server returns to a name it does not know)
   GET /sub-maxdev   same, plus "x-hwid-max-devices-reached: true"
   GET /sub-norouting  same, without the routing header (no geo file URLs)
+  GET /sub-nogeo    like /sub-norouting, and the body names no geosite:/geoip: data either
   GET /sub-nohwid   same as /sub but the x-hwid header is not required
   GET /sub-broken   HTTP 500
   GET /sub-moved, /sub-move, /sub-movebroken, /sub-move-maxdev, /sub-domain, /sub-badmove,
@@ -25,6 +26,7 @@ Usage: sub_server.py PORT FIXTURE_JSON GEO_DIR PUBLIC_URL
   GET /redirect     302 to /sub
   GET /geo/<file>   file from GEO_DIR with Last-Modified; 304 when If-Modified-Since matches
   GET /geo-cut/<file>  200 and the whole Content-Length, but half the body, then the connection closes
+  GET /geo-bad/<file>  200 with bytes that are no geo file (a stable Last-Modified)
   GET /log          JSON list of received requests [{"path":..., "headers":{...}}]
 """
 import base64, json, os, sys, time
@@ -33,6 +35,22 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 PORT, FIXTURE, GEO_DIR, PUBLIC_URL = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4].rstrip("/")
 BODY = open(FIXTURE, "rb").read()
+
+def _no_geo(body):
+    subs = json.loads(body)
+    geo = lambda v: isinstance(v, str) and v.startswith(("geosite:", "geoip:"))
+    for p in subs:
+        r = p.get("routing") or {}
+        r["rules"] = [x for x in r.get("rules", []) if not any(geo(v) for v in x.get("domain", []) + x.get("ip", []))]
+        for srv in (p.get("dns") or {}).get("servers", []):
+            if isinstance(srv, dict) and "domains" in srv:
+                srv["domains"] = [d for d in srv["domains"] if not geo(d)]
+                if not srv["domains"]:
+                    del srv["domains"]
+    return json.dumps(subs, ensure_ascii=False).encode()
+
+BODY_NOGEO = _no_geo(BODY)
+assert b'"geosite:' not in BODY_NOGEO and b'"geoip:' not in BODY_NOGEO
 LOG = []
 
 def b64(s):
@@ -67,7 +85,7 @@ VARIANTS = {
     ],
 }
 
-SUBS = ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nohwid", "/sub-closed", "/sub-own", "/sub-refuse", "/sub-never",
+SUBS = ("/sub", "/sub-maxdev", "/sub-norouting", "/sub-nogeo", "/sub-nohwid", "/sub-closed", "/sub-own", "/sub-refuse", "/sub-never",
         "/sub-picky", "/sub-jsondrop", "/sub-gone")
 
 def answer(path, ua, json_path):
@@ -127,14 +145,14 @@ class H(BaseHTTPRequestHandler):
                     ("subscription-userinfo", "upload=1024; download=123456789; total=0; expire=1767225600"),
                     ("announce", b64("Planned maintenance — use code 'GO' ✓")),
                     ("manual-block-user-agent", "true")]
-            if path != "/sub-norouting":
+            if path not in ("/sub-norouting", "/sub-nogeo"):
                 hdrs.append(("routing", ROUTING))
             if path == "/sub-maxdev":
                 hdrs.append(("x-hwid-max-devices-reached", "true"))
             extra = VARIANTS.get(path, [])
             names = {k.lower() for k, _ in extra}
             hdrs = [h for h in hdrs if h[0].lower() not in names] + extra
-            self._send(200, BODY, hdrs)
+            self._send(200, BODY_NOGEO if path == "/sub-nogeo" else BODY, hdrs)
         elif path == "/sub-broken":
             self._send(500, b"boom", [("Content-Type", "text/plain")])
         elif path == "/redirect":
@@ -153,6 +171,9 @@ class H(BaseHTTPRequestHandler):
                     pass
             self._send(200, open(p, "rb").read(),
                        [("Content-Type", "application/octet-stream"), ("Last-Modified", formatdate(mtime, usegmt=True))])
+        elif self.path.startswith("/geo-bad/"):
+            self._send(200, b"not a geo file\n" * 64,
+                       [("Content-Type", "application/octet-stream"), ("Last-Modified", formatdate(1767225600, usegmt=True))])
         elif self.path.startswith("/geo-cut/"):
             data = open(os.path.join(GEO_DIR, os.path.basename(self.path)), "rb").read()
             self.send_response(200)

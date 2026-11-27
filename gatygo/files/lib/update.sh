@@ -254,35 +254,53 @@ gatygo_update() {
     [ -f "$GATYGO_STATE/subscription.json" ] \
         && [ "$(sha256sum < "$_gatygo_w/body")" = "$(sha256sum < "$GATYGO_STATE/subscription.json")" ] && _gatygo_sub_changed=0
     # 3. geo (at most daily while the subscription and the URLs are unchanged): the subscription's
-    # files, or the default ones when it names geo rules but gives no files (lib/geo.sh)
-    _gatygo_geo_ok=0 _gatygo_geo_fail=0
+    # files, or the default ones when it names geo rules but gives no files (lib/geo.sh). Default
+    # files the config failed the test with are not downloaded again for this subscription for a day.
+    _gatygo_geo_ok=0 _gatygo_geo_fail=0 _gatygo_geo_def=0 _gatygo_geo_dl=0
+    _gatygo_body_sha=$(sha256sum < "$_gatygo_w/body" | cut -d' ' -f1)
     if _gatygo_urls=$(gatygo_geo_urls "$_gatygo_w/headers.env" "$_gatygo_w/body") \
         && { [ "$_gatygo_sub_changed" = 1 ] || gatygo_geo_due \
             || ! gatygo_geo_source_matches "${_gatygo_urls% *}" "${_gatygo_urls#* }"; }; then
         if gatygo_geo_is_default "${_gatygo_urls% *}"; then
+            _gatygo_geo_def=1
             : > "$_gatygo_w/geo/.default"
-            gatygo_log info "geo: the subscription names geo rules but gives no geo files; using Loyalsoldier's"
         fi
-        gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
-        case $? in
-            1) _gatygo_geo_fail=1; gatygo_log warn "geo download failed; keeping the current geo files" ;;
-            *) _gatygo_geo_ok=1 ;;
-        esac
+        if [ "$_gatygo_geo_def" = 1 ] && gatygo_geo_failed_recently "$_gatygo_body_sha" "${_gatygo_urls% *}"; then
+            _gatygo_geo_fail=2
+        else
+            gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
+            case $? in
+                1) _gatygo_geo_fail=1; gatygo_log warn "geo download failed; keeping the current geo files" ;;
+                0) _gatygo_geo_ok=1 _gatygo_geo_dl=1
+                   [ "$_gatygo_geo_def" = 0 ] \
+                       || gatygo_log info "geo: the subscription names geo rules but gives no geo files; using Loyalsoldier's" ;;
+                *) _gatygo_geo_ok=1 ;;
+            esac
+        fi
     fi
     # 4–7. select, transform, test, swap
     _gatygo_prof=$(gatygo_apply_profile "$_gatygo_w/body" "$_gatygo_w/geo")
     _gatygo_apply=$?
     if [ "$_gatygo_apply" -eq 1 ]; then
-        _gatygo_why=''; [ "$_gatygo_geo_fail" = 0 ] || _gatygo_why=' (the geo files could not be downloaded)'
+        _gatygo_why=''
+        if [ "$_gatygo_geo_fail" = 1 ]; then
+            _gatygo_why=' (the geo files could not be downloaded)'
+        elif [ "$_gatygo_geo_fail" = 2 ] || [ "$_gatygo_geo_dl$_gatygo_geo_def" = 11 ]; then
+            _gatygo_why=" (with Loyalsoldier's geo files; they are downloaded again tomorrow or when the subscription changes)"
+            [ "$_gatygo_geo_fail" = 2 ] || { mkdir -p "$GATYGO_RUN" && printf '%s %s\n' "$_gatygo_body_sha" "${_gatygo_urls% *}" > "$GATYGO_RUN/geo-failed"; }
+        fi
         gatygo_result error test_failed "new config failed the xray test$_gatygo_why; keeping the current config"
         rm -rf "$_gatygo_w"; return 1
     fi
+    rm -f "$GATYGO_RUN/geo-failed"
     GATYGO_SWAP_RESULT=$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)
     # the dats now installed (fetched or confirmed by 304) came from these URLs: next time conditional
     if [ "$_gatygo_geo_ok" = 1 ]; then
         _gatygo_def=''; gatygo_geo_is_default "${_gatygo_urls% *}" && _gatygo_def=default
         gatygo_geo_record "${_gatygo_urls% *}" "${_gatygo_urls#* }" $_gatygo_def
     fi
+    # the subscription names no geo data any more and gives no geo files: the default ones go
+    [ -n "$_gatygo_urls" ] || ! gatygo_geo_source_default || gatygo_geo_drop_default
     _gatygo_install "$_gatygo_w/body" "$GATYGO_STATE/subscription.json" 600
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"

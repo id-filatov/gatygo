@@ -122,6 +122,26 @@ gatygo_geo_install_default() {
     [ "$_gatygo_dch" = 1 ] && echo changed || echo unchanged
 }
 
+# gatygo_geo_drop_default — the default dats go: the links to them, the files in RAM, their record
+gatygo_geo_drop_default() {
+    for _gatygo_n in geosite.dat geoip.dat; do
+        if [ "$(readlink "$GATYGO_ASSETS/$_gatygo_n" 2>/dev/null)" = "$GATYGO_GEO_TMP/$_gatygo_n" ]; then
+            rm -f "$GATYGO_ASSETS/$_gatygo_n"
+        fi
+        rm -f "$GATYGO_GEO_TMP/$_gatygo_n"
+    done
+    rm -f "$GATYGO_STATE/geo-source.env"
+    gatygo_log info "geo: the subscription names no geo rules any more; Loyalsoldier's geo files removed"
+}
+
+# gatygo_geo_failed_recently BODY_SHA GEOSITE_URL — exit 0 when a config of this subscription body
+# failed the test with default dats freshly downloaded from there less than a day ago
+# ($GATYGO_RUN/geo-failed)
+gatygo_geo_failed_recently() {
+    [ "$(cat "$GATYGO_RUN/geo-failed" 2>/dev/null)" = "$1 $2" ] || return 1
+    [ $(( $(date +%s) - $(date -r "$GATYGO_RUN/geo-failed" +%s) )) -lt 86400 ]
+}
+
 # gatygo_geo_fetch GEOSITE_URL GEOIP_URL STAGE_DIR — download changed files into STAGE_DIR.
 # Conditional (If-Modified-Since = the installed file's mtime) only when the installed files are
 # recorded as coming from these URLs; unconditional otherwise. Keeps the server's Last-Modified as
