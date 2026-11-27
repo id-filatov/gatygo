@@ -156,7 +156,7 @@ for n in geosite.dat geoip.dat; do
     assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_RUN/geo/$n")" "$n in RAM is the downloaded file"
 done
 assert_eq "-rw-r--r--" "$(ls -l "$GATYGO_RUN/geo/geoip.dat" | cut -c1-10)" "the files in RAM are 0644"
-assert_eq "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)" "their source is recorded: the default URLs"
+assert_eq "$GATYGO_GEO_DEFAULT_BASE/geosite.dat 1" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL) $(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEO_DEFAULT)" "their source is recorded: the default URLs, marked as the default files"
 assert_exit 1 "the default URLs are not saved as the provider's" test -e "$GATYGO_STATE/geo-urls.env"
 assert_eq "$((_l0 + 1))" "$(_loyal)" "the log says the default files are used"
 _before=$(_geo_requests)
@@ -179,9 +179,15 @@ for n in geosite.dat geoip.dat; do
     assert_exit 1 "default -> provider: $n in RAM is gone" test -e "$GATYGO_RUN/geo/$n"
 done
 assert_eq "$M/geo/geosite.dat" "$(_gatygo_env_get "$GATYGO_STATE/geo-source.env" GATYGO_GEOSITE_URL)" "default -> provider: the provider's source is recorded"
-# and stops again (its saved links gone, as after routing off): back to the default files
+# and stops again (its saved links gone, as after routing off): the files it gave before stay
 rm -f "$GATYGO_STATE/geo-urls.env"
 uci set gatygo.main.sub_url=$M/sub-norouting
+_before=$(_def_requests)
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the provider stops giving geo files: the update succeeds"
+assert_eq "$_before" "$(_def_requests)" "the provider's files in place: no default files downloaded"
+assert_exit 1 "the provider's files stay on the flash" test -L "$GATYGO_ASSETS/geosite.dat"
+# its files are lost (a sysupgrade keeps the state, not the dats): the default ones
+rm -f "$GATYGO_ASSETS/geosite.dat" "$GATYGO_ASSETS/geoip.dat"
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "provider -> default: the update succeeds"
 for n in geosite.dat geoip.dat; do
     assert_eq "$GATYGO_RUN/geo/$n" "$(readlink "$GATYGO_ASSETS/$n")" "provider -> default: the file on the flash is a link again ($n)"

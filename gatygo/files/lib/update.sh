@@ -279,7 +279,10 @@ gatygo_update() {
     fi
     GATYGO_SWAP_RESULT=$(cat "$GATYGO_RUN/swap-result" 2>/dev/null)
     # the dats now installed (fetched or confirmed by 304) came from these URLs: next time conditional
-    [ "$_gatygo_geo_ok" = 1 ] && gatygo_geo_record "${_gatygo_urls% *}" "${_gatygo_urls#* }"
+    if [ "$_gatygo_geo_ok" = 1 ]; then
+        _gatygo_def=''; gatygo_geo_is_default "${_gatygo_urls% *}" && _gatygo_def=default
+        gatygo_geo_record "${_gatygo_urls% *}" "${_gatygo_urls#* }" $_gatygo_def
+    fi
     _gatygo_install "$_gatygo_w/body" "$GATYGO_STATE/subscription.json" 600
     _gatygo_install "$_gatygo_w/headers.env" "$GATYGO_STATE/headers.env" 600
     rm -rf "$_gatygo_w"

@@ -125,7 +125,8 @@ assert_exit 0 "a body with geosite: names geo" gatygo_geo_named "$tmp/body-geo.j
 assert_exit 0 "a body with geoip: names geo" gatygo_geo_named "$tmp/body-one.json"
 assert_exit 1 "a body without them does not" gatygo_geo_named "$tmp/body-nogeo.json"
 assert_exit 1 "no body names nothing" gatygo_geo_named "$tmp/none.json"
-rm -f "$GATYGO_STATE/geo-urls.env"
+# the dats in place are of unknown origin (no record): not the provider's
+rm -f "$GATYGO_STATE/geo-urls.env" "$GATYGO_STATE/geo-source.env"
 assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json")" "geo rules, no header, no cache -> the default URLs"
 assert_exit 0 "the default URLs: exit 0" gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json"
 assert_exit 1 "the default URLs are not cached" test -e "$GATYGO_STATE/geo-urls.env"
@@ -138,13 +139,26 @@ assert_eq "$GS $GI" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json")" "
 assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/off.env" "$tmp/body-geo.json")" "routing off, geo rules -> the default URLs"
 assert_exit 1 "routing off -> the cache is gone" test -e "$GATYGO_STATE/geo-urls.env"
 assert_exit 1 "routing off, no geo rules -> no geo URLs" gatygo_geo_urls "$tmp/off.env" "$tmp/body-nogeo.json"
+# the provider gave its geo files before and they are in place: they stay, not the default ones
+gatygo_geo_record "$GS" "$GI"
+cp "$tmp/geo-src/geosite.dat" "$tmp/geo-src/geoip.dat" "$GATYGO_ASSETS/"
+assert_exit 1 "the provider's files in place, no URLs now -> no default URLs" gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json"
+assert_exit 1 "routing off, the provider's files in place -> no default URLs" gatygo_geo_urls "$tmp/off.env" "$tmp/body-geo.json"
+assert_exit 0 "routing off: the provider's files stay" test -s "$GATYGO_ASSETS/geosite.dat" -a -s "$GATYGO_ASSETS/geoip.dat"
+rm -f "$GATYGO_ASSETS/geoip.dat"
+assert_eq "$DB/geosite.dat $DB/geoip.dat" "$(gatygo_geo_urls "$tmp/empty.env" "$tmp/body-geo.json")" "the provider's files are gone (a sysupgrade) -> the default URLs"
+cp "$tmp/geo-src/geoip.dat" "$GATYGO_ASSETS/"
 
 assert_exit 0 "the default geosite URL is the default" gatygo_geo_is_default "$DB/geosite.dat"
 assert_exit 1 "a provider's geosite URL is not" gatygo_geo_is_default "$GS"
 rm -f "$GATYGO_STATE/geo-source.env"
 assert_exit 1 "no source record -> not the default files" gatygo_geo_source_default
+gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
+assert_exit 0 "recorded as the default files -> the default files" gatygo_geo_source_default
+gatygo_geo_record https://mirror.example/geosite.dat https://mirror.example/geoip.dat default
+assert_exit 0 "recorded as the default files from another base (a later release moved it) -> still the default files" gatygo_geo_source_default
 gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat"
-assert_exit 0 "recorded from the default URLs -> the default files" gatygo_geo_source_default
+assert_exit 1 "recorded without the mark -> not the default files" gatygo_geo_source_default
 gatygo_geo_record "$GS" "$GI"
 assert_exit 1 "recorded from the provider's URLs -> not the default files" gatygo_geo_source_default
 
@@ -152,7 +166,7 @@ assert_exit 1 "recorded from the provider's URLs -> not the default files" gatyg
 #     come again, the subscription is not asked
 rm -f "$GATYGO_ASSETS"/*.dat; rm -rf "$GATYGO_RUN/geo"
 for n in geosite.dat geoip.dat; do ln -s "$GATYGO_RUN/geo/$n" "$GATYGO_ASSETS/$n"; done
-gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat"
+gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
 _m=$(curl -fs http://127.0.0.1:8788/log | jq length)
 _since() { curl -fs http://127.0.0.1:8788/log | jq --argjson m "$_m" "[.[\$m:][] | select(.path | startswith(\"$1\"))] | length"; }
 gatygo_geo_restore; assert_eq "0" "$?" "restore: the default files are back"
@@ -165,7 +179,7 @@ assert_eq "0" "$(_since /sub)" "restore: the subscription is not asked"
 # the default files cannot be downloaded (no network yet): nothing is touched
 rm -rf "$GATYGO_RUN/geo"
 _db=$GATYGO_GEO_DEFAULT_BASE; GATYGO_GEO_DEFAULT_BASE=http://127.0.0.1:8788/geo-missing
-gatygo_geo_record "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$GATYGO_GEO_DEFAULT_BASE/geoip.dat"
+gatygo_geo_record "$GATYGO_GEO_DEFAULT_BASE/geosite.dat" "$GATYGO_GEO_DEFAULT_BASE/geoip.dat" default
 gatygo_geo_restore 2>/dev/null; assert_eq "1" "$?" "restore: no download -> exit 1"
 assert_exit 1 "restore: nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
 assert_eq "$GATYGO_RUN/geo/geoip.dat" "$(readlink "$GATYGO_ASSETS/geoip.dat")" "restore: the links are left as they were"
