@@ -49,11 +49,13 @@ def in_rule_order:
      | sort_by(.ip | contains(":") as $v6
          | [$v6, -(if contains("/") then split("/")[1] | tonumber elif $v6 then 128 else 32 end)]));
 
-# The tag of gatygo's own blackhole: "gatygo-block", or the first of gatygo-block-2, -3, ... that
-# the subscription does not use.
-def own_block_tag($cfg):
+# A tag of gatygo's own among the outbounds: $base, or the first of $base-2, -3, ... that the
+# subscription does not use (a provider may have its own dns-out or api).
+def own_tag($cfg; $base):
   [($cfg.outbounds // [])[] | .tag] as $tags
-  | first(("gatygo-block", (range(2; infinite) | "gatygo-block-\(.)")) | select(IN($tags[]) | not));
+  | first(($base, (range(2; infinite) | "\($base)-\(.)")) | select(IN($tags[]) | not));
+
+def own_block_tag($cfg): own_tag($cfg; "gatygo-block");
 
 # The user's block rules as xray rules, to the blackhole $tag: they go ahead of every rule but our
 # own service ones, the provider's address rules too, so no address condition; from the LAN and
@@ -90,6 +92,8 @@ def user_rules($cfg):
 . as $in
 | del(.remarks, .meta)
 | own_block_tag($in) as $own
+| own_tag($in; "gatygo-dns-out") as $dns
+| own_tag($in; "gatygo-api") as $api
 | block_rules($own) as $blocks
 # xray wants every rule tag unique; the tag names the rule in its log ("Hit route rule"). One
 # numbering for all the user's rules, the blocks first, as they go in.
@@ -113,11 +117,11 @@ def user_rules($cfg):
       settings: { auth: "password", accounts: [{ user: "gatygo", pass: $check_pass }], udp: false } }
   ]
 # gatygo's blackhole last: the first outbound is where xray sends what no rule takes
-| .outbounds = ((.outbounds // []) | map(with_mark)) + [{ tag: "dns-out", protocol: "dns" }]
+| .outbounds = ((.outbounds // []) | map(with_mark)) + [{ tag: $dns, protocol: "dns" }]
     + (if $nb > 0 then [{ tag: $own, protocol: "blackhole" }] else [] end)
 | .routing.rules = [
-    { type: "field", inboundTag: ["dns-in"], outboundTag: "dns-out" },
-    { type: "field", inboundTag: ["api"], outboundTag: "api" }
+    { type: "field", inboundTag: ["dns-in"], outboundTag: $dns },
+    { type: "field", inboundTag: ["api"], outboundTag: $api }
   ] + $tagged[:$nb] + ((.routing.rules // []) as $rules | $tagged[$nb:] as $mine
       | if ($mine | length) == 0 then $rules
         elif has_catch_all($rules) then $rules[:-1] + $mine + [$rules[-1]]
@@ -127,6 +131,6 @@ def user_rules($cfg):
 | .log = (.log // {}) + { loglevel: $loglevel, access: "none", error: "" }
 | .stats = (.stats // {})
 # no HandlerService: it hands the outbounds (server addresses and keys) to any local process
-| .api = (.api // {}) + { tag: "api", services: ["StatsService", "RoutingService"] }
+| .api = (.api // {}) + { tag: $api, services: ["StatsService", "RoutingService"] }
 | .policy = (.policy // {})
 | .policy.system = (.policy.system // {}) + { statsOutboundUplink: true, statsOutboundDownlink: true }

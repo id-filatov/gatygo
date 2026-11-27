@@ -7,8 +7,8 @@
 GATYGO_API=${GATYGO_API:-127.0.0.1:10085}
 
 # gatygo_nodes XRAY_JSON — print {"api": bool, "balancer": tag|null, "nodes": [{tag, address, in_use, up, down}]}
-# Outbounds keep the config order; dns-out and block are skipped. Without the API (xray not
-# running) the list still comes from the config with zero counters and nothing in use.
+# Outbounds keep the config order; gatygo's DNS outbound and blackholes are skipped. Without the
+# API (xray not running) the list still comes from the config with zero counters and nothing in use.
 gatygo_nodes() {
     _gatygo_bal=$(jq -r '.routing.balancers[0].tag // empty' "$1" 2>/dev/null)
     _gatygo_stats='{"stat":[]}' _gatygo_sel='[]' _gatygo_api=false

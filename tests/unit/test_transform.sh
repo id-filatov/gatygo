@@ -39,20 +39,20 @@ while [ "$i" -lt 13 ]; do
             and .settings.udp == false and .settings.auth == "password"
             and .settings.accounts == [{"user": "gatygo", "pass": "s3cret"}]' "$out"
 
-    # outbounds: untouched except sockopt.mark, plus dns-out at the end
+    # outbounds: untouched except sockopt.mark, plus gatygo's DNS outbound at the end
     assert_exit 0 "outbounds minus mark equal the original: $name" jq -e --slurpfile o "$in" \
         "($_STRIP_MARK) == \$o[0].outbounds" "$out"
-    assert_exit 0 "dns-out appended last: $name" jq -e \
-        '.outbounds[-1] == {"tag": "dns-out", "protocol": "dns"}' "$out"
+    assert_exit 0 "gatygo-dns-out appended last: $name" jq -e \
+        '.outbounds[-1] == {"tag": "gatygo-dns-out", "protocol": "dns"}' "$out"
     assert_exit 0 "every proxy/direct outbound carries the mark: $name" jq -e \
-        '[.outbounds[] | select(.tag != "block" and .tag != "dns-out") | .streamSettings.sockopt.mark] | length > 0 and all(. == 255)' "$out"
+        '[.outbounds[] | select(.tag != "block" and .tag != "gatygo-dns-out") | .streamSettings.sockopt.mark] | length > 0 and all(. == 255)' "$out"
     assert_exit 0 "block outbound has no streamSettings: $name" jq -e \
         '[.outbounds[] | select(.tag == "block")] | all(has("streamSettings") | not)' "$out"
 
     # routing: two rules prepended, everything else byte-for-byte
     assert_exit 0 "prepended routing rules: $name" jq -e \
-        '.routing.rules[0] == {"type": "field", "inboundTag": ["dns-in"], "outboundTag": "dns-out"}
-         and .routing.rules[1] == {"type": "field", "inboundTag": ["api"], "outboundTag": "api"}' "$out"
+        '.routing.rules[0] == {"type": "field", "inboundTag": ["dns-in"], "outboundTag": "gatygo-dns-out"}
+         and .routing.rules[1] == {"type": "field", "inboundTag": ["api"], "outboundTag": "gatygo-api"}' "$out"
     assert_exit 0 "original rules follow unchanged: $name" jq -e --slurpfile o "$in" \
         '.routing.rules[2:] == $o[0].routing.rules' "$out"
     assert_exit 0 "balancers, domainStrategy, dns, observatory unchanged: $name" jq -e --slurpfile o "$in" \
@@ -64,7 +64,7 @@ while [ "$i" -lt 13 ]; do
     assert_exit 0 "log/stats/api/policy added: $name" jq -e \
         '.log == {"loglevel": "warning", "access": "none", "error": ""}
          and .stats == {}
-         and .api == {"tag": "api", "services": ["StatsService", "RoutingService"]}
+         and .api == {"tag": "gatygo-api", "services": ["StatsService", "RoutingService"]}
          and .policy == {"system": {"statsOutboundUplink": true, "statsOutboundDownlink": true}}' "$out"
 
     i=$((i + 1))
@@ -82,7 +82,7 @@ jq '.api = {"tag": "api", "services": ["HandlerService"], "listen": "127.0.0.1:1
 gatygo_transform "$tmp/merge-in.json" "$tmp/merge-out.json" 12345 5353 255 debug 10808 s3cret
 # HandlerService would let any local process read the outbounds (server addresses and keys)
 assert_exit 0 "api merged (ours wins: the panel's HandlerService is dropped, extra keys kept)" jq -e \
-    '.api.listen == "127.0.0.1:1" and .api.services == ["StatsService", "RoutingService"]' "$tmp/merge-out.json"
+    '.api.listen == "127.0.0.1:1" and .api.tag == "gatygo-api" and .api.services == ["StatsService", "RoutingService"]' "$tmp/merge-out.json"
 assert_exit 0 "log merged (access forced to none, error to console, dnsLog kept)" jq -e \
     '.log == {"access": "none", "dnsLog": true, "loglevel": "debug", "error": ""}' "$tmp/merge-out.json"
 assert_exit 0 "policy merged (levels kept, system added)" jq -e \
@@ -201,7 +201,7 @@ UB='[{"domain":"video.example.com","to":"block"},{"ip":"198.51.100.0/24","to":"b
 _t "$tmp/in-0.json" "$tmp/ub.json" "$UB"
 assert_exit 0 "xray run -test accepts block rules" xray run -test -c "$tmp/ub.json"
 assert_eq '{"tag":"gatygo-block","protocol":"blackhole"}' "$(jq -c '.outbounds[-1]' "$tmp/ub.json")" "our blackhole is the last outbound"
-assert_eq "dns-out" "$(jq -r '.outbounds[-2].tag' "$tmp/ub.json")" "after dns-out"
+assert_eq "gatygo-dns-out" "$(jq -r '.outbounds[-2].tag' "$tmp/ub.json")" "after gatygo-dns-out"
 assert_eq "$(jq -r '.outbounds[0].tag' "$tmp/in-0.json")" "$(jq -r '.outbounds[0].tag' "$tmp/ub.json")" "the first outbound (xray's default) stays first"
 assert_eq '[["domain:sub.video.example.com"],["domain:video.example.com"],["198.51.100.0/24"]]' \
     "$(jq -c '[.routing.rules[2:5][] | (.domain // .ip)]' "$tmp/ub.json")" "blocks right after dns-in and api: domains more specific first, then addresses"
@@ -230,6 +230,22 @@ assert_exit 0 "xray run -test accepts it (tag taken)" xray run -test -c "$tmp/tk
 jq '.routing.domainStrategy = "IPOnDemand"' "$tmp/in-0.json" > "$tmp/od-in.json"
 _t "$tmp/od-in.json" "$tmp/od.json" "$UB"
 assert_exit 0 "xray run -test accepts it (IPOnDemand)" xray run -test -c "$tmp/od.json"
+
+# --- the provider's own dns-out and api: gatygo's names never clash with an outbound of its
+jq '.outbounds += [{"tag":"dns-out","protocol":"dns"},{"tag":"api","protocol":"freedom"},{"tag":"gatygo-dns-out","protocol":"freedom"}]
+    | .routing.rules = [{"type":"field","port":"53","outboundTag":"dns-out"}] + .routing.rules' "$tmp/in-0.json" > "$tmp/pt-in.json"
+gatygo_transform "$tmp/pt-in.json" "$tmp/pt.json" 12345 5353 255 warning 10808 s3cret
+assert_eq "0" "$?" "transform succeeds with the provider's dns-out and api"
+assert_exit 0 "every outbound tag is unique" jq -e '[.outbounds[].tag] | length == (unique | length)' "$tmp/pt.json"
+assert_eq '{"tag":"gatygo-dns-out-2","protocol":"dns"}' "$(jq -c '.outbounds[-1]' "$tmp/pt.json")" "our DNS outbound takes the first free name"
+assert_eq '{"type":"field","inboundTag":["dns-in"],"outboundTag":"gatygo-dns-out-2"}' "$(jq -c '.routing.rules[0]' "$tmp/pt.json")" "dns-in goes to it"
+assert_eq "gatygo-api gatygo-api" "$(jq -r '"\(.api.tag) \(.routing.rules[1].outboundTag)"' "$tmp/pt.json")" "the API service and its rule use our own name"
+assert_eq '{"type":"field","port":"53","outboundTag":"dns-out"}' "$(jq -c '.routing.rules[2]' "$tmp/pt.json")" "the provider's port 53 rule is untouched"
+assert_exit 0 "xray run -test accepts it (the provider's dns-out and api)" xray run -test -c "$tmp/pt.json"
+jq '.outbounds += [{"tag":"gatygo-api","protocol":"freedom"}]' "$tmp/in-0.json" > "$tmp/pa-in.json"
+gatygo_transform "$tmp/pa-in.json" "$tmp/pa.json" 12345 5353 255 warning 10808 s3cret
+assert_eq "gatygo-api-2 gatygo-api-2" "$(jq -r '"\(.api.tag) \(.routing.rules[1].outboundTag)"' "$tmp/pa.json")" "gatygo-api taken: the next free name"
+assert_exit 0 "xray run -test accepts it (gatygo-api taken)" xray run -test -c "$tmp/pa.json"
 
 gatygo_transform "$tmp/in-0.json" "$tmp/none-a.json" 12345 5353 255 warning 10808 s3cret '[]'
 gatygo_transform "$tmp/in-0.json" "$tmp/none-b.json" 12345 5353 255 warning 10808 s3cret
