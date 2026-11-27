@@ -781,6 +781,8 @@ return view.extend({
 
 	renderPanel: function(st) {
 		var running = st.running === true, updating = st.updating === true, hasConfig = !!st.profile_used;
+		// after a reboot the VPN waits for the default geo files (they are kept in RAM)
+		var geoWait = (!running && st.geo && st.geo.wait) || null;
 		var profiles = Array.isArray(st.profiles) ? st.profiles : [], lu = st.last_update || {};
 		var up = st.upgrade || {}, upgrading = (up.run && up.run.state == 'running');
 		// E() writes every non-null attribute, so a boolean false would still disable the control
@@ -818,6 +820,15 @@ return view.extend({
 					(lu.time && lu.result != 'error') ? _('Updated %s.').format(fmtAgo(+lu.time)) + ' ' : '',
 					(st.auto_update === false) ? _('Automatic updates are off.')
 						: st.next_update ? _('Next update in %s.').format(fmtIn(st.next_update)) : '' ]));
+		}
+		else if (geoWait) {
+			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot ' + (geoWait.block ? 'bad' : 'warn') }), _('Waiting for the geo files'),
+				E('span', { 'class': 'gg-state-sep' }, '·'), country(st.profile_used, true) ]));
+			main.push(E('p', { 'class': 'gg-meta' }, [
+				(geoWait.state == 'failed' && geoWait.next)
+					? _('Couldn’t download the geo files from GitHub. Next try in %s.').format(fmtIn(geoWait.next))
+					: E('span', { 'class': 'spinning' }, _('Downloading the geo files from GitHub after the restart (about 28 MB)…')),
+				' ', geoWait.block ? _('Until then devices at home have no internet.') : _('Until then devices at home use the regular internet.') ]));
 		}
 		else {
 			var state = (problem && problem.crashed) ? problem.state : null;
@@ -887,7 +898,7 @@ return view.extend({
 		// the on/off button keeps its place whatever the state; Stop then Start is the restart
 		if (hasConfig)
 			main.push(E('div', { 'class': 'gg-actions' }, [
-				running ? button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') : button('cbi-button-apply', _('Start'), 'handleInit', 'start'),
+				(running || geoWait) ? button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') : button('cbi-button-apply', _('Start'), 'handleInit', 'start'),
 				button('cbi-button-action', _('Update now'), 'handleUpdate') ]));
 
 		var body = [

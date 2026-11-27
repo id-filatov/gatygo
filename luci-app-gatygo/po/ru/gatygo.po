@@ -790,6 +790,26 @@ msgid "Next update in %s."
 msgstr "Следующее обновление через %s."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Waiting for the geo files"
+msgstr "Ждёт geo-файлы"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Couldn’t download the geo files from GitHub. Next try in %s."
+msgstr "Не удалось скачать geo-файлы с GitHub. Следующая попытка через %s."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Downloading the geo files from GitHub after the restart (about 28 MB)…"
+msgstr "После перезапуска скачиваются geo-файлы с GitHub (около 28 МБ)…"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Until then devices at home have no internet."
+msgstr "До тех пор у устройств дома нет интернета."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Until then devices at home use the regular internet."
+msgstr "До тех пор устройства дома работают через обычный интернет."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Disconnected"
 msgstr "Отключено"
 
