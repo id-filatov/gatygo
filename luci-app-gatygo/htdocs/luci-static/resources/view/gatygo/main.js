@@ -825,9 +825,11 @@ return view.extend({
 			main.push(E('p', { 'class': 'gg-state' }, [ E('span', { 'class': 'gg-dot ' + (geoWait.block ? 'bad' : 'warn') }), _('Waiting for the geo files'),
 				E('span', { 'class': 'gg-state-sep' }, '·'), country(st.profile_used, true) ]));
 			main.push(E('p', { 'class': 'gg-meta' }, [
-				(geoWait.state == 'failed')
+				(geoWait.state == 'unfit')
+					? _('Loyalsoldier’s new geo files lack what the rules of your subscription need. Update now gets the subscription again.')
+				: (geoWait.state == 'failed')
 					? _('Couldn’t download the geo files from GitHub. Trying again every minute.')
-					: E('span', { 'class': 'spinning' }, _('Downloading the geo files from GitHub after the restart (about 28 MB)…')),
+					: E('span', { 'class': 'spinning' }, _('Downloading the geo files from GitHub after a reboot (about 28 MB)…')),
 				' ', geoWait.block ? _('Until then devices at home have no internet.') : _('Until then devices at home use the regular internet.') ]));
 		}
 		else {
@@ -896,10 +898,14 @@ return view.extend({
 				'click': (arg != null) ? ui.createHandlerFn(this, handler, arg) : ui.createHandlerFn(this, handler) }, label);
 		}, this);
 		// the on/off button keeps its place whatever the state; Stop then Start is the restart
-		if (hasConfig)
+		if (hasConfig) {
+			var update = button('cbi-button-action', _('Update now'), 'handleUpdate');
+			// while the geo files download the update would only wait for them
+			if (geoWait && geoWait.state != 'unfit') update.disabled = true;
 			main.push(E('div', { 'class': 'gg-actions' }, [
 				(running || geoWait) ? button('cbi-button-negative', _('Stop'), 'handleInit', 'stop') : button('cbi-button-apply', _('Start'), 'handleInit', 'start'),
-				button('cbi-button-action', _('Update now'), 'handleUpdate') ]));
+				update ]));
+		}
 
 		var body = [
 			E('div', { 'class': 'gg-card-head' }, [

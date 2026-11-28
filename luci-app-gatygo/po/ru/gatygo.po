@@ -794,12 +794,16 @@ msgid "Waiting for the geo files"
 msgstr "Ждёт geo-файлы"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Loyalsoldier’s new geo files lack what the rules of your subscription need. Update now gets the subscription again."
+msgstr "В новых geo-файлах Loyalsoldier нет того, что нужно правилам вашей подписки. «Обновить сейчас» заново скачает подписку."
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Couldn’t download the geo files from GitHub. Trying again every minute."
 msgstr "Не удалось скачать geo-файлы с GitHub. Новая попытка — каждую минуту."
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Downloading the geo files from GitHub after the restart (about 28 MB)…"
-msgstr "После перезапуска скачиваются geo-файлы с GitHub (около 28 МБ)…"
+msgid "Downloading the geo files from GitHub after a reboot (about 28 MB)…"
+msgstr "После перезагрузки скачиваются geo-файлы с GitHub (около 28 МБ)…"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Until then devices at home have no internet."
@@ -846,16 +850,16 @@ msgid "Country"
 msgstr "Страна"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
+msgid "Update now"
+msgstr "Обновить сейчас"
+
+#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Stop"
 msgstr "Остановить"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Start"
 msgstr "Запустить"
-
-#: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
-msgid "Update now"
-msgstr "Обновить сейчас"
 
 #: luci-app-gatygo/htdocs/luci-static/resources/view/gatygo/main.js
 msgid "Advanced: settings, nodes, log"
