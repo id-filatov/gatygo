@@ -52,9 +52,11 @@ gatygo_select_result() {
     _gatygo_record "$GATYGO_RUN/last-select.env" "$@"
 }
 
-# gatygo_xray_test CONFIG ASSET_DIR — `xray run -test`; on failure log the tail of xray's output
+# gatygo_xray_test CONFIG ASSET_DIR — `xray run -test`; on failure log the tail of xray's output and
+# keep the whole of it in $GATYGO_RUN/xray-test.log (the update looks there for what failed)
 gatygo_xray_test() {
     _gatygo_out=$(XRAY_LOCATION_ASSET=$2 "$GATYGO_XRAY" run -test -c "$1" 2>&1) && return 0
+    mkdir -p "$GATYGO_RUN" && printf '%s\n' "$_gatygo_out" > "$GATYGO_RUN/xray-test.log"
     gatygo_log error "xray -test failed: $(printf '%s' "$_gatygo_out" | grep -v -e '^Xray ' -e '^A unified' | tail -n 3 | tr '\n' ' ')"
     return 1
 }
@@ -107,6 +109,7 @@ gatygo_swap() {
 # The swap outcome (changed|unchanged) goes to GATYGO_SWAP_RESULT and to $GATYGO_RUN/swap-result,
 # because callers usually run this inside a command substitution.
 gatygo_apply_profile() {
+    rm -f "$GATYGO_RUN/xray-test.log"
     _gatygo_t=$(mktemp -d)
     _gatygo_prof=$(gatygo_sub_select "$1" "$GATYGO_PROFILE" "$_gatygo_t/selected.json")
     _gatygo_sel=$?
@@ -265,7 +268,10 @@ gatygo_update() {
             _gatygo_geo_def=1
             : > "$_gatygo_w/geo/.default"
         fi
-        if [ "$_gatygo_geo_def" = 1 ] && gatygo_geo_failed_recently "$_gatygo_body_sha" "${_gatygo_urls% *}"; then
+        if [ "$_gatygo_geo_def" = 1 ] && gatygo_geo_restoring; then
+            # the download after a reboot runs: not a second 28 MB at the same time
+            _gatygo_geo_fail=3
+        elif [ "$_gatygo_geo_def" = 1 ] && gatygo_geo_failed_recently "$_gatygo_body_sha" "${_gatygo_urls% *}"; then
             _gatygo_geo_fail=2
         else
             gatygo_geo_fetch "${_gatygo_urls% *}" "${_gatygo_urls#* }" "$_gatygo_w/geo"
@@ -285,7 +291,10 @@ gatygo_update() {
         _gatygo_why=''
         if [ "$_gatygo_geo_fail" = 1 ]; then
             _gatygo_why=' (the geo files could not be downloaded)'
-        elif [ "$_gatygo_geo_fail" = 2 ] || [ "$_gatygo_geo_dl$_gatygo_geo_def" = 11 ]; then
+        elif [ "$_gatygo_geo_fail" = 3 ]; then
+            _gatygo_why=' (the geo files are being downloaded)'
+        elif [ "$_gatygo_geo_fail" = 2 ] || { [ "$_gatygo_geo_dl$_gatygo_geo_def" = 11 ] \
+            && grep -qiE 'geosite|geoip' "$GATYGO_RUN/xray-test.log" 2>/dev/null; }; then
             _gatygo_why=" (with Loyalsoldier's geo files; they are downloaded again tomorrow or when the subscription changes)"
             [ "$_gatygo_geo_fail" = 2 ] || { mkdir -p "$GATYGO_RUN" && printf '%s %s\n' "$_gatygo_body_sha" "${_gatygo_urls% *}" > "$GATYGO_RUN/geo-failed"; }
         fi

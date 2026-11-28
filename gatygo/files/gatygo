@@ -183,6 +183,13 @@ cmd_update() {
 		gatygo_log info "update skipped: automatic updates are off and neither the link nor Send device ID changed"
 	}
 	_unneeded "${1:-}" && return 0
+	# the VPN waits for the default geo files and their download runs: it starts the VPN on the
+	# config there is (with the settings of then), the next update brings the provider's news.
+	# Save & Apply still goes on: a new link must not wait for the next update.
+	if [ "${1:-}" != settings ] && [ -f "$GATYGO_RUN/geo-wait" ] && gatygo_geo_restoring; then
+		gatygo_log info "update skipped: the geo files are being downloaded"
+		return 0
+	fi
 	# Save & Apply while an update runs with the settings from before: wait for it to end (with
 	# updates only by hand nothing else would download the new link), then look again (that update
 	# may have been the download of this very link); an upgrade is not waited for
@@ -211,6 +218,11 @@ cmd_update() {
 		gatygo_load_config
 		gatygo_dns_apply "$GATYGO_STATE/xray.json"
 		gatygo_cron_sync "$(gatygo_update_schedule)"
+	# the VPN waited with default geo files that did not fit its config: an update that went
+	# through brought a config and files that do
+	elif [ "$_rc" = 0 ] && [ -f "$GATYGO_RUN/geo-wait" ] && [ ! -f "$GATYGO_RUN/stopped" ]; then
+		gatygo_update_unlock
+		"$GATYGO_INIT" start >/dev/null 2>&1
 	fi
 	return $_rc
 }
@@ -308,6 +320,12 @@ cmd_apply() {
 	done
 	trap gatygo_update_unlock EXIT
 	_upgrade_rebuilds && return 0
+	# the VPN waits for the default geo files (lib/geo.sh): no config can be tested without them,
+	# and the start they bring builds it with the settings as they are then
+	if gatygo_geo_waiting; then
+		gatygo_log info "apply: once the geo files are here"
+		return 0
+	fi
 	_stage=$(mktemp -d)
 	gatygo_apply_profile "$GATYGO_STATE/subscription.json" "$_stage" >/dev/null
 	_rc=$?

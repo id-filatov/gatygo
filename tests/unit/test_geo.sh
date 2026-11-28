@@ -66,6 +66,9 @@ rm -f "$tmp/stage/"*.dat
 # --- installed from these URLs (recorded): conditional GET gets 304, nothing staged
 gatygo_geo_record "$GS" "$GI"
 assert_exit 0 "record matches the URLs" gatygo_geo_source_matches "$GS" "$GI"
+_ino=$(ls -i "$GATYGO_STATE/geo-source.env" | awk '{print $1}')
+gatygo_geo_record "$GS" "$GI"
+assert_eq "$_ino" "$(ls -i "$GATYGO_STATE/geo-source.env" | awk '{print $1}')" "the same record again: not rewritten (the router's flash)"
 assert_exit 1 "record does not match other URLs" gatygo_geo_source_matches "$GS" http://127.0.0.1:8788/geo/geoip2.dat
 gatygo_geo_fetch "$GS" "$GI" "$tmp/stage"; _rc=$?
 assert_eq "3" "$_rc" "unchanged on the server -> exit 3"
@@ -163,7 +166,9 @@ gatygo_geo_record "$GS" "$GI"
 assert_exit 1 "recorded from the provider's URLs -> not the default files" gatygo_geo_source_default
 
 # --- after a reboot (RAM is empty, the links on the flash lead nowhere): only the default files
-#     come again, the subscription is not asked
+#     come again, the subscription is not asked; xray tests them against the installed config
+printf '{"outbounds":[{"tag":"direct","protocol":"freedom"}],"routing":{"rules":[{"type":"field","domain":["geosite:ads"],"outboundTag":"direct"},{"type":"field","ip":["geoip:private"],"outboundTag":"direct"}]}}' > "$GATYGO_STATE/xray.json"
+cp "$GATYGO_STATE/xray.json" "$tmp/fits.json"
 rm -f "$GATYGO_ASSETS"/*.dat; rm -rf "$GATYGO_RUN/geo"
 for n in geosite.dat geoip.dat; do ln -s "$GATYGO_RUN/geo/$n" "$GATYGO_ASSETS/$n"; done
 gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
@@ -187,6 +192,14 @@ GATYGO_GEO_DEFAULT_BASE=$_db
 gatygo_geo_record "$GS" "$GI"
 gatygo_geo_restore; assert_eq "2" "$?" "restore: the provider's files -> exit 2, nothing done"
 assert_exit 1 "restore: the provider's files -> nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+# the new default files lack what the config names (a release without a tag): not put in place
+gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
+sed 's/geosite:ads/geosite:no-such-tag/' "$tmp/fits.json" > "$GATYGO_STATE/xray.json"
+_u0=$(grep -c "geo: Loyalsoldier's geo files do not fit the config" "$SYSLOG_STUB_FILE")
+gatygo_geo_restore; assert_eq "4" "$?" "restore: files that do not fit the config -> exit 4"
+assert_exit 1 "restore: files that do not fit -> nothing in RAM" test -e "$GATYGO_RUN/geo/geosite.dat"
+assert_eq "$((_u0 + 1))" "$(grep -c "geo: Loyalsoldier's geo files do not fit the config" "$SYSLOG_STUB_FILE")" "the log says why"
+cp "$tmp/fits.json" "$GATYGO_STATE/xray.json"
 
 # --- an update holds its lock: the files are downloaded, but not put in place under its feet
 rm -rf "$GATYGO_RUN/geo"; gatygo_geo_record "$DB/geosite.dat" "$DB/geoip.dat" default
@@ -197,7 +210,10 @@ kill "$_u"; wait "$_u" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
 
 # --- the VPN waits for the default files: they come in the background, away from procd's lock
 #     (rc.common holds it on fd 1000), once a minute until they are there; then the service starts
-export GATYGO_INIT=/src/tests/stubs/gatygo-init GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_RETRY_DELAY=1
+# the init script stand-in notes the start and whether the download asked for it
+printf '#!/bin/sh\necho "$1 ${GATYGO_GEO_START:-}" >> %s\n' "$tmp/init.log" > "$tmp/init-stub"; chmod +x "$tmp/init-stub"
+export GATYGO_INIT="$tmp/init-stub" GATYGO_INIT_LOG="$tmp/init.log" GATYGO_GEO_RETRY_DELAY=1
+assert_eq "2 3600 3600" "$(_gatygo_geo_backoff 1) $(_gatygo_geo_backoff 2000) $(_gatygo_geo_backoff 3600)" "no VPN waits: each pause doubles, up to an hour"
 uci set gatygo.main.enabled=1
 _wait() { _gatygo_env_get "$GATYGO_RUN/geo-wait" "$1"; }
 _gatygo_geo_wait downloading
@@ -212,6 +228,7 @@ _e0=$(_lines "could not be downloaded; trying again every minute$"); _d0=$(_line
 exec 1000>"$tmp/procd.lock"
 gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry")
 exec 1000>&-
+assert_exit 0 "the download runs" test -n "$_p" -a -d "/proc/$_p"
 assert_eq "" "$(readlink "/proc/$_p/fd/1000")" "the download does not hold the init script's lock"
 # the first try may have failed already: either state tells the page the VPN waits
 case $(_wait GATYGO_GEO_WAIT) in downloading | failed) _t_ok ;; *) _t_bad "the page is told the VPN waits: $(_wait GATYGO_GEO_WAIT)" ;; esac
@@ -225,7 +242,7 @@ assert_eq "$((_e0 + 1)) $((_d0 + 1))" "$(_lines "could not be downloaded; trying
 assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "no start while the files are missing"
 mv "$tmp/geo-away/"*.dat "$tmp/geo-src/"
 wait "$_p"
-assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started"
+assert_eq "start 1" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started, as the download's start"
 for n in geosite.dat geoip.dat; do
     assert_eq "$(sha256sum < "$FIXTURES/geo/$n")" "$(sha256sum < "$GATYGO_RUN/geo/$n")" "the download in the background put $n in RAM"
 done
@@ -264,7 +281,26 @@ sleep 2
 assert_eq "failed 1" "$(_wait GATYGO_GEO_WAIT) $(_wait GATYGO_GEO_BLOCK)" "the page is told as the settings are now (block)"
 mv "$tmp/geo-away/"*.dat "$tmp/geo-src/"
 wait "$_p"
-assert_eq "start" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started"
+assert_eq "start 1" "$(cat "$GATYGO_INIT_LOG")" "the files are there: the service is started, as the download's start"
+
+# an update holds its lock when the files are downloaded: the page says they are downloading
+rm -rf "$GATYGO_RUN/geo"; : > "$GATYGO_INIT_LOG"
+mkdir -p "$GATYGO_RUN/update.lock"; sleep 30 & _u=$!; echo "$_u" > "$GATYGO_RUN/update.lock/pid"
+gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry")
+sleep 2
+assert_eq "downloading" "$(_wait GATYGO_GEO_WAIT)" "an update holds its lock: downloading, not failed"
+kill "$_u"; wait "$_u" 2>/dev/null; rm -rf "$GATYGO_RUN/update.lock"
+wait "$_p"
+assert_eq "start 1" "$(cat "$GATYGO_INIT_LOG")" "the update is over: the files are put in place and the service started"
+# the new files do not fit the config: the VPN waits with them refused, no more downloads
+rm -rf "$GATYGO_RUN/geo"; : > "$GATYGO_INIT_LOG"
+sed 's/geosite:ads/geosite:no-such-tag/' "$tmp/fits.json" > "$GATYGO_STATE/xray.json"
+gatygo_geo_restore_later start; _p=$(cat "$GATYGO_RUN/geo-retry"); wait "$_p"
+assert_eq "unfit" "$(_wait GATYGO_GEO_WAIT)" "files that do not fit: the page is told"
+assert_exit 0 "they keep the VPN waiting" gatygo_geo_waiting
+assert_exit 1 "no download left running" test -e "$GATYGO_RUN/geo-retry"
+assert_eq "" "$(cat "$GATYGO_INIT_LOG")" "files that do not fit: no start"
+cp "$tmp/fits.json" "$GATYGO_STATE/xray.json"; rm -f "$GATYGO_RUN/geo-wait"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

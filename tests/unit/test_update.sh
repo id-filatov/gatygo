@@ -171,6 +171,15 @@ gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "a due check of the defau
 assert_eq "$((_before + 2))" "$(_def_requests)" "due: both default files asked again"
 assert_eq "$((_l0 + 1))" "$(_loyal)" "304: no line about Loyalsoldier's"
 touch "$tmp/geo-src/"*.dat
+# the default files are being downloaded in the background (after a reboot): an update leaves them
+# to it, not a second 28 MB at the same time
+rm -f "$GATYGO_RUN/geo/"*.dat; sleep 30 & _w=$!; echo "$_w" > "$GATYGO_RUN/geo-retry"
+_before=$(_def_requests)
+gatygo_update 2>>"$tmp/stderr.log"
+assert_eq "$_before" "$(_def_requests)" "a download runs in the background: the update does not download them too"
+case $(_last MESSAGE) in *"the geo files are being downloaded"*) _t_ok ;; *) _t_bad "the error says they are being downloaded: $(_last MESSAGE)" ;; esac
+kill "$_w"; wait "$_w" 2>/dev/null; rm -f "$GATYGO_RUN/geo-retry"
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "no download in the background: the update brings them"
 # the xray test of a config gets links to the default files in RAM, not 28 MB copies
 mkdir -p "$tmp/st-none" "$tmp/st-test"
 gatygo_stage_assets "$tmp/st-none" "$tmp/st-test"
@@ -229,6 +238,22 @@ assert_eq "$((_before + 4))" "$(_bad_requests)" "a day later: downloaded again"
 GATYGO_GEO_DEFAULT_BASE=$_db
 gatygo_update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "default files that fit: the update succeeds"
 assert_exit 1 "a success drops the mark" test -e "$GATYGO_RUN/geo-failed"
+
+# --- the config fails for something else than its geo files: no mark against them
+GATYGO_STATE="$tmp/state-badport" GATYGO_ASSETS="$tmp/assets-badport"; mkdir -p "$GATYGO_ASSETS"
+rm -f "$GATYGO_RUN/geo-failed" "$GATYGO_RUN/geo/"*.dat; uci set gatygo.main.tproxy_port=abc
+gatygo_update 2>>"$tmp/stderr.log"; assert_eq "1" "$?" "a bad port -> error"
+assert_exit 1 "not the geo files: no mark against them" test -e "$GATYGO_RUN/geo-failed"
+case $(_last MESSAGE) in *Loyalsoldier*) _t_bad "the error does not blame the geo files: $(_last MESSAGE)" ;; *) _t_ok ;; esac
+uci delete gatygo.main.tproxy_port
+
+# --- the VPN waited with default files that did not fit: an update that goes through starts it
+GATYGO_STATE="$tmp/state-unfit" GATYGO_ASSETS="$tmp/assets-unfit"; mkdir -p "$GATYGO_ASSETS"
+printf "GATYGO_GEO_WAIT='unfit'\nGATYGO_GEO_NEXT=''\nGATYGO_GEO_BLOCK='1'\n" > "$GATYGO_RUN/geo-wait"
+: > "$GATYGO_INIT_LOG"
+GATYGO_INIT_RUNNING_RC=1 sh /src/gatygo/files/gatygo update 2>>"$tmp/stderr.log"; assert_eq "0" "$?" "the update goes through"
+assert_eq "running start" "$(tr '\n' ' ' < "$GATYGO_INIT_LOG" | sed 's/ $//')" "the VPN that waited is started"
+rm -f "$GATYGO_RUN/geo-wait"
 
 # --- the default files cannot be downloaded: no config, and the error says why
 GATYGO_STATE="$tmp/state-nodefault" GATYGO_ASSETS="$tmp/assets-nodefault"; mkdir -p "$GATYGO_ASSETS"
