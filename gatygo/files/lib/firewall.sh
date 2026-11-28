@@ -16,11 +16,21 @@
 #
 # tproxy finds no socket when xray is not there (it stopped by itself and on_crash=block keeps the
 # rules, or it waits for its geo files after a reboot): the packet would go on to the regular
-# internet around the VPN. Such a packet is refused instead, as one over the caps.
+# internet around the VPN. Such a packet is refused instead, as one over the caps. IPv4 only:
+# tproxy takes no IPv6 (ipv6_block, forward6), and DHCPv6 to the router's multicast must pass.
+#
+# gatygo_nft_ruleset closed: the VPN waits for its geo files with on_crash=block, and the router's
+# DNS is the regular one for their download: the home network's DNS is refused as well (the
+# router's own lookups do not pass prerouting).
 
 . "${GATYGO_LIB:-/usr/lib/gatygo}/config.sh"
 
 gatygo_nft_ruleset() {
+    _gatygo_dns53=''
+    if [ "${1:-}" = closed ]; then
+        _gatygo_dns53=$(printf '\t\tmeta l4proto { tcp, udp } th dport 53 counter jump conn_refuse\n_')
+        _gatygo_dns53=${_gatygo_dns53%_}
+    fi
     _gatygo_ifs=$(printf '%s' "$GATYGO_LAN_IFACES" | tr -s ' ' | sed 's/ /, /g')
     _gatygo_res=$(printf '%s' "$GATYGO_RESERVED4" | sed 's/ /, /g')
     _gatygo_res6=$(printf '%s' "$GATYGO_LOCAL6" | sed 's/ /, /g')
@@ -46,13 +56,13 @@ table inet gatygo {
 		type filter hook prerouting priority mangle; policy accept;
 		iifname != @lan_ifaces return
 		meta mark $GATYGO_MARK return
-		fib daddr type local return
+${_gatygo_dns53}		fib daddr type local return
 		ip daddr @reserved4 return
 		meta l4proto { tcp, udp } th dport 53 return
 		meta l4proto { tcp, udp } ct state new add @conn_dev { ip saddr ct count over $GATYGO_CONN_PER_DEVICE } counter jump conn_refuse
 		meta nfproto ipv4 meta l4proto { tcp, udp } ct state new ct count over $GATYGO_CONN_TOTAL counter jump conn_refuse
 		meta l4proto { tcp, udp } tproxy ip to 127.0.0.1:$GATYGO_TPROXY_PORT meta mark set 0x1 counter accept
-		meta l4proto { tcp, udp } counter jump conn_refuse
+		meta nfproto ipv4 meta l4proto { tcp, udp } counter jump conn_refuse
 	}
 	chain conn_refuse {
 		meta l4proto tcp reject with tcp reset
@@ -77,9 +87,9 @@ RULES
     echo "}"
 }
 
-# gatygo_fw_apply — load the ruleset (replacing any previous one) and the policy route
+# gatygo_fw_apply [closed] — load the ruleset (replacing any previous one) and the policy route
 gatygo_fw_apply() {
-    gatygo_nft_ruleset | nft -f - || { gatygo_log error "firewall: nft refused the ruleset"; return 1; }
+    gatygo_nft_ruleset "${1:-}" | nft -f - || { gatygo_log error "firewall: nft refused the ruleset"; return 1; }
     ip rule del fwmark 0x1 lookup 100 2>/dev/null
     ip rule add fwmark 0x1 lookup 100
     ip route replace local default dev lo table 100

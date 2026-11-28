@@ -6,6 +6,9 @@
 
 gatygo_load_config
 assert_eq "$(cat "$FIXTURES/nft-default.txt")" "$(gatygo_nft_ruleset)" "default ruleset"
+# the VPN waits for its geo files with on_crash=block: no DNS for the home network either (the
+# router's own lookups do not pass prerouting)
+assert_eq "$(cat "$FIXTURES/nft-closed.txt")" "$(gatygo_nft_ruleset closed)" "closed: DNS from the home network refused too"
 
 uci set gatygo.main.lan_ifaces="br-lan eth2"
 uci set gatygo.main.mark=0x10
