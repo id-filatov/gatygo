@@ -167,7 +167,24 @@ UBUS_STUB_RUNNING=1 service_started
 exec 1000>&-
 assert_exit 0 "the boot-time refresh waits in the background" pgrep -f "^sleep 30$"
 assert_eq "0" "$(_holders)" "the boot-time refresh does not hold the init script's lock"
-pkill -f "^sleep 30$" 2>/dev/null
+# the refresh itself goes, not only its sleep (which would let it run the update right away)
+for _s in $(pgrep -f "^sleep 30$"); do kill "$(cut -d' ' -f4 "/proc/$_s/stat")" "$_s" 2>/dev/null; done
+
+# --- a start while an update runs (the boot-time refresh, cron) and the config is missing: it waits
+#     for that update instead of skipping its own, and xray starts only with what it needs
+_reset; rm -f "$GATYGO_STATE/xray.json"; mkdir -p "$GATYGO_RUN/update.lock"
+( sleep 2; cp "$tmp/nogeo.json" "$GATYGO_STATE/xray.json"; rm -rf "$GATYGO_RUN/update.lock" ) &
+_b=$!; echo "$_b" > "$GATYGO_RUN/update.lock/pid"
+start_service; assert_eq "0" "$?" "the update that ran brought the config: the start goes on"
+assert_eq "" "$(cat "$tmp/cli.log")" "no update of its own"
+assert_eq "open xray open watch" "$(tr '\n' ' ' < "$tmp/procd.log" | sed 's/ $//')" "xray runs on what the update brought"
+wait "$_b" 2>/dev/null
+# nothing brings it: its own update, and no xray without a config
+_reset; rm -f "$GATYGO_STATE/xray.json"
+start_service; assert_eq "1" "$?" "still no config after its own update: no start"
+assert_eq "update" "$(cat "$tmp/cli.log")" "it downloaded itself"
+assert_eq "" "$(cat "$tmp/procd.log")" "no xray without a config"
+cp "$tmp/geo.json" "$GATYGO_STATE/xray.json"
 
 kill $_mock 2>/dev/null; rm -rf "$tmp"
 report

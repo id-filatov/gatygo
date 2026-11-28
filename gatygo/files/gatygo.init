@@ -27,6 +27,11 @@ _gatygo_env() {
 	gatygo_load_config
 }
 
+# _gatygo_missing — exit 0 when the config, the xray core or a geo file it names is not there
+_gatygo_missing() {
+	[ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"
+}
+
 start_service() {
 	_gatygo_env
 	[ "$GATYGO_ENABLED" = 1 ] || return 0
@@ -59,14 +64,22 @@ start_service() {
 		gatygo_log info "geo: downloading Loyalsoldier's geo files again in the background (they are kept in RAM)"
 		gatygo_geo_restore_later
 	fi
-	# an update brings it all: the xray core (once per gatygo release), the config, the geo files
-	if [ ! -s "$GATYGO_STATE/xray.json" ] || [ ! -x "$GATYGO_XRAY" ] || gatygo_geo_missing "$GATYGO_STATE/xray.json"; then
+	# an update brings it all: the xray core (once per gatygo release), the config, the geo files.
+	# One that runs already (the boot-time refresh, cron) brings the same: it is waited for, not
+	# skipped by ours; xray starts only with what it needs.
+	if _gatygo_missing; then
 		gatygo_log info "no cached config, xray core or geo files yet, downloading"
 		gatygo_dns_restore
-		/usr/bin/gatygo update || {
+		_gatygo_i=0
+		while gatygo_updating && [ "$_gatygo_i" -lt 300 ]; do
+			_gatygo_i=$((_gatygo_i + 1))
+			sleep 1
+		done
+		_gatygo_missing && /usr/bin/gatygo update
+		if _gatygo_missing; then
 			gatygo_log error "cannot start without a config, a core and the geo files"
 			return 1
-		}
+		fi
 	fi
 	# xray starts now: whatever waited for the default geo files is over; when their download asked
 	# for this start, the config is built again with the settings of now (a Save & Apply meanwhile
